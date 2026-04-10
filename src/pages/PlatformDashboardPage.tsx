@@ -45,7 +45,6 @@ import {
 } from "@/components/ui/tooltip";
 import {
   Eye,
-  Mail,
   Pencil,
   Plus,
   ToggleLeft,
@@ -160,7 +159,7 @@ export function PlatformDashboardPage() {
   const [confirm, setConfirm] = useState<null | {
     tenantId: string;
     tenantName: string;
-    kind: "activate" | "deactivate" | "reinvite" | "delete";
+    kind: "activate" | "deactivate" | "delete";
   }>(null);
 
   const setStatus = useMutation({
@@ -300,31 +299,6 @@ export function PlatformDashboardPage() {
                     }
                   />
                   <TooltipContent>Edit</TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        aria-label="Re-invite tenant admin"
-                        disabled={setStatus.isPending || deleteTenant.isPending}
-                        onClick={() =>
-                          setConfirm({
-                            tenantId: t.id,
-                            tenantName: t.name,
-                            kind: "reinvite",
-                          })
-                        }
-                      />
-                    }
-                  >
-                    <Mail className="size-4" />
-                  </TooltipTrigger>
-                  <TooltipContent>Re-invite</TooltipContent>
                 </Tooltip>
 
                 <Tooltip>
@@ -548,11 +522,9 @@ export function PlatformDashboardPage() {
             <AlertDialogTitle>
               {confirm?.kind === "delete"
                 ? "Delete tenant?"
-                : confirm?.kind === "reinvite"
-                  ? "Re-send invitation?"
-                  : confirm?.kind === "activate"
-                    ? "Activate tenant?"
-                    : "Deactivate tenant?"}
+                : confirm?.kind === "activate"
+                  ? "Activate tenant?"
+                  : "Deactivate tenant?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirm?.kind === "delete" ? (
@@ -560,11 +532,6 @@ export function PlatformDashboardPage() {
                   This will permanently delete{" "}
                   <strong>{confirm?.tenantName}</strong> and all related data.
                   Users will no longer be able to log in.
-                </>
-              ) : confirm?.kind === "reinvite" ? (
-                <>
-                  This will generate a new invite link and email it again to the
-                  last invited admin for <strong>{confirm?.tenantName}</strong>.
                 </>
               ) : confirm?.kind === "activate" ? (
                 <>
@@ -588,29 +555,6 @@ export function PlatformDashboardPage() {
                   deleteTenant.mutate(confirm.tenantId, {
                     onSettled: () => setConfirm(null),
                   });
-                  return;
-                }
-                if (confirm.kind === "reinvite") {
-                  try {
-                    const { data } = await api.post<{ inviteLink: string }>(
-                      `/api/platform/tenants/${confirm.tenantId}/reinvite`,
-                    );
-                    await qc.invalidateQueries({
-                      queryKey: ["tenants"],
-                      exact: false,
-                    });
-                    await navigator.clipboard.writeText(data.inviteLink);
-                    toast.success("Invitation re-sent (link copied)");
-                  } catch (e) {
-                    const msg = isAxiosError(e)
-                      ? (e.response?.data?.error?.message ??
-                        e.response?.data?.error ??
-                        e.message)
-                      : "Could not re-invite";
-                    toast.error(String(msg));
-                  } finally {
-                    setConfirm(null);
-                  }
                   return;
                 }
 

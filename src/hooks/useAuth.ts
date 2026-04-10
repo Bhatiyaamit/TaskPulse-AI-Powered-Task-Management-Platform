@@ -4,7 +4,7 @@ import { api } from "@/api/client";
 export type Me = {
   user: {
     id: string;
-    email: string;
+    username: string;
     name: string;
     phone?: string | null;
     birthDate?: string | null;

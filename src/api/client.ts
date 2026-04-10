@@ -22,8 +22,7 @@ api.interceptors.request.use(async (config) => {
     config.method &&
     ["post", "put", "patch", "delete"].includes(config.method) &&
     !config.url?.includes("/auth/login") &&
-    !config.url?.includes("/auth/refresh") &&
-    !config.url?.includes("/auth/accept-invite")
+    !config.url?.includes("/auth/refresh")
   ) {
     const t = await ensureCsrf();
     config.headers["X-CSRF-Token"] = t;

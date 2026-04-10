@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import { api } from "@/api/client";
 import { useMe } from "@/hooks/useAuth";
+import { P } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,7 +38,7 @@ const TASK_TYPES = [
   { value: "MEETING_FOLLOWUP", label: "Meeting follow-up" },
 ] as const;
 
-type UserOption = { id: string; name: string; email: string };
+type UserOption = { id: string; name: string; username: string };
 
 type TaskPayload = {
   id: string;
@@ -70,8 +71,7 @@ export function TaskEditPage() {
   const [sp] = useSearchParams();
   const returnTo = sp.get("returnTo");
   const { data: me } = useMe();
-  const isStaffOrSupporter =
-    me?.user.roleCode === "STAFF" || me?.user.roleCode === "SUPPORTER";
+  const canAssignOthers = Boolean(me?.permissions?.includes(P.TASKS_ASSIGN));
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -147,7 +147,7 @@ export function TaskEditPage() {
   function userLabelForValue(v: string) {
     if (v === UNASSIGNED) return "Unassigned";
     const u = assignable?.find((x) => x.id === v);
-    return u?.name || u?.email || v;
+    return u?.name || u?.username || v;
   }
 
   function priorityLabelForValue(v: string) {
@@ -210,13 +210,13 @@ export function TaskEditPage() {
       statusId,
       priority,
       taskType,
-      ...(isStaffOrSupporter
-        ? {}
-        : {
+      ...(canAssignOthers
+        ? {
             assignedToId: toNull(assignedToId),
             reviewerId: toNull(reviewerId),
             supporterId: toNull(supporterId),
-          }),
+          }
+        : {}),
       startDate: startDate || null,
       dueDate: dueDate || null,
       estimatedMinutes: estimated,
@@ -230,7 +230,7 @@ export function TaskEditPage() {
         <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
         {users.map((u) => (
           <SelectItem key={u.id} value={u.id}>
-            {u.name || u.email}
+            {u.name || u.username}
           </SelectItem>
         ))}
       </>
@@ -322,7 +322,7 @@ export function TaskEditPage() {
 
           <Separator />
 
-          {isStaffOrSupporter ? null : (
+          {!canAssignOthers ? null : (
             <>
               <section className="space-y-4">
                 <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">

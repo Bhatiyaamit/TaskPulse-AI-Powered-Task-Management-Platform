@@ -7,10 +7,16 @@ import { toast } from "sonner";
 import { api, ensureCsrf } from "@/api/client";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { AuthShell } from "@/components/layout/AuthShell";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const schema = z
   .object({
@@ -45,7 +51,10 @@ export function ResetPasswordPage() {
     }
     try {
       await ensureCsrf();
-      await api.post("/api/auth/reset-password", { token, password: values.password });
+      await api.post("/api/auth/reset-password", {
+        token,
+        password: values.password,
+      });
       toast.success("Password updated. You can sign in now.");
       navigate("/login");
     } catch (e) {
@@ -67,20 +76,17 @@ export function ResetPasswordPage() {
           <CardHeader>
             <CardTitle>Invalid link</CardTitle>
             <CardDescription>
-              This reset link is missing a token. Open the link from your email or request a new
-              one.
+              This reset link is missing a token. Use the full link you were
+              given, or sign in and change your password from your profile.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             <Link
-              to="/forgot-password"
-              className={cn(buttonVariants({ variant: "outline" }), "inline-flex w-full justify-center")}
-            >
-              Request reset
-            </Link>
-            <Link
               to="/login"
-              className={cn(buttonVariants({ variant: "ghost" }), "inline-flex w-full justify-center")}
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "inline-flex w-full justify-center",
+              )}
             >
               Back to sign in
             </Link>
@@ -96,7 +102,10 @@ export function ResetPasswordPage() {
       description="Must be at least 8 characters."
       footer={
         <p className="text-center text-sm text-muted-foreground">
-          <Link to="/login" className="text-primary underline-offset-4 hover:underline">
+          <Link
+            to="/login"
+            className="text-primary underline-offset-4 hover:underline"
+          >
             Back to sign in
           </Link>
         </p>
@@ -105,23 +114,23 @@ export function ResetPasswordPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="password">New password</Label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             placeholder="Create a strong password"
             aria-invalid={Boolean(errors.password)}
             {...register("password")}
           />
           {errors.password && (
-            <p className="text-xs text-destructive">{errors.password.message}</p>
+            <p className="text-xs text-destructive">
+              {errors.password.message}
+            </p>
           )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirm">Confirm password</Label>
-          <Input
+          <PasswordInput
             id="confirm"
-            type="password"
             autoComplete="new-password"
             placeholder="Repeat your password"
             aria-invalid={Boolean(errors.confirm)}

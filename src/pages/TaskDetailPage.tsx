@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { api, uploadTaskAttachment } from "@/api/client";
 import { useMe, useHasPermission } from "@/hooks/useAuth";
+import { P } from "@/lib/permissions";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -43,7 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type UserBrief = { id: string; name: string; email: string };
+type UserBrief = { id: string; name: string; username: string };
 
 type TaskActivity = {
   id: string;
@@ -148,8 +149,8 @@ export function TaskDetailPage() {
   const [sp] = useSearchParams();
   const returnTo = sp.get("returnTo")?.trim() || "/tasks";
   const { data: me } = useMe();
-  const canUpdate = useHasPermission("task.update", me);
-  const canReviewPerm = useHasPermission("task.review", me);
+  const canUpdate = useHasPermission(P.TASKS_UPDATE, me);
+  const canReviewPerm = useHasPermission(P.TASKS_REVIEW, me);
 
   const [commentText, setCommentText] = useState("");
   const [timeMinutes, setTimeMinutes] = useState("");
@@ -229,7 +230,7 @@ export function TaskDetailPage() {
       task.reviewer?.id === uid ||
       task.supporter?.id === uid ||
       task.createdBy.id === uid;
-    const hasTeamView = me.permissions.includes("team.view");
+    const hasTeamView = me.permissions.includes(P.USERS_READ);
     const viaHierarchy = hasTeamView && !isParticipant;
     return { isParticipant, viaHierarchy };
   }, [task, me]);
@@ -456,9 +457,9 @@ export function TaskDetailPage() {
                     <p className="text-sm font-medium">
                       {task.assignedTo?.name ?? "—"}
                     </p>
-                    {task.assignedTo?.email && (
+                    {task.assignedTo?.username && (
                       <p className="text-xs text-muted-foreground">
-                        {task.assignedTo.email}
+                        {task.assignedTo.username}
                       </p>
                     )}
                   </div>
@@ -469,9 +470,9 @@ export function TaskDetailPage() {
                     <p className="text-sm font-medium">
                       {task.reviewer?.name ?? "—"}
                     </p>
-                    {task.reviewer?.email && (
+                    {task.reviewer?.username && (
                       <p className="text-xs text-muted-foreground">
-                        {task.reviewer.email}
+                        {task.reviewer.username}
                       </p>
                     )}
                   </div>
@@ -482,9 +483,9 @@ export function TaskDetailPage() {
                     <p className="text-sm font-medium">
                       {task.supporter?.name ?? "—"}
                     </p>
-                    {task.supporter?.email && (
+                    {task.supporter?.username && (
                       <p className="text-xs text-muted-foreground">
-                        {task.supporter.email}
+                        {task.supporter.username}
                       </p>
                     )}
                   </div>

@@ -78,7 +78,7 @@ export function UserMenu({ me }: { me: Me }) {
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium">{me.user.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {me.user.email}
+                  {me.user.username}
                 </span>
               </div>
             </DropdownMenuLabel>

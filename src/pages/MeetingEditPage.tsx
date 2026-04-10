@@ -33,7 +33,7 @@ type Meeting = {
   datetime: string;
   attendees: {
     userId: string;
-    user: { id: string; name: string; email: string };
+    user: { id: string; name: string; username: string };
   }[];
 };
 
@@ -46,7 +46,7 @@ export function MeetingEditPage() {
     queryKey: ["meeting-attendees"],
     queryFn: async () => {
       const { data } = await api.get<{
-        users: { id: string; name: string; email: string }[];
+        users: { id: string; name: string; username: string }[];
       }>("/api/meetings/eligible-attendees");
       return data.users;
     },
@@ -252,7 +252,7 @@ export function MeetingEditPage() {
                       {u.name}
                       <span className="text-muted-foreground">
                         {" "}
-                        · {u.email}
+                        · {u.username}
                       </span>
                     </span>
                   </label>

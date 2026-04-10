@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthShell } from "@/components/layout/AuthShell";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const loginSchema = z.object({
-  email: z.string().email("Enter a valid email address"),
+  username: z.string().trim().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -27,13 +28,16 @@ export function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { username: "", password: "" },
   });
 
   async function onSubmit(values: LoginFormValues) {
     try {
       await ensureCsrf();
-      await api.post("/api/auth/login", values);
+      await api.post("/api/auth/login", {
+        username: values.username.trim().toLowerCase(),
+        password: values.password,
+      });
       await qc.invalidateQueries({ queryKey: ["me"] });
       toast.success("Signed in successfully");
       navigate("/");
@@ -44,51 +48,43 @@ export function LoginPage() {
         typeof e.response.data === "object" &&
         "error" in e.response.data
           ? String((e.response.data as { error?: string }).error)
-          : "Invalid email or password";
+          : "Invalid username or password";
       toast.error(msg);
     }
   }
 
   return (
-    <AuthShell
-      title="Welcome back"
-      description="Sign in to your TMS workspace"
-    >
+    <AuthShell title="Welcome back" description="Sign in to your TMS workspace">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="username">Username</Label>
           <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@company.com"
-            aria-invalid={Boolean(errors.email)}
-            {...register("email")}
+            id="username"
+            type="text"
+            autoComplete="username"
+            placeholder="Your login name"
+            aria-invalid={Boolean(errors.username)}
+            {...register("username")}
           />
-          {errors.email && (
-            <p className="text-xs text-destructive">{errors.email.message}</p>
+          {errors.username && (
+            <p className="text-xs text-destructive">
+              {errors.username.message}
+            </p>
           )}
         </div>
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="password">Password</Label>
-            <Link
-              to="/forgot-password"
-              className="text-xs text-primary underline-offset-4 hover:underline"
-            >
-              Forgot password?
-            </Link>
-          </div>
-          <Input
+          <Label htmlFor="password">Password</Label>
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
             placeholder="Your password"
             aria-invalid={Boolean(errors.password)}
             {...register("password")}
           />
           {errors.password && (
-            <p className="text-xs text-destructive">{errors.password.message}</p>
+            <p className="text-xs text-destructive">
+              {errors.password.message}
+            </p>
           )}
         </div>
         <Button

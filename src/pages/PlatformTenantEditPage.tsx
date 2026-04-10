@@ -24,23 +24,14 @@ type Tenant = {
 
 type AdminUser = {
   id: string;
-  email: string;
+  username: string;
   name: string | null;
   createdAt: string;
-};
-
-type LatestInvitation = {
-  id: string;
-  email: string;
-  createdAt: string;
-  consumedAt: string | null;
-  expiresAt: string;
 };
 
 type TenantDetailsResponse = {
   tenant: Tenant;
   adminUser: AdminUser | null;
-  latestInvitation: LatestInvitation | null;
 };
 
 export function PlatformTenantEditPage() {
@@ -61,16 +52,10 @@ export function PlatformTenantEditPage() {
   });
 
   const tenant = detailsQuery.data?.tenant ?? null;
-  const adminEmail = useMemo(() => {
-    const e =
-      detailsQuery.data?.adminUser?.email ??
-      detailsQuery.data?.latestInvitation?.email ??
-      "";
-    return String(e || "");
-  }, [
-    detailsQuery.data?.adminUser?.email,
-    detailsQuery.data?.latestInvitation?.email,
-  ]);
+  const adminUsernameDisplay = useMemo(() => {
+    const u = detailsQuery.data?.adminUser?.username ?? "";
+    return String(u || "");
+  }, [detailsQuery.data?.adminUser?.username]);
 
   const [name, setName] = useState("");
   useEffect(() => {
@@ -107,7 +92,7 @@ export function PlatformTenantEditPage() {
   return (
     <CenteredFormPage
       title="Edit Company"
-      description="Update company details. Admin email is read-only."
+      description="Update company details. First admin username is read-only."
       back={
         <FormBackLink
           to={tenantId ? `/platform/tenants/${tenantId}` : "/platform/tenants"}
@@ -147,15 +132,19 @@ export function PlatformTenantEditPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tenant-admin-email">Admin email</Label>
+              <Label htmlFor="tenant-admin-username">
+                First admin username
+              </Label>
               <Input
-                id="tenant-admin-email"
-                type="email"
-                value={detailsQuery.isLoading ? "—" : adminEmail || "—"}
+                id="tenant-admin-username"
+                type="text"
+                value={
+                  detailsQuery.isLoading ? "—" : adminUsernameDisplay || "—"
+                }
                 disabled
               />
               <p className="text-xs text-muted-foreground">
-                Admin email cannot be edited from here.
+                Username cannot be edited from here.
               </p>
             </div>
           </div>

@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -26,7 +25,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export function SettingsPage() {
   const qc = useQueryClient();
@@ -43,9 +42,6 @@ export function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   useEffect(() => {
     setNotificationEnabled(me?.user.notificationEnabled ?? true);
@@ -189,92 +185,38 @@ export function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="currentPassword">Current password</Label>
-                <div className="relative">
-                  <Input
-                    id="currentPassword"
-                    type={showCurrentPassword ? "text" : "password"}
-                    placeholder="Enter current password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowCurrentPassword((v) => !v)}
-                    disabled={!currentPassword}
-                    aria-label={
-                      showCurrentPassword ? "Hide password" : "Show password"
-                    }
-                  >
-                    {showCurrentPassword ? (
-                      <EyeOff className="size-4" />
-                    ) : (
-                      <Eye className="size-4" />
-                    )}
-                  </button>
-                </div>
+                <PasswordInput
+                  id="currentPassword"
+                  placeholder="Enter current password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="newPassword">New password</Label>
-                <div className="relative">
-                  <Input
-                    id="newPassword"
-                    type={showNewPassword ? "text" : "password"}
-                    placeholder="Enter new password (min 8 characters)"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowNewPassword((v) => !v)}
-                    disabled={!newPassword}
-                    aria-label={
-                      showNewPassword ? "Hide password" : "Show password"
-                    }
-                  >
-                    {showNewPassword ? (
-                      <EyeOff className="size-4" />
-                    ) : (
-                      <Eye className="size-4" />
-                    )}
-                  </button>
-                </div>
+                <PasswordInput
+                  id="newPassword"
+                  placeholder="Enter new password (min 8 characters)"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmNewPassword">Confirm new password</Label>
-                <div className="relative">
-                  <Input
-                    id="confirmNewPassword"
-                    type={showConfirmNewPassword ? "text" : "password"}
-                    placeholder="Re-enter new password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className="pr-10"
-                    aria-invalid={
-                      confirmNewPassword.length > 0 && !passwordsMatch
-                        ? true
-                        : undefined
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowConfirmNewPassword((v) => !v)}
-                    disabled={!confirmNewPassword}
-                    aria-label={
-                      showConfirmNewPassword ? "Hide password" : "Show password"
-                    }
-                  >
-                    {showConfirmNewPassword ? (
-                      <EyeOff className="size-4" />
-                    ) : (
-                      <Eye className="size-4" />
-                    )}
-                  </button>
-                </div>
+                <PasswordInput
+                  id="confirmNewPassword"
+                  placeholder="Re-enter new password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  aria-invalid={
+                    confirmNewPassword.length > 0 && !passwordsMatch
+                      ? true
+                      : undefined
+                  }
+                />
                 {confirmNewPassword.length > 0 && !passwordsMatch ? (
                   <p className="text-xs text-destructive">
                     Passwords do not match.

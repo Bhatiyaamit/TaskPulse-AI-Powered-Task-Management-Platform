@@ -42,7 +42,7 @@ type MeetingTaskRow = {
   dueDate: string | null;
   updatedAt: string;
   status: { code: string; label: string };
-  reviewer: { id: string; name: string; email: string } | null;
+  reviewer: { id: string; name: string; username: string } | null;
 };
 
 type TasksApiResponse = {
@@ -178,8 +178,8 @@ export function MeetingDetailPage() {
           | "COMPLETED"
           | "CANCELLED";
         datetime: string;
-        createdBy: { id: string; name: string; email: string };
-        attendees: { user: { id: string; name: string; email: string } }[];
+        createdBy: { id: string; name: string; username: string };
+        attendees: { user: { id: string; name: string; username: string } }[];
         outcomes: {
           id: string;
           outcomeText: string;
@@ -376,7 +376,9 @@ export function MeetingDetailPage() {
         header: "Reviewer",
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.reviewer?.name || row.original.reviewer?.email || "—"}
+            {row.original.reviewer?.name ||
+              row.original.reviewer?.username ||
+              "—"}
           </span>
         ),
       },
@@ -570,7 +572,7 @@ export function MeetingDetailPage() {
                     <Pencil className="size-3" />
                     Edit
                   </Button>
-                </Link>
+      </Link>
               ) : (
                 <Button variant="outline" disabled>
                   <Pencil className="size-3" />
@@ -602,7 +604,7 @@ export function MeetingDetailPage() {
             <div className="text-foreground">
               {meeting.createdBy.name}{" "}
               <span className="text-muted-foreground">
-                · {meeting.createdBy.email}
+                · {meeting.createdBy.username}
               </span>
             </div>
           </div>
@@ -664,7 +666,7 @@ export function MeetingDetailPage() {
                   <Plus className="size-4" />
                   Add task
                 </Button>
-              </Link>
+                </Link>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -828,11 +830,11 @@ export function MeetingDetailPage() {
                   onClick={goNext}
                 >
                   Next
-                </Button>
+          </Button>
               </div>
             </div>
           </CardContent>
-        </Card>
+      </Card>
       ) : null}
     </div>
   );

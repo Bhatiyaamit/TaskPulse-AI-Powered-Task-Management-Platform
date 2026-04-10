@@ -5,6 +5,7 @@ import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { Eye, Plus } from "lucide-react";
 import { api } from "@/api/client";
+import { P } from "@/lib/permissions";
 import { useMe } from "@/hooks/useAuth";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,7 +74,11 @@ function badgeColorClass(seed: string) {
 export function DepartmentsPage() {
   const me = useMe();
   const perms = new Set(me.data?.permissions ?? []);
-  const canOrg = perms.has("org.manage");
+  const canOrg =
+    perms.has(P.DEPARTMENTS_READ) ||
+    perms.has(P.DEPARTMENTS_CREATE) ||
+    perms.has(P.DEPARTMENTS_UPDATE) ||
+    perms.has(P.DEPARTMENTS_DELETE);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const { page, pageSize, search, sortBy, sortDir } =

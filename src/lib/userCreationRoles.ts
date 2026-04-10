@@ -1,27 +1,7 @@
-export type TenantRoleCode =
-  | "ADMIN"
-  | "VP_GM"
-  | "MANAGER"
-  | "STAFF"
-  | "SUPPORTER";
+import type { Me } from "@/hooks/useAuth";
+import { P } from "@/lib/permissions";
 
-const CREATABLE_BY_CREATOR: Record<TenantRoleCode, readonly TenantRoleCode[]> =
-  {
-    ADMIN: ["ADMIN", "VP_GM", "MANAGER", "STAFF", "SUPPORTER"],
-    VP_GM: ["MANAGER", "STAFF", "SUPPORTER"],
-    MANAGER: ["STAFF", "SUPPORTER"],
-    STAFF: [],
-    SUPPORTER: [],
-  };
-
-export function creatableRoleCodesForCreator(
-  roleCode: string | null | undefined,
-) {
-  if (!roleCode) return [] as const;
-  const key = roleCode as TenantRoleCode;
-  return CREATABLE_BY_CREATOR[key] ?? [];
-}
-
-export function canCreateUsers(roleCode: string | null | undefined) {
-  return creatableRoleCodesForCreator(roleCode).length > 0;
+/** User creation is allowed only for people who can manage users (permission-based). */
+export function canCreateUsers(data: Me | undefined) {
+  return Boolean(data?.permissions?.includes(P.USERS_CREATE));
 }

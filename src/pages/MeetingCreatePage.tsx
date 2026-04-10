@@ -30,7 +30,7 @@ export function MeetingCreatePage() {
     queryKey: ["meeting-attendees"],
     queryFn: async () => {
       const { data } = await api.get<{
-        users: { id: string; name: string; email: string }[];
+        users: { id: string; name: string; username: string }[];
       }>("/api/meetings/eligible-attendees");
       return data.users;
     },
@@ -175,7 +175,10 @@ export function MeetingCreatePage() {
                   <input type="checkbox" name="attendees" value={u.id} />
                   <span>
                     {u.name}
-                    <span className="text-muted-foreground"> · {u.email}</span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {u.username}
+                    </span>
                   </span>
                 </label>
               ))}

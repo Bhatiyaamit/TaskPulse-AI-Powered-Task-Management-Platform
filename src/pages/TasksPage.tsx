@@ -59,7 +59,7 @@ type TaskRow = {
   status: { code: string; label: string };
   createdFrom: string;
   meetingId: string | null;
-  reviewer: { id: string; name: string; email: string } | null;
+  reviewer: { id: string; name: string; username: string } | null;
 };
 
 type TasksApiResponse = {

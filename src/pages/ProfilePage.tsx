@@ -109,8 +109,8 @@ export function ProfilePage() {
           }}
         >
           <div className="space-y-2">
-            <Label htmlFor="profile-email">Email</Label>
-            <Input id="profile-email" value={data.user.email} disabled />
+            <Label htmlFor="profile-username">Username</Label>
+            <Input id="profile-username" value={data.user.username} disabled />
           </div>
           <div className="space-y-2">
             <Label htmlFor="profile-name">Full name</Label>

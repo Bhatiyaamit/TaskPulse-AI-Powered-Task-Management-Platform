@@ -3,9 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { LoginPage } from "@/pages/LoginPage";
-import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
-import { AcceptInvitePage } from "@/pages/AcceptInvitePage";
 import { HomePage } from "@/pages/HomePage";
 import { TasksPage } from "@/pages/TasksPage";
 import { TaskDetailPage } from "@/pages/TaskDetailPage";
@@ -19,7 +17,9 @@ import { ReportsPage } from "@/pages/ReportsPage";
 import { TeamPage } from "@/pages/TeamPage";
 import { TeamUserCreatePage } from "@/pages/TeamUserCreatePage";
 import { TeamUserEditPage } from "@/pages/TeamUserEditPage";
+import { TeamUserDetailPage } from "@/pages/TeamUserDetailPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { RolesPage } from "@/pages/RolesPage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { DepartmentsPage } from "@/pages/DepartmentsPage";
 import { DepartmentCreatePage } from "@/pages/DepartmentCreatePage";
@@ -46,9 +46,7 @@ function AppShell() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/accept-invite" element={<AcceptInvitePage />} />
           <Route element={<AppLayout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/profile" element={<ProfilePage />} />
@@ -63,11 +61,13 @@ function AppShell() {
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/team" element={<TeamPage />} />
             <Route path="/team/new" element={<TeamUserCreatePage />} />
+            <Route path="/team/:id" element={<TeamUserDetailPage />} />
             <Route path="/team/:id/edit" element={<TeamUserEditPage />} />
             <Route path="/departments" element={<DepartmentsPage />} />
             <Route path="/departments/new" element={<DepartmentCreatePage />} />
             <Route path="/eod" element={<EodPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/roles" element={<RolesPage />} />
             <Route
               path="/platform/dashboard"
               element={<PlatformDashboardPage />}

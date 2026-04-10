@@ -46,7 +46,7 @@ type MeetingRow = {
   computedStatus: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
   datetime: string;
   createdAt: string;
-  createdBy: { id: string; name: string; email: string };
+  createdBy: { id: string; name: string; username: string };
   attendees: { userId: string }[];
 };
 

@@ -8,7 +8,15 @@ import { toast } from "sonner";
 import { api } from "@/api/client";
 import { useMe } from "@/hooks/useAuth";
 import { canCreateUsers } from "@/lib/userCreationRoles";
-import { Pencil, Plus, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
+import { P } from "@/lib/permissions";
+import {
+  Eye,
+  Pencil,
+  Plus,
+  ToggleLeft,
+  ToggleRight,
+  Trash2,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +49,7 @@ import {
 
 type TeamMemberRow = {
   id: string;
-  email: string;
+  username: string;
   name: string;
   isActive: boolean;
   managerId: string | null;
@@ -79,7 +87,7 @@ function parseTeamUrlParams(p: URLSearchParams) {
   const sortBy = (p.get("sortBy") ?? "createdAt") as
     | "createdAt"
     | "name"
-    | "email"
+    | "username"
     | "employeeCode";
   const sortDir = (p.get("sortDir") ?? "desc") as "asc" | "desc";
   return {
@@ -98,9 +106,10 @@ export function TeamPage() {
   const qc = useQueryClient();
   const me = useMe();
   const perms = new Set(me.data?.permissions ?? []);
-  const canViewTeam = perms.has("team.view");
-  const canManageUsers = perms.has("user.manage");
-  const canAddUser = canCreateUsers(me.data?.user.roleCode);
+  const canViewTeam = perms.has(P.USERS_READ);
+  const canEditUsers = perms.has(P.USERS_UPDATE);
+  const canDeleteUsers = perms.has(P.USERS_DELETE);
+  const canAddUser = canCreateUsers(me.data);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const {
@@ -269,7 +278,7 @@ export function TeamPage() {
           <div className="min-w-0">
             <div className="truncate font-medium">{row.original.name}</div>
             <div className="truncate text-xs text-muted-foreground">
-              {row.original.email}
+              {row.original.username}
             </div>
           </div>
         ),
@@ -323,95 +332,118 @@ export function TeamPage() {
           </span>
         ),
       },
-      ...(canManageUsers
-        ? ([
-            {
-              id: "actions",
-              header: "Actions",
-              cell: ({ row }) => (
-                <div className="flex items-center gap-0.5">
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Link to={`/team/${row.original.id}/edit`}>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            aria-label="Edit user"
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                        </Link>
-                      }
-                    ></TooltipTrigger>
-                    <TooltipContent>Edit</TooltipContent>
-                  </Tooltip>
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-0.5">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Link to={`/team/${row.original.id}`}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      aria-label="View user details"
+                    >
+                      <Eye className="size-4" />
+                    </Button>
+                  </Link>
+                }
+              ></TooltipTrigger>
+              <TooltipContent>View</TooltipContent>
+            </Tooltip>
 
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
+            {canEditUsers ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Link to={`/team/${row.original.id}/edit`}>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
                           className="size-8"
-                          aria-label={
-                            row.original.isActive
-                              ? "Deactivate user"
-                              : "Activate user"
-                          }
-                          onClick={() =>
-                            setConfirm({
-                              userId: row.original.id,
-                              userName: row.original.name,
-                              next: !row.original.isActive,
-                            })
-                          }
+                          aria-label="Edit user"
                         >
-                          {row.original.isActive ? (
-                            <ToggleRight className="size-5 text-green-500" />
-                          ) : (
-                            <ToggleLeft className="size-5 text-red-500" />
-                          )}
+                          <Pencil className="size-4" />
                         </Button>
-                      }
-                    ></TooltipTrigger>
-                    <TooltipContent>
-                      {row.original.isActive ? "Deactivate" : "Activate"}
-                    </TooltipContent>
-                  </Tooltip>
+                      </Link>
+                    }
+                  ></TooltipTrigger>
+                  <TooltipContent>Edit</TooltipContent>
+                </Tooltip>
 
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          aria-label="Delete user"
-                          onClick={() =>
-                            setDeleteConfirm({
-                              userId: row.original.id,
-                              userName: row.original.name,
-                            })
-                          }
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        aria-label={
+                          row.original.isActive
+                            ? "Deactivate user"
+                            : "Activate user"
+                        }
+                        onClick={() =>
+                          setConfirm({
+                            userId: row.original.id,
+                            userName: row.original.name,
+                            next: !row.original.isActive,
+                          })
+                        }
+                      >
+                        {row.original.isActive ? (
+                          <ToggleRight className="size-5 text-green-500" />
+                        ) : (
+                          <ToggleLeft className="size-5 text-red-500" />
+                        )}
+                      </Button>
+                    }
+                  ></TooltipTrigger>
+                  <TooltipContent>
+                    {row.original.isActive
+                      ? "Deactivate user"
+                      : "Activate user"}
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            ) : null}
+
+            {canDeleteUsers ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Delete user"
+                      onClick={() =>
+                        setDeleteConfirm({
+                          userId: row.original.id,
+                          userName: row.original.name,
+                        })
                       }
-                    ></TooltipTrigger>
-                    <TooltipContent>Delete</TooltipContent>
-                  </Tooltip>
-                </div>
-              ),
-            } satisfies ColumnDef<TeamMemberRow>,
-          ] as ColumnDef<TeamMemberRow>[])
-        : []),
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  }
+                ></TooltipTrigger>
+                <TooltipContent>Delete</TooltipContent>
+              </Tooltip>
+            ) : null}
+          </div>
+        ),
+      } satisfies ColumnDef<TeamMemberRow>,
     ],
-    [canManageUsers],
+    [canDeleteUsers, canEditUsers],
   );
 
   const table = useReactTable({
@@ -491,7 +523,7 @@ export function TeamPage() {
                 <Label htmlFor="team-search">Search</Label>
                 <Input
                   id="team-search"
-                  placeholder="Search by name, email, or employee code…"
+                  placeholder="Search by name, username, or employee code…"
                   value={searchInput}
                   onChange={(e) => {
                     setSearchInput(e.target.value);

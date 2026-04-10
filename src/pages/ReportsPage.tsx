@@ -36,7 +36,7 @@ export function ReportsPage() {
     queryKey: ["reports-by-user"],
     queryFn: async () => {
       const { data } = await api.get<{
-        rows: { user: { name: string; email: string }; count: number }[];
+        rows: { user: { name: string; username: string }; count: number }[];
       }>("/api/reports/by-assignee");
       return data.rows;
     },
@@ -116,7 +116,7 @@ export function ReportsPage() {
               </TableHeader>
               <TableBody>
                 {(byUser ?? []).map((r) => (
-                  <TableRow key={r.user.email}>
+                  <TableRow key={r.user.username}>
                     <TableCell>{r.user.name}</TableCell>
                     <TableCell>{r.count}</TableCell>
                   </TableRow>
