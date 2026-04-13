@@ -57,7 +57,9 @@ export function LoginPage() {
     <AuthShell title="Welcome back" description="Sign in to your TMS workspace">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="username">Username</Label>
+          <Label htmlFor="username" required>
+            Username
+          </Label>
           <Input
             id="username"
             type="text"
@@ -73,7 +75,9 @@ export function LoginPage() {
           )}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password" required>
+            Password
+          </Label>
           <PasswordInput
             id="password"
             autoComplete="current-password"

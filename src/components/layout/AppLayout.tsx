@@ -17,7 +17,7 @@ import {
   Calendar,
   Layers,
   ClipboardList,
-  Shield,
+  // Shield,
 } from "lucide-react";
 
 export function AppLayout() {
@@ -109,6 +109,16 @@ export function AppLayout() {
                   label="Reports"
                 />
               )}
+              {/* {(p.includes(P.ROLES_READ) ||
+                p.includes(P.ROLES_CREATE) ||
+                p.includes(P.ROLES_UPDATE) ||
+                p.includes(P.ROLES_DELETE)) && (
+                <Nav
+                  to="/roles"
+                  icon={<Shield className="h-4 w-4" />}
+                  label="Roles"
+                />
+              )} */}
               {(p.includes(P.USERS_CREATE) ||
                 p.includes(P.USERS_UPDATE) ||
                 p.includes(P.USERS_DELETE) ||
@@ -120,16 +130,6 @@ export function AppLayout() {
                   to="/settings"
                   icon={<Settings className="h-4 w-4" />}
                   label="Settings"
-                />
-              )}
-              {(p.includes(P.ROLES_READ) ||
-                p.includes(P.ROLES_CREATE) ||
-                p.includes(P.ROLES_UPDATE) ||
-                p.includes(P.ROLES_DELETE)) && (
-                <Nav
-                  to="/settings/roles"
-                  icon={<Shield className="h-4 w-4" />}
-                  label="Roles"
                 />
               )}
             </>

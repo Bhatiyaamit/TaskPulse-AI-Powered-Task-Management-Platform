@@ -82,7 +82,9 @@ export function MeetingCreatePage() {
       >
         <div className="flex flex-col gap-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
+            <Label htmlFor="title" required>
+              Title
+            </Label>
             <Input
               id="title"
               name="title"
@@ -120,7 +122,9 @@ export function MeetingCreatePage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="datetime">When</Label>
+            <Label htmlFor="datetime" required>
+              When
+            </Label>
             <Input
               id="datetime"
               name="datetime"

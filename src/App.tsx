@@ -67,7 +67,7 @@ function AppShell() {
             <Route path="/departments/new" element={<DepartmentCreatePage />} />
             <Route path="/eod" element={<EodPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/settings/roles" element={<RolesPage />} />
+            <Route path="/roles" element={<RolesPage />} />
             <Route
               path="/platform/dashboard"
               element={<PlatformDashboardPage />}

@@ -46,6 +46,7 @@ const schema = z.object({
   departmentId: z.string().default("__none__"),
   roleName: z.string().trim().min(1, "Role name is required"),
   roleDepartmentId: z.string().default("none").catch("none"),
+  isReviewer: z.boolean().default(false).catch(false),
 });
 type FormValues = z.input<typeof schema>;
 
@@ -77,6 +78,7 @@ type UserDetail = {
   id: string;
   username: string;
   name: string;
+  isReviewer?: boolean;
   managerId: string | null;
   departmentId: string | null;
   employeeCode: string | null;
@@ -165,6 +167,7 @@ export function TeamUserEditPage() {
       departmentId: "__none__",
       roleName: "",
       roleDepartmentId: "none",
+      isReviewer: false,
     },
   });
 
@@ -181,6 +184,7 @@ export function TeamUserEditPage() {
     setValue("phone", u.phone ?? "");
     setValue("managerId", u.managerId ?? "__none__");
     setValue("departmentId", u.departmentId ?? "__none__");
+    setValue("isReviewer", Boolean(u.isReviewer));
     if (u.birthDate) {
       try {
         setValue("birthDate", new Date(u.birthDate).toISOString().slice(0, 10));
@@ -307,6 +311,7 @@ export function TeamUserEditPage() {
         employeeCode: v.employeeCode?.trim() ? v.employeeCode.trim() : null,
         phone: v.phone?.trim() ? v.phone.trim() : null,
         birthDate: v.birthDate ? new Date(v.birthDate) : null,
+        isReviewer: Boolean(v.isReviewer),
       };
       const { data } = await api.patch<{ user: UserDetail }>(
         `/api/tenant/users/${id}`,
@@ -389,7 +394,9 @@ export function TeamUserEditPage() {
             <Input id="username" value={user.username} disabled />
           </div>
           <div className="space-y-2 sm:col-span-1">
-            <Label htmlFor="name">Full name</Label>
+            <Label htmlFor="name" required>
+              Full name
+            </Label>
             <Input
               id="name"
               placeholder="e.g. Priya Patel"
@@ -407,6 +414,20 @@ export function TeamUserEditPage() {
               placeholder="e.g. EMP-1024"
               {...register("employeeCode")}
             />
+          </div>
+          <div className="space-y-2 sm:col-span-1">
+            <Label htmlFor="isReviewer">Reviewer for others</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="isReviewer"
+                type="checkbox"
+                className="h-4 w-4"
+                {...register("isReviewer")}
+              />
+              <span className="text-sm text-muted-foreground">
+                Allow this user to appear in the Task “Reviewer” dropdown.
+              </span>
+            </div>
           </div>
           <div className="space-y-2 sm:col-span-1">
             <Label htmlFor="phone">Phone</Label>
