@@ -27,16 +27,20 @@ import {
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  dedupeRolesByDisplayName,
+  findRoleMatchingForm,
+  roleFormMatchesExisting,
+} from "@/lib/roleFormMatch";
+import {
+  RoleNameCombobox,
+  type RoleNameComboboxRole,
+} from "@/components/RoleNameCombobox";
 
 type ManagerOption = { id: string; name: string; username: string };
 type DepartmentOption = { id: string; name: string; code: string | null };
 type MatrixCell = { module: string; action: string };
-type TenantRoleDetail = {
-  id: string;
-  name: string;
-  departmentId: string | null;
-  matrixSelections: MatrixCell[];
-};
+type TenantRoleDetail = RoleNameComboboxRole;
 
 const schema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -149,6 +153,10 @@ export function TeamUserEditPage() {
 
   const managerOptions = managersQuery.data ?? [];
   const departmentOptions = departmentsQuery.data ?? [];
+  const roleOptionsForCombobox = useMemo(
+    () => dedupeRolesByDisplayName(rolesQuery.data ?? []),
+    [rolesQuery.data],
+  );
 
   const {
     register,
@@ -289,25 +297,62 @@ export function TeamUserEditPage() {
         throw new Error("Select at least one permission for the role.");
       }
 
-      const permissions: MatrixCell[] = [...roleSelected].map((k) => {
-        const [module, action] = k.split(":");
-        return { module, action };
-      });
+      const userRow = userQuery.data;
+      const rolesList = rolesQuery.data;
+      if (!userRow || !id) {
+        throw new Error("Missing user.");
+      }
+      if (rolesList === undefined) {
+        throw new Error("Role directory is still loading.");
+      }
 
-      const { data: roleRes } = await api.post<{ role: { id: string } }>(
-        "/api/tenant/roles",
-        {
-          code: roleCodeFromName(v.roleName),
-          name: v.roleName.trim(),
-          departmentId:
-            v.roleDepartmentId === "none" ? null : v.roleDepartmentId,
-          permissions,
-        },
+      const formDeptId =
+        v.roleDepartmentId === "none" ? null : v.roleDepartmentId;
+      const currentRoleDetail = rolesList.find(
+        (x) => x.id === userRow.role.id,
       );
+
+      let roleId: string;
+      if (
+        currentRoleDetail &&
+        roleFormMatchesExisting(
+          currentRoleDetail,
+          v.roleName,
+          formDeptId,
+          roleSelected,
+        )
+      ) {
+        roleId = userRow.role.id;
+      } else {
+        const reuse = findRoleMatchingForm(
+          rolesList,
+          v.roleName.trim(),
+          formDeptId,
+          roleSelected,
+        );
+        if (reuse) {
+          roleId = reuse.id;
+        } else {
+          const permissions: MatrixCell[] = [...roleSelected].map((k) => {
+            const [module, action] = k.split(":");
+            return { module, action };
+          });
+          const { data: roleRes } = await api.post<{ role: { id: string } }>(
+            "/api/tenant/roles",
+            {
+              code: roleCodeFromName(v.roleName),
+              name: v.roleName.trim(),
+              departmentId: formDeptId,
+              permissions,
+            },
+          );
+          roleId = roleRes.role.id;
+        }
+      }
 
       const payload = {
         name: v.name.trim(),
-        roleId: roleRes.role.id,
+        roleId,
         managerId: v.managerId === "__none__" ? null : v.managerId,
         departmentId: v.departmentId === "__none__" ? null : v.departmentId,
         employeeCode: v.employeeCode?.trim() ? v.employeeCode.trim() : null,
@@ -323,6 +368,7 @@ export function TeamUserEditPage() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["team-members"], exact: false });
+      await qc.invalidateQueries({ queryKey: ["tenant-roles"], exact: false });
       await qc.invalidateQueries({
         queryKey: ["tenant-user", id],
         exact: false,
@@ -538,20 +584,51 @@ export function TeamUserEditPage() {
 
           <div className="space-y-2 sm:col-span-1">
             <Label htmlFor="roleName">Role name</Label>
-            <Input
-              id="roleName"
-              placeholder="e.g. Manager"
-              disabled={!canManageRoleOnUser || !canUpdateUsers}
-              {...register("roleName")}
+            <Controller
+              control={control}
+              name="roleName"
+              render={({ field }) => (
+                <RoleNameCombobox
+                  id="roleName"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  disabled={!canManageRoleOnUser || !canUpdateUsers}
+                  placeholder="e.g. Manager"
+                  roles={roleOptionsForCombobox}
+                  onPickRole={(r) => {
+                    setValue("roleDepartmentId", r.departmentId ?? "none");
+                    setRoleSelected(
+                      new Set(
+                        r.matrixSelections.map((c) =>
+                          cellKey(c.module, c.action),
+                        ),
+                      ),
+                    );
+                  }}
+                  onClear={() => {
+                    setValue("roleDepartmentId", "none");
+                    setRoleSelected(new Set());
+                  }}
+                  error={errors.roleName?.message}
+                />
+              )}
             />
-            {errors.roleName ? (
-              <p className="text-xs text-destructive">
-                {errors.roleName.message}
+            {canManageRoleOnUser && canUpdateUsers ? (
+              <p className="text-xs text-muted-foreground">
+                Pick a role to copy its setup, or type a new name. An existing
+                role is reused when name, scope, and permissions match; otherwise
+                a new role is created.
               </p>
             ) : null}
             {!canManageRoleOnUser ? (
               <p className="text-xs text-muted-foreground">
                 You don’t have permission to update roles.
+              </p>
+            ) : null}
+            {rolesQuery.isError ? (
+              <p className="text-xs text-destructive">
+                Could not load the role list.
               </p>
             ) : null}
           </div>
@@ -661,7 +738,13 @@ export function TeamUserEditPage() {
           </Button>
           <Button
             type="submit"
-            disabled={update.isPending || !canUpdateUsers || !canManageRoleOnUser}
+            disabled={
+              update.isPending ||
+              !canUpdateUsers ||
+              !canManageRoleOnUser ||
+              (canManageRoleOnUser &&
+                (rolesQuery.isLoading || rolesQuery.isError))
+            }
           >
             {update.isPending ? "Saving…" : "Save changes"}
           </Button>

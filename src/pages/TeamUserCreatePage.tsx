@@ -29,6 +29,14 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { PasswordInput } from "@/components/ui/password-input";
+import {
+  RoleNameCombobox,
+  type RoleNameComboboxRole,
+} from "@/components/RoleNameCombobox";
+import {
+  dedupeRolesByDisplayName,
+  findRoleMatchingForm,
+} from "@/lib/roleFormMatch";
 
 type ManagerOption = { id: string; name: string; username: string };
 type DepartmentOption = { id: string; name: string; code: string | null };
@@ -111,6 +119,24 @@ export function TeamUserCreatePage() {
   });
 
   const [roleSelected, setRoleSelected] = useState<Set<string>>(new Set());
+
+  const rolesQuery = useQuery({
+    queryKey: ["tenant-roles", "assignment"],
+    enabled: canAddUser,
+    queryFn: async () => {
+      const { data } = await api.get<{ roles: RoleNameComboboxRole[] }>(
+        "/api/tenant/roles",
+        { params: { for: "assignment" } },
+      );
+      return data.roles;
+    },
+  });
+
+  const roleOptions = rolesQuery.data ?? [];
+  const roleOptionsForCombobox = useMemo(
+    () => dedupeRolesByDisplayName(roleOptions),
+    [roleOptions],
+  );
 
   const managersQuery = useQuery({
     queryKey: ["team-managers-options"],
@@ -226,27 +252,41 @@ export function TeamUserCreatePage() {
         throw new Error("Select at least one permission for the role.");
       }
 
-      const permissions: MatrixCell[] = [...roleSelected].map((k) => {
-        const [module, action] = k.split(":");
-        return { module, action };
-      });
-
-      const { data: roleRes } = await api.post<{ role: { id: string } }>(
-        "/api/tenant/roles",
-        {
-          code: roleCodeFromName(v.roleName),
-          name: v.roleName.trim(),
-          departmentId:
-            v.roleDepartmentId === "none" ? null : v.roleDepartmentId,
-          permissions,
-        },
+      const formDeptId =
+        v.roleDepartmentId === "none" ? null : v.roleDepartmentId;
+      const allRoles = rolesQuery.data ?? [];
+      const existing = findRoleMatchingForm(
+        allRoles,
+        v.roleName.trim(),
+        formDeptId,
+        roleSelected,
       );
+
+      let roleId: string;
+      if (existing) {
+        roleId = existing.id;
+      } else {
+        const permissions: MatrixCell[] = [...roleSelected].map((k) => {
+          const [module, action] = k.split(":");
+          return { module, action };
+        });
+        const { data: roleRes } = await api.post<{ role: { id: string } }>(
+          "/api/tenant/roles",
+          {
+            code: roleCodeFromName(v.roleName),
+            name: v.roleName.trim(),
+            departmentId: formDeptId,
+            permissions,
+          },
+        );
+        roleId = roleRes.role.id;
+      }
 
       const payload = {
         name: v.name.trim(),
         username: v.username.trim().toLowerCase(),
         password: v.password,
-        roleId: roleRes.role.id,
+        roleId,
         managerId: v.managerId === "__none__" ? null : v.managerId,
         departmentId: v.departmentId === "__none__" ? null : v.departmentId,
         employeeCode: v.employeeCode?.trim() ? v.employeeCode.trim() : null,
@@ -262,6 +302,7 @@ export function TeamUserCreatePage() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["team-members"], exact: false });
+      await qc.invalidateQueries({ queryKey: ["tenant-roles"], exact: false });
       toast.success("User created");
       navigate("/team");
     },
@@ -475,20 +516,50 @@ export function TeamUserCreatePage() {
             <Label htmlFor="roleName" required>
               Role name
             </Label>
-            <Input
-              id="roleName"
-              placeholder="e.g. Manager"
-              disabled={!canCreateRoleInline}
-              {...register("roleName")}
+            <Controller
+              control={control}
+              name="roleName"
+              render={({ field }) => (
+                <RoleNameCombobox
+                  id="roleName"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  disabled={!canCreateRoleInline}
+                  placeholder="e.g. Manager"
+                  roles={roleOptionsForCombobox}
+                  onPickRole={(r) => {
+                    setValue("roleDepartmentId", r.departmentId ?? "none");
+                    setRoleSelected(
+                      new Set(
+                        r.matrixSelections.map((c) =>
+                          cellKey(c.module, c.action),
+                        ),
+                      ),
+                    );
+                  }}
+                  onClear={() => {
+                    setValue("roleDepartmentId", "none");
+                    setRoleSelected(new Set());
+                  }}
+                  error={errors.roleName?.message}
+                />
+              )}
             />
-            {errors.roleName ? (
-              <p className="text-xs text-destructive">
-                {errors.roleName.message}
+            {canCreateRoleInline ? (
+              <p className="text-xs text-muted-foreground">
+                Pick a role to copy its setup, or type a new name. If another role
+                already has the same name, scope, and permissions, that role is
+                reused; otherwise a new role is created.
               </p>
-            ) : null}
-            {!canCreateRoleInline ? (
+            ) : (
               <p className="text-xs text-muted-foreground">
                 You don’t have permission to create roles.
+              </p>
+            )}
+            {rolesQuery.isError ? (
+              <p className="text-xs text-destructive">
+                Could not load the role list.
               </p>
             ) : null}
           </div>
