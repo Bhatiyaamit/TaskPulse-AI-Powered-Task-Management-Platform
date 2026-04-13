@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
@@ -8,17 +8,18 @@ import { toast } from "sonner";
 import { api } from "@/api/client";
 import { useMe } from "@/hooks/useAuth";
 import { canCreateUsers } from "@/lib/userCreationRoles";
-import { P } from "@/lib/permissions";
+import { P, userModuleCanList } from "@/lib/permissions";
 import {
   Eye,
   Pencil,
   Plus,
+  ShieldAlert,
   ToggleLeft,
   ToggleRight,
   Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -106,10 +107,11 @@ export function TeamPage() {
   const qc = useQueryClient();
   const me = useMe();
   const perms = new Set(me.data?.permissions ?? []);
-  const canViewTeam = perms.has(P.USERS_READ);
+  const canListTeam = userModuleCanList(me.data?.permissions);
   const canEditUsers = perms.has(P.USERS_UPDATE);
   const canDeleteUsers = perms.has(P.USERS_DELETE);
   const canAddUser = canCreateUsers(me.data);
+  const canMutateUsers = canAddUser || canEditUsers || canDeleteUsers;
 
   const [searchParams, setSearchParams] = useSearchParams();
   const {
@@ -134,7 +136,7 @@ export function TeamPage() {
       "team-members",
       { page, pageSize, search, departmentId, roleId, status, sortBy, sortDir },
     ],
-    enabled: canViewTeam,
+    enabled: canListTeam,
     queryFn: async () => {
       const { data } = await api.get<PaginatedResponse<TeamMemberRow>>(
         "/api/team/members",
@@ -157,7 +159,7 @@ export function TeamPage() {
 
   const departmentsQuery = useQuery({
     queryKey: ["org-departments", "options"],
-    enabled: canViewTeam,
+    enabled: canListTeam,
     queryFn: async () => {
       const { data } = await api.get<{
         departments: { id: string; name: string; code: string | null }[];
@@ -169,7 +171,7 @@ export function TeamPage() {
 
   const rolesQuery = useQuery({
     queryKey: ["tenant-roles", "assignment-options"],
-    enabled: canViewTeam,
+    enabled: canListTeam,
     queryFn: async () => {
       const { data } = await api.get<{
         roles: { id: string; code: string; name: string }[];
@@ -455,26 +457,33 @@ export function TeamPage() {
     state: { sorting: tableSorting },
   });
 
-  function onChangeSort(
-    updater: SortingState | ((prev: SortingState) => SortingState),
-  ) {
-    const next =
-      typeof updater === "function" ? updater(tableSorting) : updater;
-    const s = next[0];
-    setSearchParams(
-      (prev) => {
-        const p = new URLSearchParams(prev);
-        if (!s) {
-          p.delete("sortBy");
-          p.delete("sortDir");
-        } else {
-          p.set("sortBy", String(s.id));
-          p.set("sortDir", s.desc ? "desc" : "asc");
-        }
-        p.delete("page");
-        return p;
-      },
-      { replace: true },
+  const onChangeSort = useCallback(
+    (updater: SortingState | ((prev: SortingState) => SortingState)) => {
+      const next =
+        typeof updater === "function" ? updater(tableSorting) : updater;
+      const s = next[0];
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          if (!s) {
+            p.delete("sortBy");
+            p.delete("sortDir");
+          } else {
+            p.set("sortBy", String(s.id));
+            p.set("sortDir", s.desc ? "desc" : "asc");
+          }
+          p.delete("page");
+          return p;
+        },
+        { replace: true },
+      );
+    },
+    [tableSorting, setSearchParams],
+  );
+
+  if (me.isPending) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
     );
   }
 
@@ -499,20 +508,61 @@ export function TeamPage() {
         ) : null}
       </div>
 
-      {!canViewTeam ? (
+      {me.data && !canListTeam && canMutateUsers ? (
+        <Card className="border-amber-500/35 bg-muted/30 p-6">
+          <div className="flex gap-4">
+            <ShieldAlert
+              className="size-10 shrink-0 text-amber-600 dark:text-amber-400"
+              aria-hidden
+            />
+            <div className="min-w-0 space-y-3">
+              <h2 className="text-lg font-semibold text-foreground">
+                You don&apos;t have permission to browse the team list
+              </h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Your role does not include{" "}
+                <span className="font-medium text-foreground">
+                  Users → Read
+                </span>{" "}
+                (<code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  {P.USERS_READ}
+                </code>
+                ). You can still add or edit users if those actions are
+                allowed—open a user from a direct link or use the buttons below.
+              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {canAddUser ? (
+                  <Link to="/team/new" className={cn(buttonVariants())}>
+                    <Plus className="size-4" />
+                    Add user
+                  </Link>
+                ) : null}
+                <Link
+                  to="/"
+                  className={cn(buttonVariants({ variant: "outline" }))}
+                >
+                  Back to dashboard
+                </Link>
+              </div>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {me.data && !canListTeam && !canMutateUsers ? (
         <Card>
           <CardHeader>
             <CardTitle>Team</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              You don’t have access to the Team module.
+              You don&apos;t have access to the Team module.
             </p>
           </CardContent>
         </Card>
       ) : null}
 
-      {canViewTeam ? (
+      {canListTeam ? (
         <Card>
           <CardHeader>
             <CardTitle>Members</CardTitle>

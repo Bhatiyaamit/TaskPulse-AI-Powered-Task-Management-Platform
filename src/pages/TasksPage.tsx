@@ -15,6 +15,7 @@ import {
   Eye,
   Pencil,
   Plus,
+  ShieldAlert,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -49,6 +50,13 @@ import {
 import { cn } from "@/lib/utils";
 import { overdueBadgeClass } from "@/lib/badges";
 import { useMe } from "@/hooks/useAuth";
+import {
+  P,
+  taskModuleCanCreate,
+  taskModuleCanDelete,
+  taskModuleCanList,
+  taskModuleCanUpdate,
+} from "@/lib/permissions";
 
 type TaskRow = {
   id: string;
@@ -203,6 +211,11 @@ export function TasksPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const me = useMe();
+  const perms = me.data?.permissions;
+  const canListTasks = taskModuleCanList(perms);
+  const canCreateTask = taskModuleCanCreate(perms);
+  const canUpdateTask = taskModuleCanUpdate(perms);
+  const canDeleteTask = taskModuleCanDelete(perms);
   const [searchParams, setSearchParams] = useSearchParams();
   const skipSearchInputSync = useRef(false);
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -258,6 +271,7 @@ export function TasksPage() {
 
   const { data: statuses } = useQuery({
     queryKey: ["task-statuses"],
+    enabled: canListTasks,
     queryFn: async () => {
       const { data } = await api.get<{
         statuses: { id: string; code: string; label: string }[];
@@ -308,6 +322,7 @@ export function TasksPage() {
       apiSortBy,
       apiSortDir,
     ],
+    enabled: canListTasks,
     queryFn: async () => {
       const { data } = await api.get<TasksApiResponse>("/api/tasks", {
         params: {
@@ -315,7 +330,7 @@ export function TasksPage() {
           pageSize: pagination.pageSize,
           ...(queue !== "all" ? { queue } : {}),
           ...(queue === "review" && me.data?.user?.id
-            ? { reviewerId: me.data.user.id }
+            ? { reviewerId: me.data?.user?.id }
             : {}),
           ...(statusId ? { statusId } : {}),
           ...(priority ? { priority } : {}),
@@ -512,58 +527,62 @@ export function TasksPage() {
               </TooltipTrigger>
               <TooltipContent>View</TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8"
-                    aria-label="Edit task"
-                    isLoading={deleteTask.isPending}
-                    disabled={deleteTask.isPending}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/tasks/${row.original.id}/edit`);
-                    }}
-                  />
-                }
-              >
-                <Pencil className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>Edit</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    aria-label="Delete task"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteTarget({
-                        id: row.original.id,
-                        title: row.original.title,
-                      });
-                    }}
-                    isLoading={deleteTask.isPending}
-                    disabled={deleteTask.isPending}
-                  />
-                }
-              >
-                <Trash2 className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>Delete</TooltipContent>
-            </Tooltip>
+            {canUpdateTask ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      aria-label="Edit task"
+                      isLoading={deleteTask.isPending}
+                      disabled={deleteTask.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/tasks/${row.original.id}/edit`);
+                      }}
+                    />
+                  }
+                >
+                  <Pencil className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Edit</TooltipContent>
+              </Tooltip>
+            ) : null}
+            {canDeleteTask ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Delete task"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget({
+                          id: row.original.id,
+                          title: row.original.title,
+                        });
+                      }}
+                      isLoading={deleteTask.isPending}
+                      disabled={deleteTask.isPending}
+                    />
+                  }
+                >
+                  <Trash2 className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Delete</TooltipContent>
+              </Tooltip>
+            ) : null}
           </div>
         ),
       },
     ],
-    [navigate],
+    [navigate, canUpdateTask, canDeleteTask, deleteTask.isPending],
   );
 
   const onChangeSort = useCallback(
@@ -692,6 +711,69 @@ export function TasksPage() {
     { id: "review", label: "Review queue" },
   ];
 
+  if (me.isPending) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+    );
+  }
+  if (me.data && !canListTasks) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
+            Tasks
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Task list and filters require read access.
+          </p>
+        </div>
+        <Card className="border-amber-500/35 bg-muted/30 p-6">
+          <div className="flex gap-4">
+            <ShieldAlert
+              className="size-10 shrink-0 text-amber-600 dark:text-amber-400"
+              aria-hidden
+            />
+            <div className="min-w-0 space-y-3">
+              <h2 className="text-lg font-semibold text-foreground">
+                You don&apos;t have permission to view tasks
+              </h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Your role does not include{" "}
+                <span className="font-medium text-foreground">
+                  Tasks → Read
+                </span>{" "}
+                (<code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  {P.TASKS_READ}
+                </code>
+                ). Ask an administrator to enable it if you need to browse the
+                task list.
+              </p>
+              {canCreateTask ? (
+                <p className="text-sm text-muted-foreground">
+                  You can still create new tasks.
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {canCreateTask ? (
+                  <Link to="/tasks/new" className={cn(buttonVariants())}>
+                    <Plus className="size-4" />
+                    New task
+                  </Link>
+                ) : null}
+                <Link
+                  to="/"
+                  className={cn(buttonVariants({ variant: "outline" }))}
+                >
+                  Back to dashboard
+                </Link>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <AlertDialog
@@ -734,10 +816,12 @@ export function TasksPage() {
             list.
           </p>
         </div>
-        <Link to="/tasks/new" className={cn(buttonVariants())}>
-          <Plus className="size-4" />
-          New task
-        </Link>
+        {canCreateTask ? (
+          <Link to="/tasks/new" className={cn(buttonVariants())}>
+            <Plus className="size-4" />
+            New task
+          </Link>
+        ) : null}
       </div>
 
       <Card className="p-3">

@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
+import { useMe } from "@/hooks/useAuth";
+import {
+  meetingModuleCanUpdate,
+  taskModuleCanCreate,
+  taskModuleCanList,
+  taskModuleCanUpdate,
+} from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, ExternalLink, Eye, Pencil, Plus } from "lucide-react";
@@ -158,6 +165,13 @@ export function MeetingDetailPage() {
   const { id } = useParams();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+  const me = useMe();
+  const perms = me.data?.permissions;
+  const canUpdateMeeting = meetingModuleCanUpdate(perms);
+  const canListMeetingTasks = taskModuleCanList(perms);
+  const canCreateTask = taskModuleCanCreate(perms);
+  const canUpdateTask = taskModuleCanUpdate(perms);
+
   const { data } = useQuery({
     queryKey: ["meeting", id],
     queryFn: async () => {
@@ -190,7 +204,10 @@ export function MeetingDetailPage() {
   });
 
   const meetingTasksQuery = useQuery({
-    enabled: Boolean(id) && data?.computedStatus === "COMPLETED",
+    enabled:
+      Boolean(id) &&
+      data?.computedStatus === "COMPLETED" &&
+      canListMeetingTasks,
     queryKey: ["meeting-tasks", id, searchParams.toString()],
     queryFn: async () => {
       const parsed = parseMeetingTasksUrlParams(searchParams);
@@ -278,6 +295,10 @@ export function MeetingDetailPage() {
 
   const { data: statuses } = useQuery({
     queryKey: ["task-statuses"],
+    enabled:
+      Boolean(id) &&
+      data?.computedStatus === "COMPLETED" &&
+      canListMeetingTasks,
     queryFn: async () => {
       const { data } = await api.get<{
         statuses: { id: string; code: string; label: string }[];
@@ -422,35 +443,37 @@ export function MeetingDetailPage() {
               </TooltipTrigger>
               <TooltipContent>View</TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Link
-                    to={`/tasks/${row.original.id}/edit?returnTo=${encodeURIComponent(
-                      returnTo,
-                    )}`}
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      aria-label="Edit task"
+            {canUpdateTask ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Link
+                      to={`/tasks/${row.original.id}/edit?returnTo=${encodeURIComponent(
+                        returnTo,
+                      )}`}
                     >
-                      <Pencil className="size-4" />
-                    </Button>
-                  </Link>
-                }
-              >
-                <span />
-              </TooltipTrigger>
-              <TooltipContent>Edit</TooltipContent>
-            </Tooltip>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        aria-label="Edit task"
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                    </Link>
+                  }
+                >
+                  <span />
+                </TooltipTrigger>
+                <TooltipContent>Edit</TooltipContent>
+              </Tooltip>
+            ) : null}
           </div>
         ),
       },
     ],
-    [returnTo],
+    [returnTo, canUpdateTask],
   );
 
   const goPrev = useCallback(() => {
@@ -539,9 +562,11 @@ export function MeetingDetailPage() {
 
   if (!meeting) return <div className="text-muted-foreground">Loading…</div>;
   const canMarkCompleted =
+    canUpdateMeeting &&
     meeting.computedStatus !== "COMPLETED" &&
     meeting.computedStatus !== "CANCELLED";
-  const canEditMeeting = meeting.computedStatus === "SCHEDULED";
+  const canEditMeeting =
+    canUpdateMeeting && meeting.computedStatus === "SCHEDULED";
   const isCompleted = meeting.computedStatus === "COMPLETED";
 
   return (
@@ -652,21 +677,23 @@ export function MeetingDetailPage() {
         </CardContent>
       </Card>
 
-      {isCompleted ? (
+      {isCompleted && canListMeetingTasks ? (
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <CardTitle>Meeting tasks</CardTitle>
-              <Link
-                to={`/tasks/new?meetingId=${encodeURIComponent(
-                  String(id ?? ""),
-                )}&returnTo=${encodeURIComponent(returnTo)}`}
-              >
-                <Button>
-                  <Plus className="size-4" />
-                  Add task
-                </Button>
+              {canCreateTask ? (
+                <Link
+                  to={`/tasks/new?meetingId=${encodeURIComponent(
+                    String(id ?? ""),
+                  )}&returnTo=${encodeURIComponent(returnTo)}`}
+                >
+                  <Button>
+                    <Plus className="size-4" />
+                    Add task
+                  </Button>
                 </Link>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

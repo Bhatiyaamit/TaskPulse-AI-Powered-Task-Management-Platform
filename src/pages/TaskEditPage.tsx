@@ -2,13 +2,14 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Link,
+  Navigate,
   useNavigate,
   useParams,
   useSearchParams,
 } from "react-router-dom";
 import { api } from "@/api/client";
 import { useMe } from "@/hooks/useAuth";
-import { P } from "@/lib/permissions";
+import { P, taskModuleCanUpdate } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,8 +71,9 @@ export function TaskEditPage() {
   const hydrated = useRef(false);
   const [sp] = useSearchParams();
   const returnTo = sp.get("returnTo");
-  const { data: me } = useMe();
+  const { data: me, isPending: mePending } = useMe();
   const canAssignOthers = Boolean(me?.permissions?.includes(P.TASKS_ASSIGN));
+  const canEditTask = taskModuleCanUpdate(me?.permissions);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -88,7 +90,7 @@ export function TaskEditPage() {
 
   const taskQuery = useQuery({
     queryKey: ["task", id],
-    enabled: Boolean(id),
+    enabled: Boolean(id) && !mePending && canEditTask,
     queryFn: async () => {
       const { data } = await api.get<{ task: TaskPayload }>(`/api/tasks/${id}`);
       return data.task;
@@ -97,6 +99,7 @@ export function TaskEditPage() {
 
   const { data: statuses } = useQuery({
     queryKey: ["task-statuses"],
+    enabled: canEditTask,
     queryFn: async () => {
       const { data } = await api.get<{
         statuses: { id: string; label: string; code: string }[];
@@ -107,6 +110,7 @@ export function TaskEditPage() {
 
   const { data: assignable } = useQuery({
     queryKey: ["task-assignable-users"],
+    enabled: canEditTask,
     queryFn: async () => {
       const { data } = await api.get<{ users: UserOption[] }>(
         "/api/tasks/assignable-users",
@@ -234,6 +238,19 @@ export function TaskEditPage() {
           </SelectItem>
         ))}
       </>
+    );
+  }
+
+  if (mePending) {
+    return (
+      <div className="mx-auto max-w-2xl pb-12">
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
+  if (me && !canEditTask && id) {
+    return (
+      <Navigate to={returnTo?.trim() || `/tasks/${id}`} replace />
     );
   }
 

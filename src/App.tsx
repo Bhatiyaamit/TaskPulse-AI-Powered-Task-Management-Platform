@@ -19,10 +19,10 @@ import { TeamUserCreatePage } from "@/pages/TeamUserCreatePage";
 import { TeamUserEditPage } from "@/pages/TeamUserEditPage";
 import { TeamUserDetailPage } from "@/pages/TeamUserDetailPage";
 import { SettingsPage } from "@/pages/SettingsPage";
-import { RolesPage } from "@/pages/RolesPage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { DepartmentsPage } from "@/pages/DepartmentsPage";
 import { DepartmentCreatePage } from "@/pages/DepartmentCreatePage";
+import { DepartmentEditPage } from "@/pages/DepartmentEditPage";
 import { EodPage } from "@/pages/EodPage";
 import { PlatformTenantsPage } from "@/pages/PlatformTenantsPage";
 import { PlatformDashboardPage } from "@/pages/PlatformDashboardPage";
@@ -65,9 +65,12 @@ function AppShell() {
             <Route path="/team/:id/edit" element={<TeamUserEditPage />} />
             <Route path="/departments" element={<DepartmentsPage />} />
             <Route path="/departments/new" element={<DepartmentCreatePage />} />
+            <Route
+              path="/departments/:id/edit"
+              element={<DepartmentEditPage />}
+            />
             <Route path="/eod" element={<EodPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/settings/roles" element={<RolesPage />} />
             <Route
               path="/platform/dashboard"
               element={<PlatformDashboardPage />}

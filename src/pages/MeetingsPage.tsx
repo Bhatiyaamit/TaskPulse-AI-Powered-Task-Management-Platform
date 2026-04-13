@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import { Ban, Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { Ban, Eye, Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
+import { useMe } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,13 @@ import {
 import { DataTable } from "@/components/data-table";
 import { cn } from "@/lib/utils";
 import { meetingStatusBadgeClass, taskPriorityBadgeClass } from "@/lib/badges";
+import {
+  P,
+  meetingModuleCanCreate,
+  meetingModuleCanDelete,
+  meetingModuleCanList,
+  meetingModuleCanUpdate,
+} from "@/lib/permissions";
 import {
   Tooltip,
   TooltipContent,
@@ -88,6 +96,12 @@ function parseMeetingsUrlParams(p: URLSearchParams) {
 
 export function MeetingsPage() {
   const qc = useQueryClient();
+  const me = useMe();
+  const perms = me.data?.permissions;
+  const canReadMeetings = meetingModuleCanList(perms);
+  const canCreateMeetings = meetingModuleCanCreate(perms);
+  const canUpdateMeetings = meetingModuleCanUpdate(perms);
+  const canDeleteMeetings = meetingModuleCanDelete(perms);
   const [searchParams, setSearchParams] = useSearchParams();
   const { page, pageSize, search, priority, status, sortBy, sortDir } =
     parseMeetingsUrlParams(searchParams);
@@ -126,6 +140,7 @@ export function MeetingsPage() {
   }, [sortBy, sortDir]);
 
   const meetingsQuery = useQuery({
+    enabled: canReadMeetings,
     queryKey: [
       "meetings-paginated",
       { page, pageSize, search, priority, status, sortBy, sortDir },
@@ -282,26 +297,8 @@ export function MeetingsPage() {
                 <TooltipContent>View</TooltipContent>
               </Tooltip>
             </Link>
-            {row.original.computedStatus !== "SCHEDULED" ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      aria-label="Edit meeting (disabled)"
-                      disabled
-                    />
-                  }
-                >
-                  <Pencil className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>Edit</TooltipContent>
-              </Tooltip>
-            ) : (
-              <Link to={`/meetings/${row.original.id}/edit`}>
+            {canUpdateMeetings ? (
+              row.original.computedStatus !== "SCHEDULED" ? (
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -310,7 +307,8 @@ export function MeetingsPage() {
                         variant="ghost"
                         size="icon"
                         className="size-8"
-                        aria-label="Edit meeting"
+                        aria-label="Edit meeting (disabled)"
+                        disabled
                       />
                     }
                   >
@@ -318,63 +316,91 @@ export function MeetingsPage() {
                   </TooltipTrigger>
                   <TooltipContent>Edit</TooltipContent>
                 </Tooltip>
-              </Link>
-            )}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    aria-label="Cancel meeting"
-                    disabled={
-                      cancelMeeting.isPending ||
-                      row.original.computedStatus === "CANCELLED" ||
-                      row.original.computedStatus === "COMPLETED"
-                    }
-                    onClick={() =>
-                      setCancelTarget({
-                        id: row.original.id,
-                        title: row.original.title,
-                      })
-                    }
-                  />
-                }
-              >
-                <Ban className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>Cancel</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    aria-label="Delete meeting"
-                    onClick={() =>
-                      setDeleteTarget({
-                        id: row.original.id,
-                        title: row.original.title,
-                      })
-                    }
-                    disabled={deleteMeeting.isPending}
-                  />
-                }
-              >
-                <Trash2 className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>Delete</TooltipContent>
-            </Tooltip>
+              ) : (
+                <Link to={`/meetings/${row.original.id}/edit`}>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          aria-label="Edit meeting"
+                        />
+                      }
+                    >
+                      <Pencil className="size-4" />
+                    </TooltipTrigger>
+                    <TooltipContent>Edit</TooltipContent>
+                  </Tooltip>
+                </Link>
+              )
+            ) : null}
+            {canUpdateMeetings ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Cancel meeting"
+                      disabled={
+                        cancelMeeting.isPending ||
+                        row.original.computedStatus === "CANCELLED" ||
+                        row.original.computedStatus === "COMPLETED"
+                      }
+                      onClick={() =>
+                        setCancelTarget({
+                          id: row.original.id,
+                          title: row.original.title,
+                        })
+                      }
+                    />
+                  }
+                >
+                  <Ban className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Cancel</TooltipContent>
+              </Tooltip>
+            ) : null}
+            {canDeleteMeetings ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Delete meeting"
+                      onClick={() =>
+                        setDeleteTarget({
+                          id: row.original.id,
+                          title: row.original.title,
+                        })
+                      }
+                      disabled={deleteMeeting.isPending}
+                    />
+                  }
+                >
+                  <Trash2 className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Delete</TooltipContent>
+              </Tooltip>
+            ) : null}
           </div>
         ),
       },
     ],
-    [deleteMeeting.isPending, cancelMeeting.isPending],
+    [
+      canDeleteMeetings,
+      canUpdateMeetings,
+      deleteMeeting.isPending,
+      cancelMeeting.isPending,
+    ],
   );
 
   const table = useReactTable({
@@ -406,6 +432,62 @@ export function MeetingsPage() {
         return p;
       },
       { replace: true },
+    );
+  }
+
+  if (me.isPending) {
+    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  if (me.data && !canReadMeetings) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
+            Meetings
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Meeting list and filters require read access.
+          </p>
+        </div>
+        <Card className="border-amber-500/35 bg-muted/30 p-6">
+          <div className="flex gap-4">
+            <ShieldAlert
+              className="size-10 shrink-0 text-amber-600 dark:text-amber-400"
+              aria-hidden
+            />
+            <div className="min-w-0 space-y-3">
+              <h2 className="text-lg font-semibold text-foreground">
+                You don&apos;t have permission to view meetings
+              </h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Your role does not include{" "}
+                <span className="font-medium text-foreground">
+                  Meetings → Read
+                </span>{" "}
+                (<code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  {P.MEETINGS_READ}
+                </code>
+                ).
+              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {canCreateMeetings ? (
+                  <Link to="/meetings/new" className={cn(buttonVariants())}>
+                    <Plus className="size-4" />
+                    Create meeting
+                  </Link>
+                ) : null}
+                <Link
+                  to="/"
+                  className={cn(buttonVariants({ variant: "outline" }))}
+                >
+                  Back to dashboard
+                </Link>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
     );
   }
 
@@ -480,9 +562,11 @@ export function MeetingsPage() {
             Schedule, manage attendees, and capture outcomes.
           </p>
         </div>
-        <Link to="/meetings/new" className={cn(buttonVariants())}>
-          <Plus className="size-4" /> Create Meeting
-        </Link>
+        {canCreateMeetings ? (
+          <Link to="/meetings/new" className={cn(buttonVariants())}>
+            <Plus className="size-4" /> Create Meeting
+          </Link>
+        ) : null}
       </div>
 
       <Card>

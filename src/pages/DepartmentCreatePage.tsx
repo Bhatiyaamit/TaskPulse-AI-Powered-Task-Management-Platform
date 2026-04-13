@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
 import { api } from "@/api/client";
+import { useMe } from "@/hooks/useAuth";
+import { departmentModuleCanCreate } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +17,8 @@ import {
 export function DepartmentCreatePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const me = useMe();
+  const canCreate = departmentModuleCanCreate(me.data?.permissions);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
 
@@ -52,6 +56,15 @@ export function DepartmentCreatePage() {
       toast.error(String(msg));
     },
   });
+
+  if (me.isPending) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+    );
+  }
+  if (me.data && !canCreate) {
+    return <Navigate to="/departments" replace />;
+  }
 
   return (
     <CenteredFormPage

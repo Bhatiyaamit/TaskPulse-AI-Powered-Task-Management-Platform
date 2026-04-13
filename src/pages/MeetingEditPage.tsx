@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "@/api/client";
+import { useMe } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,9 +16,11 @@ import {
 } from "@/components/ui/select";
 import {
   CenteredFormPage,
+  FormBackLink,
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
 import { CheckCircle2 } from "lucide-react";
+import { meetingModuleCanUpdate } from "@/lib/permissions";
 
 const MEETING_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 
@@ -41,8 +44,11 @@ export function MeetingEditPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const me = useMe();
+  const canUpdateMeetings = meetingModuleCanUpdate(me.data?.permissions);
 
   const { data: users } = useQuery({
+    enabled: canUpdateMeetings,
     queryKey: ["meeting-attendees"],
     queryFn: async () => {
       const { data } = await api.get<{
@@ -53,7 +59,7 @@ export function MeetingEditPage() {
   });
 
   const meetingQuery = useQuery({
-    enabled: Boolean(id),
+    enabled: canUpdateMeetings && Boolean(id),
     queryKey: ["meeting", id],
     queryFn: async () => {
       const { data } = await api.get<{ meeting: Meeting }>(
@@ -115,6 +121,19 @@ export function MeetingEditPage() {
   });
 
   const m = meetingQuery.data;
+  if (!canUpdateMeetings) {
+    return (
+      <CenteredFormPage
+        title="Edit meeting"
+        description="You don’t have permission to update meetings."
+        back={<FormBackLink to="/meetings">Back to meetings</FormBackLink>}
+      >
+        <p className="text-sm text-muted-foreground">
+          Contact a company admin if you need access.
+        </p>
+      </CenteredFormPage>
+    );
+  }
   if (!m) return <div className="text-muted-foreground">Loading…</div>;
   const canMarkCompleted =
     m.computedStatus !== "COMPLETED" && m.computedStatus !== "CANCELLED";

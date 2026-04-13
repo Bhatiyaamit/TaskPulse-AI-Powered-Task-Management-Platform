@@ -6,7 +6,15 @@ import { UserMenu } from "@/components/UserMenu";
 import { useTheme } from "@/providers/theme-provider";
 import { useEffect } from "react";
 import { roleCodeBadgeClass } from "@/lib/badges";
-import { P } from "@/lib/permissions";
+import {
+  meetingModuleCanCreate,
+  meetingModuleCanList,
+  P,
+  departmentModuleCanAccessDepartmentsNav,
+  taskModuleCanCreate,
+  taskModuleCanList,
+  userModuleCanAccessUserRecord,
+} from "@/lib/permissions";
 import {
   LayoutDashboard,
   CheckSquare,
@@ -17,7 +25,6 @@ import {
   Calendar,
   Layers,
   ClipboardList,
-  Shield,
 } from "lucide-react";
 
 export function AppLayout() {
@@ -68,34 +75,35 @@ export function AppLayout() {
                 icon={<LayoutDashboard className="h-4 w-4" />}
                 label="Dashboard"
               />
-              <Nav
-                to="/tasks"
-                icon={<CheckSquare className="h-4 w-4" />}
-                label="Tasks"
-              />
-              <Nav
-                to="/eod"
-                icon={<ClipboardList className="h-4 w-4" />}
-                label="EOD"
-              />
-              {p.includes(P.MEETINGS_READ) && (
+              {taskModuleCanList(p) || taskModuleCanCreate(p) ? (
+                <Nav
+                  to="/tasks"
+                  icon={<CheckSquare className="h-4 w-4" />}
+                  label="Tasks"
+                />
+              ) : null}
+              {taskModuleCanList(p) ? (
+                <Nav
+                  to="/eod"
+                  icon={<ClipboardList className="h-4 w-4" />}
+                  label="EOD"
+                />
+              ) : null}
+              {(meetingModuleCanList(p) || meetingModuleCanCreate(p)) && (
                 <Nav
                   to="/meetings"
                   icon={<Calendar className="h-4 w-4" />}
                   label="Meetings"
                 />
               )}
-              {p.includes(P.USERS_READ) && (
+              {userModuleCanAccessUserRecord(p) && (
                 <Nav
                   to="/team"
                   icon={<Users className="h-4 w-4" />}
                   label="Team"
                 />
               )}
-              {(p.includes(P.DEPARTMENTS_READ) ||
-                p.includes(P.DEPARTMENTS_CREATE) ||
-                p.includes(P.DEPARTMENTS_UPDATE) ||
-                p.includes(P.DEPARTMENTS_DELETE)) && (
+              {departmentModuleCanAccessDepartmentsNav(p) && (
                 <Nav
                   to="/departments"
                   icon={<Layers className="h-4 w-4" />}
@@ -109,29 +117,11 @@ export function AppLayout() {
                   label="Reports"
                 />
               )}
-              {(p.includes(P.USERS_CREATE) ||
-                p.includes(P.USERS_UPDATE) ||
-                p.includes(P.USERS_DELETE) ||
-                p.includes(P.ROLES_READ) ||
-                p.includes(P.ROLES_CREATE) ||
-                p.includes(P.ROLES_UPDATE) ||
-                p.includes(P.ROLES_DELETE)) && (
-                <Nav
-                  to="/settings"
-                  icon={<Settings className="h-4 w-4" />}
-                  label="Settings"
-                />
-              )}
-              {(p.includes(P.ROLES_READ) ||
-                p.includes(P.ROLES_CREATE) ||
-                p.includes(P.ROLES_UPDATE) ||
-                p.includes(P.ROLES_DELETE)) && (
-                <Nav
-                  to="/settings/roles"
-                  icon={<Shield className="h-4 w-4" />}
-                  label="Roles"
-                />
-              )}
+              <Nav
+                to="/settings"
+                icon={<Settings className="h-4 w-4" />}
+                label="Settings"
+              />
             </>
           )}
           {isPlatform && p.includes(P.PLATFORM_READ) && (

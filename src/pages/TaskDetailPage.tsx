@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import {
   Link,
+  Navigate,
   useNavigate,
   useParams,
   useSearchParams,
@@ -22,7 +23,12 @@ import {
 import { toast } from "sonner";
 import { api, uploadTaskAttachment } from "@/api/client";
 import { useMe, useHasPermission } from "@/hooks/useAuth";
-import { P } from "@/lib/permissions";
+import {
+  P,
+  taskModuleCanAccessTask,
+  taskModuleCanLoadTaskStatuses,
+  taskModuleCanUpdate,
+} from "@/lib/permissions";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -148,9 +154,11 @@ export function TaskDetailPage() {
   const qc = useQueryClient();
   const [sp] = useSearchParams();
   const returnTo = sp.get("returnTo")?.trim() || "/tasks";
-  const { data: me } = useMe();
-  const canUpdate = useHasPermission(P.TASKS_UPDATE, me);
+  const { data: me, isPending: mePending } = useMe();
+  const canAccessTask = taskModuleCanAccessTask(me?.permissions);
+  const canUpdate = taskModuleCanUpdate(me?.permissions);
   const canReviewPerm = useHasPermission(P.TASKS_REVIEW, me);
+  const canLoadStatuses = taskModuleCanLoadTaskStatuses(me?.permissions);
 
   const [commentText, setCommentText] = useState("");
   const [timeMinutes, setTimeMinutes] = useState("");
@@ -159,7 +167,7 @@ export function TaskDetailPage() {
 
   const taskQuery = useQuery({
     queryKey: ["task", id],
-    enabled: Boolean(id),
+    enabled: Boolean(id) && !mePending && canAccessTask,
     queryFn: async () => {
       const { data } = await api.get<{ task: TaskDetail }>(`/api/tasks/${id}`);
       return data.task;
@@ -169,6 +177,7 @@ export function TaskDetailPage() {
 
   const statusesQuery = useQuery({
     queryKey: ["task-statuses"],
+    enabled: canLoadStatuses && (canUpdate || canReviewPerm),
     queryFn: async () => {
       const { data } = await api.get<{
         statuses: { id: string; code: string; label: string }[];
@@ -182,7 +191,7 @@ export function TaskDetailPage() {
 
   const checklistQuery = useQuery({
     queryKey: ["task", id, "checklist"],
-    enabled: Boolean(id),
+    enabled: Boolean(id) && !mePending && canAccessTask,
     queryFn: async () => {
       const { data } = await api.get<{ items: TaskChecklistItem[] }>(
         `/api/tasks/${id}/checklist`,
@@ -216,7 +225,7 @@ export function TaskDetailPage() {
   );
 
   const isReviewer = Boolean(
-    me && task?.reviewer?.id && task.reviewer.id === me.user.id,
+    me && task?.reviewer?.id && task.reviewer.id === me.user?.id,
   );
   const showReviewPanel = Boolean(
     task && canReviewPerm && isReviewer && task.status.code === "REVIEW",
@@ -224,7 +233,7 @@ export function TaskDetailPage() {
 
   const participantIds = useMemo(() => {
     if (!task || !me) return { isParticipant: false, viaHierarchy: false };
-    const uid = me.user.id;
+    const uid = me.user?.id;
     const isParticipant =
       task.assignedTo?.id === uid ||
       task.reviewer?.id === uid ||
@@ -294,7 +303,7 @@ export function TaskDetailPage() {
   const [uploading, setUploading] = useState(false);
 
   async function onPickFile(files: FileList | null) {
-    if (!files?.length || !id) return;
+    if (!files?.length || !id || !canUpdate) return;
     setUploading(true);
     try {
       for (const f of Array.from(files)) {
@@ -307,6 +316,18 @@ export function TaskDetailPage() {
     } finally {
       setUploading(false);
     }
+  }
+
+  if (mePending) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-muted-foreground">
+        Loading…
+      </div>
+    );
+  }
+
+  if (me && !canAccessTask) {
+    return <Navigate to={returnTo} replace />;
   }
 
   if (taskQuery.isLoading || !id) {

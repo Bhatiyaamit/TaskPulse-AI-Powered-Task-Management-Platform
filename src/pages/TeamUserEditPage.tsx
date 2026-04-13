@@ -8,6 +8,7 @@ import {
   P,
   PERMISSION_MATRIX_ACTIONS,
   PERMISSION_MATRIX_MODULES,
+  userIsTenantPrimaryAdmin,
 } from "@/lib/permissions";
 import { useMe } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -92,12 +93,13 @@ export function TeamUserEditPage() {
 
   const me = useMe();
   const perms = new Set(me.data?.permissions ?? []);
-  const canViewUsers = perms.has(P.USERS_READ);
   const canUpdateUsers = perms.has(P.USERS_UPDATE);
-  const canCreateRoles = perms.has(P.ROLES_CREATE);
+  const canManageRoleOnUser =
+    userIsTenantPrimaryAdmin(me.data?.user.roleCode) ||
+    perms.has(P.ROLES_CREATE);
 
   const userQuery = useQuery({
-    enabled: canViewUsers && Boolean(id),
+    enabled: canUpdateUsers && Boolean(id),
     queryKey: ["tenant-user", id],
     queryFn: async () => {
       const { data } = await api.get<{ user: UserDetail }>(
@@ -109,7 +111,7 @@ export function TeamUserEditPage() {
 
   const rolesQuery = useQuery({
     queryKey: ["tenant-roles", "all"],
-    enabled: canViewUsers && canCreateRoles,
+    enabled: canUpdateUsers && canManageRoleOnUser,
     queryFn: async () => {
       const { data } = await api.get<{ roles: TenantRoleDetail[] }>(
         "/api/tenant/roles",
@@ -121,7 +123,7 @@ export function TeamUserEditPage() {
 
   const managersQuery = useQuery({
     queryKey: ["team-managers-options"],
-    enabled: canViewUsers,
+    enabled: canUpdateUsers && Boolean(id),
     queryFn: async () => {
       const { data } = await api.get<{
         items: { id: string; name: string; username: string }[];
@@ -134,7 +136,7 @@ export function TeamUserEditPage() {
 
   const departmentsQuery = useQuery({
     queryKey: ["org-departments", "options"],
-    enabled: canViewUsers,
+    enabled: canUpdateUsers && Boolean(id),
     queryFn: async () => {
       const { data } = await api.get<{ departments: DepartmentOption[] }>(
         "/api/org/departments",
@@ -193,7 +195,7 @@ export function TeamUserEditPage() {
   }, [userQuery.data]);
 
   useEffect(() => {
-    if (!canCreateRoles) return;
+    if (!canManageRoleOnUser) return;
     const u = userQuery.data;
     const roles = rolesQuery.data;
     if (!u || !roles) return;
@@ -204,7 +206,7 @@ export function TeamUserEditPage() {
     setRoleSelected(
       new Set(r.matrixSelections.map((c) => cellKey(c.module, c.action))),
     );
-  }, [canCreateRoles, rolesQuery.data, userQuery.data, setValue]);
+  }, [canManageRoleOnUser, rolesQuery.data, userQuery.data, setValue]);
 
   useEffect(() => {
     if (!departmentsQuery.isSuccess) return;
@@ -276,8 +278,8 @@ export function TeamUserEditPage() {
       if (!canUpdateUsers) {
         throw new Error("You don’t have permission to update users.");
       }
-      if (!canCreateRoles) {
-        throw new Error("You don’t have permission to create roles.");
+      if (!canManageRoleOnUser) {
+        throw new Error("You don’t have permission to manage roles for users.");
       }
       if (roleSelected.size === 0) {
         throw new Error("Select at least one permission for the role.");
@@ -333,11 +335,11 @@ export function TeamUserEditPage() {
     },
   });
 
-  if (!canViewUsers) {
+  if (!canUpdateUsers) {
     return (
       <CenteredFormPage
         title="Edit user"
-        description="You don’t have permission to view users."
+        description="You don’t have permission to update users."
         back={<FormBackLink to="/team">Back to team</FormBackLink>}
       >
         <p className="text-sm text-muted-foreground">
@@ -518,7 +520,7 @@ export function TeamUserEditPage() {
             <Input
               id="roleName"
               placeholder="e.g. Manager"
-              disabled={!canCreateRoles || !canUpdateUsers}
+              disabled={!canManageRoleOnUser || !canUpdateUsers}
               {...register("roleName")}
             />
             {errors.roleName ? (
@@ -526,7 +528,7 @@ export function TeamUserEditPage() {
                 {errors.roleName.message}
               </p>
             ) : null}
-            {!canCreateRoles ? (
+            {!canManageRoleOnUser ? (
               <p className="text-xs text-muted-foreground">
                 You don’t have permission to update roles.
               </p>
@@ -542,7 +544,7 @@ export function TeamUserEditPage() {
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  disabled={!canCreateRoles || !canUpdateUsers}
+                  disabled={!canManageRoleOnUser || !canUpdateUsers}
                 >
                   <SelectTrigger className="w-full min-w-0 justify-between">
                     {field.value === "none"
@@ -599,7 +601,7 @@ export function TeamUserEditPage() {
                                 checked={roleSelected.has(k)}
                                 onChange={() => toggleRoleCell(m, a)}
                                 disabled={
-                                  !canCreateRoles ||
+                                  !canManageRoleOnUser ||
                                   !canUpdateUsers ||
                                   !supported
                                 }
@@ -617,7 +619,7 @@ export function TeamUserEditPage() {
                             type="checkbox"
                             checked={isModuleAllChecked(m)}
                             onChange={(e) => setModuleAll(m, e.target.checked)}
-                            disabled={!canCreateRoles || !canUpdateUsers}
+                            disabled={!canManageRoleOnUser || !canUpdateUsers}
                           />
                           <span className="text-xs text-muted-foreground">
                             All
@@ -638,7 +640,7 @@ export function TeamUserEditPage() {
           </Button>
           <Button
             type="submit"
-            disabled={update.isPending || !canUpdateUsers || !canCreateRoles}
+            disabled={update.isPending || !canUpdateUsers || !canManageRoleOnUser}
           >
             {update.isPending ? "Saving…" : "Save changes"}
           </Button>
