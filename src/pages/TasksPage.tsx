@@ -145,11 +145,24 @@ function useDebouncedValue<T>(value: T, ms: number): T {
 
 const DEFAULT_PAGE_SIZE = 10;
 
-const TASK_QUEUES = ["all", "my", "given", "support", "review"] as const;
+const TASK_QUEUES = ["my_tasks", "given", "team", "recurring"] as const;
 type TaskQueue = (typeof TASK_QUEUES)[number];
 
 function isTaskQueue(s: string | null): s is TaskQueue {
   return s != null && (TASK_QUEUES as readonly string[]).includes(s);
+}
+
+const LEGACY_QUEUE: Record<string, TaskQueue> = {
+  all: "my_tasks",
+  my: "my_tasks",
+  support: "my_tasks",
+  review: "my_tasks",
+};
+
+function normalizeTaskQueue(raw: string | null): TaskQueue {
+  if (raw && LEGACY_QUEUE[raw]) return LEGACY_QUEUE[raw];
+  if (isTaskQueue(raw)) return raw;
+  return "my_tasks";
 }
 
 function parseTasksUrlParams(searchParams: URLSearchParams) {
@@ -188,7 +201,7 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
   const dueFrom = searchParams.get("dueFrom") || "";
   const dueTo = searchParams.get("dueTo") || "";
   const queueRaw = searchParams.get("queue");
-  const queue: TaskQueue = isTaskQueue(queueRaw) ? queueRaw : "all";
+  const queue: TaskQueue = normalizeTaskQueue(queueRaw);
   const pagination: PaginationState = {
     pageIndex: page - 1,
     pageSize,
@@ -328,10 +341,7 @@ export function TasksPage() {
         params: {
           page: pagination.pageIndex + 1,
           pageSize: pagination.pageSize,
-          ...(queue !== "all" ? { queue } : {}),
-          ...(queue === "review" && me.data?.user?.id
-            ? { reviewerId: me.data?.user?.id }
-            : {}),
+          queue,
           ...(statusId ? { statusId } : {}),
           ...(priority ? { priority } : {}),
           ...(dueFrom
@@ -648,6 +658,11 @@ export function TasksPage() {
     total,
   );
 
+  const listEmptyMessage =
+    queue === "recurring"
+      ? "No recurring tasks yet. This tab will list repeats once recurrence is enabled."
+      : "No tasks match your filters.";
+
   function statusFilterLabel(v: string) {
     if (v === "__all__") return "All statuses";
     const s = statuses?.find((x) => x.id === v);
@@ -692,7 +707,7 @@ export function TasksPage() {
       setSearchParams(
         (prev) => {
           const p = new URLSearchParams(prev);
-          if (next === "all") p.delete("queue");
+          if (next === "my_tasks") p.delete("queue");
           else p.set("queue", next);
           p.delete("page");
           return p;
@@ -704,11 +719,10 @@ export function TasksPage() {
   );
 
   const queueTabs: { id: TaskQueue; label: string }[] = [
-    { id: "all", label: "All" },
-    { id: "my", label: "My tasks" },
+    { id: "my_tasks", label: "My tasks" },
     { id: "given", label: "Given by me" },
-    { id: "support", label: "Supporting" },
-    { id: "review", label: "Review queue" },
+    { id: "team", label: "My team task" },
+    { id: "recurring", label: "Recurring task" },
   ];
 
   if (me.isPending) {
@@ -976,7 +990,7 @@ export function TasksPage() {
           sort={tableSorting}
           onChangeSort={onChangeSort}
           isLoading={query.isLoading}
-          emptyMessage="No tasks match your filters."
+          emptyMessage={listEmptyMessage}
           getRowProps={getTaskRowProps}
         />
 

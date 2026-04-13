@@ -82,7 +82,9 @@ export function PlatformTenantCreatePage() {
       >
         <div className="flex flex-col gap-4">
           <div className="space-y-2">
-            <Label htmlFor="tenant-name">Company name</Label>
+            <Label htmlFor="tenant-name" required>
+              Company name
+            </Label>
             <Input
               id="tenant-name"
               value={name}
@@ -92,7 +94,9 @@ export function PlatformTenantCreatePage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="tenant-admin-username">First admin username</Label>
+            <Label htmlFor="tenant-admin-username" required>
+              First admin username
+            </Label>
             <Input
               id="tenant-admin-username"
               type="text"
@@ -108,7 +112,7 @@ export function PlatformTenantCreatePage() {
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="tenant-admin-temp-password">
+            <Label htmlFor="tenant-admin-temp-password" required>
               Temporary password
             </Label>
             <PasswordInput

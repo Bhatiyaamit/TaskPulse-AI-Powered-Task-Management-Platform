@@ -82,7 +82,9 @@ export function DepartmentCreatePage() {
       >
         <div className="flex flex-col gap-4">
           <div className="space-y-2">
-            <Label htmlFor="dept-name">Department name</Label>
+            <Label htmlFor="dept-name" required>
+              Department name
+            </Label>
             <Input
               id="dept-name"
               value={name}

@@ -47,6 +47,7 @@ const userSchema = z.object({
     .min(8, "Temporary password must be at least 8 characters"),
   managerId: z.string().default("__none__"),
   departmentId: z.string().default("__none__"),
+  isReviewer: z.boolean().default(false).catch(false),
 });
 type UserFormValues = z.input<typeof userSchema>;
 
@@ -105,6 +106,7 @@ export function TeamUserCreatePage() {
       password: "",
       managerId: "__none__",
       departmentId: "__none__",
+      isReviewer: false,
     },
   });
 
@@ -250,6 +252,7 @@ export function TeamUserCreatePage() {
         employeeCode: v.employeeCode?.trim() ? v.employeeCode.trim() : null,
         phone: v.phone?.trim() ? v.phone.trim() : null,
         birthDate: v.birthDate ? new Date(v.birthDate) : null,
+        isReviewer: Boolean(v.isReviewer),
       };
       const { data } = await api.post<{ user: { id: string } }>(
         "/api/tenant/users",
@@ -301,7 +304,9 @@ export function TeamUserCreatePage() {
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-1">
-            <Label htmlFor="name">Full name</Label>
+            <Label htmlFor="name" required>
+              Full name
+            </Label>
             <Input
               id="name"
               placeholder="e.g. Priya Patel"
@@ -315,7 +320,9 @@ export function TeamUserCreatePage() {
           </div>
 
           <div className="space-y-2 sm:col-span-1">
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="username" required>
+              Username
+            </Label>
             <Input
               id="username"
               type="text"
@@ -338,6 +345,21 @@ export function TeamUserCreatePage() {
               placeholder="e.g. EMP-1024"
               {...register("employeeCode")}
             />
+          </div>
+
+          <div className="space-y-2 sm:col-span-1">
+            <Label htmlFor="isReviewer">Reviewer for others</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="isReviewer"
+                type="checkbox"
+                className="h-4 w-4"
+                {...register("isReviewer")}
+              />
+              <span className="text-sm text-muted-foreground">
+                Allow this user to appear in the Task “Reviewer” dropdown.
+              </span>
+            </div>
           </div>
 
           <div className="space-y-2 sm:col-span-1">
@@ -450,7 +472,9 @@ export function TeamUserCreatePage() {
           </div>
 
           <div className="space-y-2 sm:col-span-1">
-            <Label htmlFor="roleName">Role name</Label>
+            <Label htmlFor="roleName" required>
+              Role name
+            </Label>
             <Input
               id="roleName"
               placeholder="e.g. Manager"
@@ -560,7 +584,9 @@ export function TeamUserCreatePage() {
           </div>
 
           <div className="space-y-2 sm:col-span-1">
-            <Label htmlFor="password">Temporary password</Label>
+            <Label htmlFor="password" required>
+              Temporary password
+            </Label>
             <PasswordInput
               id="password"
               placeholder="Minimum 8 characters"

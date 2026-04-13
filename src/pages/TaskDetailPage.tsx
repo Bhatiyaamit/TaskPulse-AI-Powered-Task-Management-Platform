@@ -49,6 +49,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import DOMPurify from "dompurify";
 
 type UserBrief = { id: string; name: string; username: string };
 
@@ -65,15 +66,18 @@ type TaskDetail = {
   id: string;
   title: string;
   description: string | null;
+  steps: string | null;
   priority: string;
   taskType: string;
   startDate: string | null;
   dueDate: string | null;
+  escalationAt: string | null;
   estimatedMinutes: number | null;
   status: { id: string; code: string; label: string };
   assignedTo: UserBrief | null;
   reviewer: UserBrief | null;
   supporter: UserBrief | null;
+  escalationTo: UserBrief | null;
   createdBy: UserBrief;
   activities: TaskActivity[];
   attachments: {
@@ -124,6 +128,28 @@ function formatDay(iso: string | null) {
   } catch {
     return iso;
   }
+}
+
+function looksLikeHtml(s: string) {
+  return /<\/?[a-z][\s\S]*>/i.test(s);
+}
+
+function safeStepsHtml(raw: string) {
+  const html = looksLikeHtml(raw)
+    ? raw
+    : raw
+        .split("&")
+        .join("&amp;")
+        .split("<")
+        .join("&lt;")
+        .split(">")
+        .join("&gt;")
+        .split("\n")
+        .join("<br />");
+
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+  });
 }
 
 function activityIcon(type: TaskActivity["type"]) {
@@ -467,6 +493,22 @@ export function TaskDetailPage() {
                   <p className="whitespace-pre-wrap text-sm leading-relaxed">
                     {task.description?.trim() ? task.description : "—"}
                   </p>
+                  <div className="mt-4">
+                    <h4 className="mb-2 text-sm font-semibold uppercase tracking-wide text-primary">
+                      Steps (How to do)
+                    </h4>
+                    {task.steps?.trim() ? (
+                      <div
+                        className="prose prose-sm max-w-none dark:prose-invert"
+                        // Sanitized HTML only (see safeStepsHtml).
+                        dangerouslySetInnerHTML={{
+                          __html: safeStepsHtml(task.steps),
+                        }}
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">—</p>
+                    )}
+                  </div>
                 </div>
                 <Separator />
                 <div className="grid gap-4 sm:grid-cols-3">
@@ -507,6 +549,29 @@ export function TaskDetailPage() {
                     {task.supporter?.username && (
                       <p className="text-xs text-muted-foreground">
                         {task.supporter.username}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-primary">
+                      Escalation time
+                    </div>
+                    <p className="text-sm font-medium">
+                      {task.escalationAt ? formatWhen(task.escalationAt) : "—"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-primary">
+                      Escalation to
+                    </div>
+                    <p className="text-sm font-medium">
+                      {task.escalationTo?.name ?? "—"}
+                    </p>
+                    {task.escalationTo?.username && (
+                      <p className="text-xs text-muted-foreground">
+                        {task.escalationTo.username}
                       </p>
                     )}
                   </div>

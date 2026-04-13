@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   Select,
   SelectContent,
@@ -39,21 +40,29 @@ const TASK_TYPES = [
   { value: "MEETING_FOLLOWUP", label: "Meeting follow-up" },
 ] as const;
 
-type UserOption = { id: string; name: string; username: string };
+type UserOption = {
+  id: string;
+  name: string;
+  username: string;
+  isReviewer?: boolean;
+};
 
 type TaskPayload = {
   id: string;
   title: string;
   description: string | null;
+  steps: string | null;
   priority: string;
   taskType: string;
   startDate: string | null;
   dueDate: string | null;
+  escalationAt: string | null;
   estimatedMinutes: number | null;
   status: { id: string; code: string; label: string };
   assignedTo: UserOption | null;
   reviewer: UserOption | null;
   supporter: UserOption | null;
+  escalationTo: UserOption | null;
 };
 
 function isoToDatetimeLocal(iso: string | null): string {
@@ -81,11 +90,13 @@ export function TaskEditPage() {
   const [assignedToId, setAssignedToId] = useState(UNASSIGNED);
   const [reviewerId, setReviewerId] = useState(UNASSIGNED);
   const [supporterId, setSupporterId] = useState(UNASSIGNED);
+  const [escalationToId, setEscalationToId] = useState(UNASSIGNED);
+  const [escalationAt, setEscalationAt] = useState("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [estimatedMinutes, setEstimatedMinutes] = useState("");
   const [priority, setPriority] = useState<string>("MEDIUM");
   const [taskType, setTaskType] = useState<string>("GENERAL");
+  const [steps, setSteps] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
   const taskQuery = useQuery({
@@ -130,15 +141,15 @@ export function TaskEditPage() {
     hydrated.current = true;
     setTitle(task.title);
     setDescription(task.description ?? "");
+    setSteps(task.steps ?? "");
     setStatusId(task.status.id);
     setAssignedToId(task.assignedTo?.id ?? UNASSIGNED);
     setReviewerId(task.reviewer?.id ?? UNASSIGNED);
     setSupporterId(task.supporter?.id ?? UNASSIGNED);
+    setEscalationToId(task.escalationTo?.id ?? UNASSIGNED);
     setStartDate(isoToDatetimeLocal(task.startDate));
     setDueDate(isoToDatetimeLocal(task.dueDate));
-    setEstimatedMinutes(
-      task.estimatedMinutes != null ? String(task.estimatedMinutes) : "",
-    );
+    setEscalationAt(isoToDatetimeLocal(task.escalationAt));
     setPriority(task.priority || "MEDIUM");
     setTaskType(task.taskType || "GENERAL");
   }, [task]);
@@ -198,19 +209,11 @@ export function TaskEditPage() {
       setFormError("Loading statuses… try again in a moment.");
       return;
     }
-    let estimated: number | null = null;
-    if (estimatedMinutes.trim() !== "") {
-      const n = Number.parseInt(estimatedMinutes, 10);
-      if (Number.isNaN(n) || n < 0) {
-        setFormError("Estimated time must be a non‑negative number (minutes).");
-        return;
-      }
-      estimated = n;
-    }
     const toNull = (v: string) => (v === UNASSIGNED ? null : v);
     update.mutate({
       title: title.trim(),
       description: description.trim() || null,
+      steps: steps.trim() || null,
       statusId,
       priority,
       taskType,
@@ -219,11 +222,12 @@ export function TaskEditPage() {
             assignedToId: toNull(assignedToId),
             reviewerId: toNull(reviewerId),
             supporterId: toNull(supporterId),
+            escalationToId: toNull(escalationToId),
           }
         : {}),
+      escalationAt: escalationAt || null,
       startDate: startDate || null,
       dueDate: dueDate || null,
-      estimatedMinutes: estimated,
     });
   }
 
@@ -251,6 +255,20 @@ export function TaskEditPage() {
   if (me && !canEditTask && id) {
     return (
       <Navigate to={returnTo?.trim() || `/tasks/${id}`} replace />
+    );
+  }
+
+  function reviewerItems() {
+    const users = (assignable ?? []).filter((u) => Boolean(u.isReviewer));
+    return (
+      <>
+        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+        {users.map((u) => (
+          <SelectItem key={u.id} value={u.id}>
+            {u.name || u.username}
+          </SelectItem>
+        ))}
+      </>
     );
   }
 
@@ -297,7 +315,9 @@ export function TaskEditPage() {
               Basic info
             </h4>
             <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
+              <Label htmlFor="title" required>
+                Title
+              </Label>
               <Input
                 id="title"
                 value={title}
@@ -316,24 +336,12 @@ export function TaskEditPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Status</Label>
-              <Select
-                value={statusId}
-                onValueChange={setStatusId}
-                disabled={!statuses?.length}
-                itemToStringLabel={statusLabelForValue}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(statuses ?? []).map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Steps (How to do)</Label>
+              <RichTextEditor
+                value={steps}
+                onChange={setSteps}
+                placeholder="Write the steps… Use bullets/numbering, bold, italics."
+              />
             </div>
           </section>
 
@@ -369,7 +377,7 @@ export function TaskEditPage() {
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Who signs off" />
                       </SelectTrigger>
-                      <SelectContent>{userItems()}</SelectContent>
+                      <SelectContent>{reviewerItems()}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
@@ -381,6 +389,19 @@ export function TaskEditPage() {
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Optional helper" />
+                      </SelectTrigger>
+                      <SelectContent>{userItems()}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Escalation to whom</Label>
+                    <Select
+                      value={escalationToId}
+                      onValueChange={setEscalationToId}
+                      itemToStringLabel={userLabelForValue}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Who should be notified on escalation" />
                       </SelectTrigger>
                       <SelectContent>{userItems()}</SelectContent>
                     </Select>
@@ -417,64 +438,14 @@ export function TaskEditPage() {
               </div>
             </div>
             <div className="space-y-2 sm:max-w-xs">
-              <Label htmlFor="est">Estimated time (minutes)</Label>
+              <Label htmlFor="escalationAt">Escalation time</Label>
               <Input
-                id="est"
-                type="number"
-                min={0}
-                step={1}
-                value={estimatedMinutes}
-                onChange={(e) => setEstimatedMinutes(e.target.value)}
-                placeholder="e.g. 120"
+                id="escalationAt"
+                type="datetime-local"
+                value={escalationAt}
+                onChange={(e) => setEscalationAt(e.target.value)}
+                placeholder="Select escalation time"
               />
-            </div>
-          </section>
-
-          <Separator />
-
-          <section className="space-y-4">
-            <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">
-              Settings
-            </h4>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select
-                  value={priority}
-                  onValueChange={setPriority}
-                  itemToStringLabel={priorityLabelForValue}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRIORITIES.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p.charAt(0) + p.slice(1).toLowerCase()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Task type</Label>
-                <Select
-                  value={taskType}
-                  onValueChange={setTaskType}
-                  itemToStringLabel={taskTypeLabelForValue}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TASK_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </section>
         </div>

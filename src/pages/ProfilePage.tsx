@@ -113,7 +113,9 @@ export function ProfilePage() {
             <Input id="profile-username" value={data.user.username} disabled />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="profile-name">Full name</Label>
+            <Label htmlFor="profile-name" required>
+              Full name
+            </Label>
             <Input
               id="profile-name"
               value={name}
