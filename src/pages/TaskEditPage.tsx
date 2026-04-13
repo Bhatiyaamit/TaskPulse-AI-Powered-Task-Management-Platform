@@ -30,16 +30,6 @@ import {
 
 const UNASSIGNED = "__none__";
 
-const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
-
-const TASK_TYPES = [
-  { value: "GENERAL", label: "General" },
-  { value: "BUG", label: "Bug" },
-  { value: "FEATURE", label: "Feature" },
-  { value: "IMPROVEMENT", label: "Improvement" },
-  { value: "MEETING_FOLLOWUP", label: "Meeting follow-up" },
-] as const;
-
 type UserOption = {
   id: string;
   name: string;
@@ -108,17 +98,6 @@ export function TaskEditPage() {
     },
   });
 
-  const { data: statuses } = useQuery({
-    queryKey: ["task-statuses"],
-    enabled: canEditTask,
-    queryFn: async () => {
-      const { data } = await api.get<{
-        statuses: { id: string; label: string; code: string }[];
-      }>("/api/tasks/statuses");
-      return data.statuses;
-    },
-  });
-
   const { data: assignable } = useQuery({
     queryKey: ["task-assignable-users"],
     enabled: canEditTask,
@@ -131,6 +110,7 @@ export function TaskEditPage() {
   });
 
   const task = taskQuery.data;
+  const hasStatusId = Boolean(statusId);
 
   useLayoutEffect(() => {
     hydrated.current = false;
@@ -154,24 +134,10 @@ export function TaskEditPage() {
     setTaskType(task.taskType || "GENERAL");
   }, [task]);
 
-  function statusLabelForValue(v: string) {
-    const s = statuses?.find((x) => x.id === v);
-    return s?.label ?? v;
-  }
-
   function userLabelForValue(v: string) {
     if (v === UNASSIGNED) return "Unassigned";
     const u = assignable?.find((x) => x.id === v);
     return u?.name || u?.username || v;
-  }
-
-  function priorityLabelForValue(v: string) {
-    if (!v) return "";
-    return v.charAt(0) + v.slice(1).toLowerCase();
-  }
-
-  function taskTypeLabelForValue(v: string) {
-    return TASK_TYPES.find((t) => t.value === v)?.label ?? v;
   }
 
   const update = useMutation({
@@ -205,10 +171,8 @@ export function TaskEditPage() {
       setFormError("Title is required.");
       return;
     }
-    if (!statusId) {
-      setFormError("Loading statuses… try again in a moment.");
-      return;
-    }
+    // statusId is hydrated from the task; keep the check but avoid unused error path text
+    if (!hasStatusId) return;
     const toNull = (v: string) => (v === UNASSIGNED ? null : v);
     update.mutate({
       title: title.trim(),
@@ -253,9 +217,7 @@ export function TaskEditPage() {
     );
   }
   if (me && !canEditTask && id) {
-    return (
-      <Navigate to={returnTo?.trim() || `/tasks/${id}`} replace />
-    );
+    return <Navigate to={returnTo?.trim() || `/tasks/${id}`} replace />;
   }
 
   function reviewerItems() {
