@@ -57,6 +57,7 @@ import {
   taskModuleCanList,
   taskModuleCanUpdate,
 } from "@/lib/permissions";
+import { normalizeTaskQueue, type TaskQueue } from "@/lib/taskQueues";
 
 type TaskRow = {
   id: string;
@@ -144,26 +145,6 @@ function useDebouncedValue<T>(value: T, ms: number): T {
 }
 
 const DEFAULT_PAGE_SIZE = 10;
-
-const TASK_QUEUES = ["my_tasks", "given", "team", "recurring"] as const;
-type TaskQueue = (typeof TASK_QUEUES)[number];
-
-function isTaskQueue(s: string | null): s is TaskQueue {
-  return s != null && (TASK_QUEUES as readonly string[]).includes(s);
-}
-
-const LEGACY_QUEUE: Record<string, TaskQueue> = {
-  all: "my_tasks",
-  my: "my_tasks",
-  support: "my_tasks",
-  review: "my_tasks",
-};
-
-function normalizeTaskQueue(raw: string | null): TaskQueue {
-  if (raw && LEGACY_QUEUE[raw]) return LEGACY_QUEUE[raw];
-  if (isTaskQueue(raw)) return raw;
-  return "my_tasks";
-}
 
 function parseTasksUrlParams(searchParams: URLSearchParams) {
   const page = Math.max(
@@ -726,9 +707,7 @@ export function TasksPage() {
   ];
 
   if (me.isPending) {
-    return (
-      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
-    );
+    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   }
   if (me.data && !canListTasks) {
     return (
@@ -756,7 +735,8 @@ export function TasksPage() {
                 <span className="font-medium text-foreground">
                   Tasks → Read
                 </span>{" "}
-                (<code className="rounded bg-muted px-1 py-0.5 text-xs">
+                (
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
                   {P.TASKS_READ}
                 </code>
                 ). Ask an administrator to enable it if you need to browse the
