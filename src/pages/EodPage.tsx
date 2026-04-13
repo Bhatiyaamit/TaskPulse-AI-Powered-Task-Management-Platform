@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -8,6 +8,8 @@ import {
   ListChecks,
 } from "lucide-react";
 import { api } from "@/api/client";
+import { useMe } from "@/hooks/useAuth";
+import { taskModuleCanList } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
@@ -117,8 +119,12 @@ function TaskList({
 
 export function EodPage() {
   const [workedOnOpen, setWorkedOnOpen] = useState(false);
+  const me = useMe();
+  const canEod = taskModuleCanList(me.data?.permissions);
+
   const q = useQuery({
     queryKey: ["eod", "today"],
+    enabled: canEod,
     queryFn: async () => {
       const { data } = await api.get<EodTodayResponse>("/api/eod/today");
       return data;
@@ -161,6 +167,15 @@ export function EodPage() {
     0,
     (q.data?.workedOnToday.length ?? 0) - workedOnPreview.length,
   );
+
+  if (me.isPending) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+    );
+  }
+  if (me.data && !canEod) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="space-y-6">

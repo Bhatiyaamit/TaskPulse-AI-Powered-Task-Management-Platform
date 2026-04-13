@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
 import { useMe } from "@/hooks/useAuth";
-import { P } from "@/lib/permissions";
+import { P, taskModuleCanCreate } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,8 +37,9 @@ export function TaskCreatePage() {
   const [sp] = useSearchParams();
   const meetingId = sp.get("meetingId");
   const returnTo = sp.get("returnTo");
-  const { data: me } = useMe();
+  const { data: me, isPending: mePending } = useMe();
   const canAssignOthers = Boolean(me?.permissions?.includes(P.TASKS_ASSIGN));
+  const canCreateTask = taskModuleCanCreate(me?.permissions);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -55,6 +56,7 @@ export function TaskCreatePage() {
 
   const { data: statuses } = useQuery({
     queryKey: ["task-statuses"],
+    enabled: canCreateTask,
     queryFn: async () => {
       const { data } = await api.get<{
         statuses: { id: string; label: string; code: string }[];
@@ -65,6 +67,7 @@ export function TaskCreatePage() {
 
   const { data: assignable } = useQuery({
     queryKey: ["task-assignable-users"],
+    enabled: canCreateTask,
     queryFn: async () => {
       const { data } = await api.get<{ users: UserOption[] }>(
         "/api/tasks/assignable-users",
@@ -168,6 +171,20 @@ export function TaskCreatePage() {
         ))}
       </>
     );
+  }
+
+  if (mePending) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+    );
+  }
+  if (me && !canCreateTask) {
+    const fallback =
+      returnTo?.trim() ||
+      (meetingId?.trim()
+        ? `/meetings/${encodeURIComponent(meetingId)}`
+        : "/tasks");
+    return <Navigate to={fallback} replace />;
   }
 
   return (

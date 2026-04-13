@@ -13,6 +13,7 @@ import {
   P,
   PERMISSION_MATRIX_ACTIONS,
   PERMISSION_MATRIX_MODULES,
+  userIsTenantPrimaryAdmin,
 } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import {
@@ -80,7 +81,9 @@ export function TeamUserCreatePage() {
   const me = useMe();
   const canAddUser = canCreateUsers(me.data);
   const perms = new Set(me.data?.permissions ?? []);
-  const canCreateRoleInline = perms.has(P.ROLES_CREATE);
+  const canCreateRoleInline =
+    userIsTenantPrimaryAdmin(me.data?.user.roleCode) ||
+    perms.has(P.ROLES_CREATE);
 
   const {
     register,

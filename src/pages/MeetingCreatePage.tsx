@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
+import { useMe } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,18 +16,23 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   CenteredFormPage,
+  FormBackLink,
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
+import { meetingModuleCanCreate } from "@/lib/permissions";
 
 const MEETING_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 
 export function MeetingCreatePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const me = useMe();
+  const canCreateMeetings = meetingModuleCanCreate(me.data?.permissions);
   const [priority, setPriority] =
     useState<(typeof MEETING_PRIORITIES)[number]>("MEDIUM");
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
   const { data: users } = useQuery({
+    enabled: canCreateMeetings,
     queryKey: ["meeting-attendees"],
     queryFn: async () => {
       const { data } = await api.get<{
@@ -54,6 +60,20 @@ export function MeetingCreatePage() {
       else navigate("/meetings");
     },
   });
+
+  if (!canCreateMeetings) {
+    return (
+      <CenteredFormPage
+        title="New meeting"
+        description="You don’t have permission to create meetings."
+        back={<FormBackLink to="/meetings">Back to meetings</FormBackLink>}
+      >
+        <p className="text-sm text-muted-foreground">
+          Contact a company admin if you need access.
+        </p>
+      </CenteredFormPage>
+    );
+  }
 
   return (
     <CenteredFormPage

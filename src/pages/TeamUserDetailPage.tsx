@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { useMe } from "@/hooks/useAuth";
@@ -56,10 +56,11 @@ export function TeamUserDetailPage() {
   const { id } = useParams();
   const me = useMe();
   const perms = new Set(me.data?.permissions ?? []);
-  const canViewTeam = perms.has(P.USERS_READ);
+  const canReadUsers = perms.has(P.USERS_READ);
+  const canUpdateUsers = perms.has(P.USERS_UPDATE);
 
   const userQuery = useQuery({
-    enabled: canViewTeam && Boolean(id),
+    enabled: canReadUsers && Boolean(id),
     queryKey: ["tenant-user", id],
     queryFn: async () => {
       const { data } = await api.get<{ user: UserDetail }>(
@@ -70,7 +71,7 @@ export function TeamUserDetailPage() {
   });
 
   const rolesQuery = useQuery({
-    enabled: canViewTeam,
+    enabled: canReadUsers,
     queryKey: ["tenant-roles", "all"],
     queryFn: async () => {
       const { data } = await api.get<{ roles: TenantRoleDetail[] }>(
@@ -90,7 +91,13 @@ export function TeamUserDetailPage() {
     return new Set(r.matrixSelections.map((c) => cellKey(c.module, c.action)));
   }, [rolesQuery.data, userQuery.data]);
 
-  if (!canViewTeam) {
+  if (canUpdateUsers && !canReadUsers && id) {
+    return (
+      <Navigate to={`/team/${encodeURIComponent(id)}/edit`} replace />
+    );
+  }
+
+  if (!canReadUsers) {
     return (
       <CenteredFormPage
         title="User details"

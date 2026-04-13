@@ -1,11 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import { Eye, Plus } from "lucide-react";
+import { Eye, Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { isAxiosError } from "axios";
+import { toast } from "sonner";
 import { api } from "@/api/client";
-import { P } from "@/lib/permissions";
+import {
+  P,
+  departmentModuleCanAccessDepartmentsNav,
+  departmentModuleCanCreate,
+  departmentModuleCanDelete,
+  departmentModuleCanFetchDepartmentPageList,
+  departmentModuleCanList,
+  departmentModuleCanUpdate,
+  userModuleCanList,
+} from "@/lib/permissions";
 import { useMe } from "@/hooks/useAuth";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +29,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DataTable } from "@/components/data-table";
 import { cn } from "@/lib/utils";
 import {
@@ -72,18 +93,25 @@ function badgeColorClass(seed: string) {
 }
 
 export function DepartmentsPage() {
+  const qc = useQueryClient();
   const me = useMe();
-  const perms = new Set(me.data?.permissions ?? []);
-  const canOrg =
-    perms.has(P.DEPARTMENTS_READ) ||
-    perms.has(P.DEPARTMENTS_CREATE) ||
-    perms.has(P.DEPARTMENTS_UPDATE) ||
-    perms.has(P.DEPARTMENTS_DELETE);
+  const perms = me.data?.permissions;
+  const canAccess = departmentModuleCanAccessDepartmentsNav(perms);
+  const canFetchList = departmentModuleCanFetchDepartmentPageList(perms);
+  const canListDepts = departmentModuleCanList(perms);
+  const canCreateDept = departmentModuleCanCreate(perms);
+  const canUpdateDept = departmentModuleCanUpdate(perms);
+  const canDeleteDept = departmentModuleCanDelete(perms);
+  const canViewTeamByDept = userModuleCanList(perms);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const { page, pageSize, search, sortBy, sortDir } =
     parseDepartmentsUrlParams(searchParams);
   const [searchInput, setSearchInput] = useState(search);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const tableSorting: SortingState = useMemo(() => {
     if (!sortBy) return [];
@@ -112,7 +140,7 @@ export function DepartmentsPage() {
   }, [searchInput, setSearchParams]);
 
   const departmentsQuery = useQuery({
-    enabled: canOrg,
+    enabled: canFetchList,
     queryKey: [
       "org-departments-paginated",
       { page, pageSize, search, sortBy, sortDir },
@@ -130,6 +158,30 @@ export function DepartmentsPage() {
         },
       );
       return data;
+    },
+  });
+
+  const deleteDepartment = useMutation({
+    mutationFn: async (departmentId: string) => {
+      await api.delete(`/api/org/departments/${departmentId}`);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["org-departments"], exact: false });
+      await qc.invalidateQueries({
+        queryKey: ["org-departments-paginated"],
+        exact: false,
+      });
+      toast.success("Department deleted");
+      setDeleteTarget(null);
+    },
+    onError: (e) => {
+      const msg = isAxiosError(e)
+        ? String(
+            (e.response?.data as { error?: string } | undefined)?.error ??
+              e.message,
+          )
+        : "Could not delete department";
+      toast.error(msg);
     },
   });
 
@@ -192,27 +244,78 @@ export function DepartmentsPage() {
         header: "Action",
         enableSorting: false,
         cell: ({ row }) => (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Link
-                  to={`/team?departmentId=${encodeURIComponent(row.original.id)}`}
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "sm" }),
-                    "h-8 w-8 p-0",
-                  )}
-                  aria-label={`View team members in ${row.original.name}`}
-                >
-                  <Eye className="size-4" />
-                </Link>
-              }
-            />
-            <TooltipContent>View</TooltipContent>
-          </Tooltip>
+          <div className="flex items-center gap-0.5">
+            {canViewTeamByDept ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Link
+                      to={`/team?departmentId=${encodeURIComponent(row.original.id)}`}
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "sm" }),
+                        "h-8 w-8 p-0",
+                      )}
+                      aria-label={`View team members in ${row.original.name}`}
+                    >
+                      <Eye className="size-4" />
+                    </Link>
+                  }
+                />
+                <TooltipContent>View team in this department</TooltipContent>
+              </Tooltip>
+            ) : null}
+            {canUpdateDept ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Link
+                      to={`/departments/${encodeURIComponent(row.original.id)}/edit`}
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "sm" }),
+                        "h-8 w-8 p-0",
+                      )}
+                      aria-label={`Edit ${row.original.name}`}
+                    >
+                      <Pencil className="size-4" />
+                    </Link>
+                  }
+                />
+                <TooltipContent>Edit</TooltipContent>
+              </Tooltip>
+            ) : null}
+            {canDeleteDept ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                      aria-label={`Delete ${row.original.name}`}
+                      onClick={() =>
+                        setDeleteTarget({
+                          id: row.original.id,
+                          name: row.original.name,
+                        })
+                      }
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Delete</TooltipContent>
+              </Tooltip>
+            ) : null}
+          </div>
         ),
       },
     ],
-    [],
+    [
+      canViewTeamByDept,
+      canUpdateDept,
+      canDeleteDept,
+    ],
   );
 
   const table = useReactTable({
@@ -224,46 +327,74 @@ export function DepartmentsPage() {
     state: { sorting: tableSorting },
   });
 
-  function onChangeSort(
-    updater: SortingState | ((prev: SortingState) => SortingState),
-  ) {
-    const next =
-      typeof updater === "function" ? updater(tableSorting) : updater;
-    const s = next[0];
-    setSearchParams(
-      (prev) => {
-        const p = new URLSearchParams(prev);
-        if (!s) {
-          p.delete("sortBy");
-          p.delete("sortDir");
-        } else {
-          p.set("sortBy", String(s.id));
-          p.set("sortDir", s.desc ? "desc" : "asc");
-        }
-        p.delete("page");
-        return p;
-      },
-      { replace: true },
+  const onChangeSort = useCallback(
+    (updater: SortingState | ((prev: SortingState) => SortingState)) => {
+      const next =
+        typeof updater === "function" ? updater(tableSorting) : updater;
+      const s = next[0];
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          if (!s) {
+            p.delete("sortBy");
+            p.delete("sortDir");
+          } else {
+            p.set("sortBy", String(s.id));
+            p.set("sortDir", s.desc ? "desc" : "asc");
+          }
+          p.delete("page");
+          return p;
+        },
+        { replace: true },
+      );
+    },
+    [tableSorting, setSearchParams],
+  );
+
+  if (me.isPending) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
     );
+  }
+  if (me.data && !canAccess) {
+    return <Navigate to="/" replace />;
   }
 
-  if (!canOrg) {
-    return (
-      <div className="space-y-4">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
-            Departments
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            You don’t have access to manage departments.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const showCreateOnlyHint =
+    Boolean(me.data) && canAccess && !canFetchList && canCreateDept;
 
   return (
     <div className="space-y-6">
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this department?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `“${deleteTarget.name}” will be permanently removed. This may fail if users are still assigned.`
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleteDepartment.isPending}
+              onClick={() => {
+                if (deleteTarget) deleteDepartment.mutate(deleteTarget.id);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
@@ -273,131 +404,189 @@ export function DepartmentsPage() {
             Create and manage departments for your organization.
           </p>
         </div>
-        <Link to="/departments/new" className={cn(buttonVariants())}>
-          <Plus className="size-4" />
-          Add department
-        </Link>
+        {canCreateDept ? (
+          <Link to="/departments/new" className={cn(buttonVariants())}>
+            <Plus className="size-4" />
+            Add department
+          </Link>
+        ) : null}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Department list</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="w-full sm:max-w-sm flex flex-col gap-2">
-              <Label htmlFor="department-search">Search</Label>
-              <Input
-                id="department-search"
-                placeholder="Search by name or code…"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-              />
+      {showCreateOnlyHint ? (
+        <Card className="border-amber-500/35 bg-muted/30 p-6">
+          <div className="flex gap-4">
+            <ShieldAlert
+              className="size-10 shrink-0 text-amber-600 dark:text-amber-400"
+              aria-hidden
+            />
+            <div className="min-w-0 space-y-3">
+              <h2 className="text-lg font-semibold text-foreground">
+                You don&apos;t have permission to browse the department list
+              </h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Your role does not include{" "}
+                <span className="font-medium text-foreground">
+                  Departments → Read
+                </span>{" "}
+                (<code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  {P.DEPARTMENTS_READ}
+                </code>
+                ), or update/delete departments. You can still add a department
+                if{" "}
+                <span className="font-medium text-foreground">
+                  Departments → Create
+                </span>{" "}
+                is allowed.
+              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Link to="/departments/new" className={cn(buttonVariants())}>
+                  <Plus className="size-4" />
+                  Add department
+                </Link>
+                <Link
+                  to="/"
+                  className={cn(buttonVariants({ variant: "outline" }))}
+                >
+                  Back to dashboard
+                </Link>
+              </div>
             </div>
           </div>
+        </Card>
+      ) : null}
 
-          <div className="overflow-auto rounded-md border border-border">
-            <DataTable
-              table={table}
-              columnCount={columns.length}
-              sort={tableSorting}
-              onChangeSort={onChangeSort}
-              isLoading={departmentsQuery.isLoading}
-              emptyMessage="No departments match your search."
-            />
-          </div>
+      {canFetchList ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Department list</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="w-full sm:max-w-sm flex flex-col gap-2">
+                <Label htmlFor="department-search">Search</Label>
+                <Input
+                  id="department-search"
+                  placeholder="Search by name or code…"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                />
+              </div>
+            </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span>
-                {total === 0
-                  ? "0 departments"
-                  : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total}`}
-              </span>
-              <span className="hidden sm:inline">·</span>
+            <div className="overflow-auto rounded-md border border-border">
+              <DataTable
+                table={table}
+                columnCount={columns.length}
+                sort={tableSorting}
+                onChangeSort={onChangeSort}
+                isLoading={departmentsQuery.isLoading}
+                emptyMessage="No departments match your search."
+              />
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>
+                  {total === 0
+                    ? "0 departments"
+                    : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total}`}
+                </span>
+                <span className="hidden sm:inline">·</span>
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor="department-page-size"
+                    className="text-muted-foreground"
+                  >
+                    Rows per page
+                  </Label>
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={(v) => {
+                      const n = Number(v) as (typeof PAGE_SIZES)[number];
+                      setSearchParams(
+                        (prev) => {
+                          const p = new URLSearchParams(prev);
+                          if (n === DEFAULT_PAGE_SIZE) p.delete("pageSize");
+                          else p.set("pageSize", String(n));
+                          p.delete("page");
+                          return p;
+                        },
+                        { replace: true },
+                      );
+                    }}
+                    itemToStringLabel={(vv) => vv}
+                  >
+                    <SelectTrigger id="department-page-size" className="h-8 w-18">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZES.map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="department-page-size"
-                  className="text-muted-foreground"
-                >
-                  Rows per page
-                </Label>
-                <Select
-                  value={String(pageSize)}
-                  onValueChange={(v) => {
-                    const n = Number(v) as (typeof PAGE_SIZES)[number];
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={page <= 1 || departmentsQuery.isLoading}
+                  onClick={() =>
                     setSearchParams(
                       (prev) => {
                         const p = new URLSearchParams(prev);
-                        if (n === DEFAULT_PAGE_SIZE) p.delete("pageSize");
-                        else p.set("pageSize", String(n));
-                        p.delete("page");
+                        const next = Math.max(1, page - 1);
+                        if (next <= 1) p.delete("page");
+                        else p.set("page", String(next));
                         return p;
                       },
                       { replace: true },
-                    );
-                  }}
-                  itemToStringLabel={(vv) => vv}
+                    )
+                  }
                 >
-                  <SelectTrigger id="department-page-size" className="h-8 w-18">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAGE_SIZES.map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page} / {pageCount}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={page >= pageCount || departmentsQuery.isLoading}
+                  onClick={() =>
+                    setSearchParams(
+                      (prev) => {
+                        const p = new URLSearchParams(prev);
+                        const next = Math.min(pageCount, page + 1);
+                        if (next <= 1) p.delete("page");
+                        else p.set("page", String(next));
+                        return p;
+                      },
+                      { replace: true },
+                    )
+                  }
+                >
+                  Next
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={page <= 1 || departmentsQuery.isLoading}
-                onClick={() =>
-                  setSearchParams(
-                    (prev) => {
-                      const p = new URLSearchParams(prev);
-                      const next = Math.max(1, page - 1);
-                      if (next <= 1) p.delete("page");
-                      else p.set("page", String(next));
-                      return p;
-                    },
-                    { replace: true },
-                  )
-                }
-              >
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {page} / {pageCount}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={page >= pageCount || departmentsQuery.isLoading}
-                onClick={() =>
-                  setSearchParams(
-                    (prev) => {
-                      const p = new URLSearchParams(prev);
-                      const next = Math.min(pageCount, page + 1);
-                      if (next <= 1) p.delete("page");
-                      else p.set("page", String(next));
-                      return p;
-                    },
-                    { replace: true },
-                  )
-                }
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canFetchList &&
+      canListDepts &&
+      !canUpdateDept &&
+      !canCreateDept &&
+      !canDeleteDept ? (
+        <p className="text-xs text-muted-foreground">
+          You have read-only access to departments. Ask an admin for Create,
+          Update, or Delete if you need to change them.
+        </p>
+      ) : null}
     </div>
   );
 }
