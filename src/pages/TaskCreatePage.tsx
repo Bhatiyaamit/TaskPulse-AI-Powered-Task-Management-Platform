@@ -48,7 +48,8 @@ export function TaskCreatePage() {
   const [reviewerId, setReviewerId] = useState(UNASSIGNED);
   const [supporterId, setSupporterId] = useState(UNASSIGNED);
   const [escalationToId, setEscalationToId] = useState(UNASSIGNED);
-  const [escalationAt, setEscalationAt] = useState("");
+  const [escalationMinutesBeforeDue, setEscalationMinutesBeforeDue] =
+    useState("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -127,6 +128,24 @@ export function TaskCreatePage() {
       setFormError("Loading statuses… try again in a moment.");
       return;
     }
+
+    const dueIso = dueDate ? new Date(dueDate).toISOString() : null;
+    const minutesRaw = escalationMinutesBeforeDue.trim();
+    let escalationAtIso: string | null = null;
+    if (minutesRaw !== "") {
+      const n = Number.parseInt(minutesRaw, 10);
+      if (Number.isNaN(n) || n < 0) {
+        setFormError("Escalation minutes must be a non-negative number.");
+        return;
+      }
+      if (!dueIso) {
+        setFormError("Set a Due time to use escalation minutes.");
+        return;
+      }
+      const dueMs = new Date(dueIso).getTime();
+      escalationAtIso = new Date(dueMs - n * 60_000).toISOString();
+    }
+
     const toNull = (v: string) => (v === UNASSIGNED ? null : v);
     create.mutate({
       title: title.trim(),
@@ -137,9 +156,9 @@ export function TaskCreatePage() {
       reviewerId: toNull(reviewerId),
       supporterId: toNull(supporterId),
       escalationToId: toNull(escalationToId),
-      escalationAt: escalationAt || null,
+      escalationAt: escalationAtIso,
       startDate: startDate || null,
-      dueDate: dueDate || null,
+      dueDate: dueIso,
       meetingId: meetingId?.trim() ? meetingId : null,
     });
   }
@@ -173,9 +192,7 @@ export function TaskCreatePage() {
   }
 
   if (mePending) {
-    return (
-      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
-    );
+    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   }
   if (me && !canCreateTask) {
     const fallback =
@@ -243,67 +260,69 @@ export function TaskCreatePage() {
 
           <Separator />
 
-          <section className="space-y-4">
-            <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">
-              Assignment
-            </h4>
-            <div className="grid gap-4 sm:grid-cols-1">
-              <div className="space-y-2">
-                <Label>Responsible person</Label>
-                <Select
-                  value={assignedToId}
-                  onValueChange={setAssignedToId}
-                  itemToStringLabel={userLabelForValue}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Who owns delivery" />
-                  </SelectTrigger>
-                  <SelectContent>{userItems()}</SelectContent>
-                </Select>
+          <>
+            <section className="space-y-4">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">
+                Assignment
+              </h4>
+              <div className="grid gap-4 sm:grid-cols-1">
+                <div className="space-y-2">
+                  <Label>Responsible person</Label>
+                  <Select
+                    value={assignedToId}
+                    onValueChange={setAssignedToId}
+                    itemToStringLabel={userLabelForValue}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Who owns delivery" />
+                    </SelectTrigger>
+                    <SelectContent>{userItems()}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Reviewer</Label>
+                  <Select
+                    value={reviewerId}
+                    onValueChange={setReviewerId}
+                    itemToStringLabel={userLabelForValue}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Who signs off" />
+                    </SelectTrigger>
+                    <SelectContent>{reviewerItems()}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Supporter</Label>
+                  <Select
+                    value={supporterId}
+                    onValueChange={setSupporterId}
+                    itemToStringLabel={userLabelForValue}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Optional helper" />
+                    </SelectTrigger>
+                    <SelectContent>{userItems()}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Escalation to whom</Label>
+                  <Select
+                    value={escalationToId}
+                    onValueChange={setEscalationToId}
+                    itemToStringLabel={userLabelForValue}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Who should be notified on escalation" />
+                    </SelectTrigger>
+                    <SelectContent>{userItems()}</SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Reviewer</Label>
-                <Select
-                  value={reviewerId}
-                  onValueChange={setReviewerId}
-                  itemToStringLabel={userLabelForValue}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Who signs off" />
-                  </SelectTrigger>
-                  <SelectContent>{reviewerItems()}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Supporter</Label>
-                <Select
-                  value={supporterId}
-                  onValueChange={setSupporterId}
-                  itemToStringLabel={userLabelForValue}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Optional helper" />
-                  </SelectTrigger>
-                  <SelectContent>{userItems()}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Escalation to whom</Label>
-                <Select
-                  value={escalationToId}
-                  onValueChange={setEscalationToId}
-                  itemToStringLabel={userLabelForValue}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Who should be notified on escalation" />
-                  </SelectTrigger>
-                  <SelectContent>{userItems()}</SelectContent>
-                </Select>
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <Separator />
+            <Separator />
+          </>
 
           <section className="space-y-4">
             <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">
@@ -330,13 +349,19 @@ export function TaskCreatePage() {
               </div>
             </div>
             <div className="space-y-2 sm:max-w-xs">
-              <Label htmlFor="escalationAt">Escalation time</Label>
+              <Label htmlFor="escalationMinutesBeforeDue">
+                Escalation (minutes before Due)
+              </Label>
               <Input
-                id="escalationAt"
-                type="datetime-local"
-                value={escalationAt}
-                onChange={(e) => setEscalationAt(e.target.value)}
-                placeholder="Select escalation time"
+                id="escalationMinutesBeforeDue"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                type="number"
+                min={0}
+                step={1}
+                value={escalationMinutesBeforeDue}
+                onChange={(e) => setEscalationMinutesBeforeDue(e.target.value)}
+                placeholder="e.g. 20"
               />
             </div>
           </section>

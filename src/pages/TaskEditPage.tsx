@@ -80,7 +80,8 @@ export function TaskEditPage() {
   const [reviewerId, setReviewerId] = useState(UNASSIGNED);
   const [supporterId, setSupporterId] = useState(UNASSIGNED);
   const [escalationToId, setEscalationToId] = useState(UNASSIGNED);
-  const [escalationAt, setEscalationAt] = useState("");
+  const [escalationMinutesBeforeDue, setEscalationMinutesBeforeDue] =
+    useState("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<string>("MEDIUM");
@@ -128,7 +129,14 @@ export function TaskEditPage() {
     setEscalationToId(task.escalationTo?.id ?? UNASSIGNED);
     setStartDate(isoToDatetimeLocal(task.startDate));
     setDueDate(isoToDatetimeLocal(task.dueDate));
-    setEscalationAt(isoToDatetimeLocal(task.escalationAt));
+    if (task.dueDate && task.escalationAt) {
+      const dueMs = new Date(task.dueDate).getTime();
+      const escMs = new Date(task.escalationAt).getTime();
+      const diffMin = Math.max(0, Math.round((dueMs - escMs) / 60_000));
+      setEscalationMinutesBeforeDue(String(diffMin));
+    } else {
+      setEscalationMinutesBeforeDue("");
+    }
     setPriority(task.priority || "MEDIUM");
     setTaskType(task.taskType || "GENERAL");
   }, [task]);
@@ -172,6 +180,24 @@ export function TaskEditPage() {
     }
     // statusId is hydrated from the task; keep the check but avoid unused error path text
     if (!hasStatusId) return;
+
+    const dueIso = dueDate ? new Date(dueDate).toISOString() : null;
+    const minutesRaw = escalationMinutesBeforeDue.trim();
+    let escalationAtIso: string | null = null;
+    if (minutesRaw !== "") {
+      const n = Number.parseInt(minutesRaw, 10);
+      if (Number.isNaN(n) || n < 0) {
+        setFormError("Escalation minutes must be a non-negative number.");
+        return;
+      }
+      if (!dueIso) {
+        setFormError("Set a Due time to use escalation minutes.");
+        return;
+      }
+      const dueMs = new Date(dueIso).getTime();
+      escalationAtIso = new Date(dueMs - n * 60_000).toISOString();
+    }
+
     const toNull = (v: string) => (v === UNASSIGNED ? null : v);
     update.mutate({
       title: title.trim(),
@@ -184,9 +210,9 @@ export function TaskEditPage() {
       reviewerId: toNull(reviewerId),
       supporterId: toNull(supporterId),
       escalationToId: toNull(escalationToId),
-      escalationAt: escalationAt || null,
+      escalationAt: escalationAtIso,
       startDate: startDate || null,
-      dueDate: dueDate || null,
+      dueDate: dueIso,
     });
   }
 
@@ -391,13 +417,19 @@ export function TaskEditPage() {
               </div>
             </div>
             <div className="space-y-2 sm:max-w-xs">
-              <Label htmlFor="escalationAt">Escalation time</Label>
+              <Label htmlFor="escalationMinutesBeforeDue">
+                Escalation (minutes before Due)
+              </Label>
               <Input
-                id="escalationAt"
-                type="datetime-local"
-                value={escalationAt}
-                onChange={(e) => setEscalationAt(e.target.value)}
-                placeholder="Select escalation time"
+                id="escalationMinutesBeforeDue"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                type="number"
+                min={0}
+                step={1}
+                value={escalationMinutesBeforeDue}
+                onChange={(e) => setEscalationMinutesBeforeDue(e.target.value)}
+                placeholder="e.g. 20"
               />
             </div>
           </section>

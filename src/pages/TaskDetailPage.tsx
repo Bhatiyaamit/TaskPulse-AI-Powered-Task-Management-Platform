@@ -88,26 +88,6 @@ type TaskDetail = {
   }[];
 };
 
-type ChecklistAttachment = {
-  id: string;
-  fileUrl: string;
-  fileName: string | null;
-  mimeType: string | null;
-  createdAt: string;
-};
-
-type TaskChecklistItem = {
-  id: string;
-  text: string;
-  sortOrder: number;
-  mandatory: boolean;
-  isChecked: boolean;
-  checkedAt: string | null;
-  remarks: string | null;
-  checkedBy?: UserBrief | null;
-  attachments: ChecklistAttachment[];
-};
-
 function formatWhen(iso: string) {
   try {
     return new Intl.DateTimeFormat(undefined, {
@@ -150,6 +130,17 @@ function safeStepsHtml(raw: string) {
   return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
   });
+}
+
+function escalationMinutesBeforeDue(
+  dueIso: string | null,
+  escalationIso: string | null,
+) {
+  if (!dueIso || !escalationIso) return null;
+  const dueMs = new Date(dueIso).getTime();
+  const escMs = new Date(escalationIso).getTime();
+  if (Number.isNaN(dueMs) || Number.isNaN(escMs)) return null;
+  return Math.max(0, Math.round((dueMs - escMs) / 60_000));
 }
 
 function activityIcon(type: TaskActivity["type"]) {
@@ -214,36 +205,6 @@ export function TaskDetailPage() {
 
   const task = taskQuery.data;
   const statuses = statusesQuery.data ?? [];
-
-  const checklistQuery = useQuery({
-    queryKey: ["task", id, "checklist"],
-    enabled: Boolean(id) && !mePending && canAccessTask,
-    queryFn: async () => {
-      const { data } = await api.get<{ items: TaskChecklistItem[] }>(
-        `/api/tasks/${id}/checklist`,
-      );
-      return data.items;
-    },
-    retry: false,
-  });
-
-  const checklistItems = checklistQuery.data ?? [];
-
-  const updateChecklistItem = useMutation({
-    mutationFn: (payload: {
-      itemId: string;
-      isChecked?: boolean;
-      remarks?: string | null;
-    }) =>
-      api.patch(`/api/tasks/${id}/checklist/${payload.itemId}`, {
-        isChecked: payload.isChecked,
-        remarks: payload.remarks,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["task", id, "checklist"] });
-    },
-    onError: () => toast.error("Could not update checklist item"),
-  });
 
   const doneStatusId = useMemo(
     () => statuses.find((s) => s.code === "DONE")?.id,
@@ -559,7 +520,14 @@ export function TaskDetailPage() {
                       Escalation time
                     </div>
                     <p className="text-sm font-medium">
-                      {task.escalationAt ? formatWhen(task.escalationAt) : "—"}
+                      {(() => {
+                        const min = escalationMinutesBeforeDue(
+                          task.dueDate,
+                          task.escalationAt,
+                        );
+                        if (min == null) return "—";
+                        return `${min} min before due`;
+                      })()}
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -576,146 +544,6 @@ export function TaskDetailPage() {
                     )}
                   </div>
                 </div>
-                <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                  <div>
-                    Start:{" "}
-                    <span className="text-foreground">
-                      {formatDay(task.startDate)}
-                    </span>
-                  </div>
-                  <div>
-                    Est. time:{" "}
-                    <span className="text-foreground">
-                      {task.estimatedMinutes != null
-                        ? `${task.estimatedMinutes} min`
-                        : "—"}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.section>
-
-          {/* 3. Checklist */}
-          <motion.section
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.08 }}
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold uppercase tracking-wide text-primary">
-                  Checklist
-                </CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
-                  Check items, add remarks, and attach proof where required.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {checklistQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">
-                    Loading checklist…
-                  </p>
-                ) : checklistItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No checklist items yet.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {checklistItems.map((it) => (
-                      <div
-                        key={it.id}
-                        className="rounded-md border border-border p-3"
-                      >
-                        <label className="flex items-start gap-2">
-                          <input
-                            type="checkbox"
-                            className="mt-1"
-                            checked={it.isChecked}
-                            disabled={
-                              !canUpdate || updateChecklistItem.isPending
-                            }
-                            onChange={(e) =>
-                              updateChecklistItem.mutate({
-                                itemId: it.id,
-                                isChecked: e.target.checked,
-                              })
-                            }
-                          />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium">
-                              {it.text}
-                              {it.mandatory ? (
-                                <span className="ml-2 text-xs text-destructive">
-                                  Mandatory
-                                </span>
-                              ) : null}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {it.isChecked
-                                ? `Checked${
-                                    it.checkedBy?.name
-                                      ? ` by ${it.checkedBy.name}`
-                                      : ""
-                                  }`
-                                : "Not checked"}
-                            </div>
-                          </div>
-                        </label>
-
-                        <div className="mt-3 space-y-2">
-                          <Label htmlFor={`remarks-${it.id}`}>Remarks</Label>
-                          <Textarea
-                            id={`remarks-${it.id}`}
-                            value={it.remarks ?? ""}
-                            disabled={
-                              !canUpdate || updateChecklistItem.isPending
-                            }
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              qc.setQueryData<TaskChecklistItem[]>(
-                                ["task", id, "checklist"],
-                                (prev) =>
-                                  (prev ?? []).map((x) =>
-                                    x.id === it.id ? { ...x, remarks: v } : x,
-                                  ),
-                              );
-                            }}
-                            onBlur={(e) =>
-                              updateChecklistItem.mutate({
-                                itemId: it.id,
-                                remarks: e.target.value.trim()
-                                  ? e.target.value
-                                  : null,
-                              })
-                            }
-                            placeholder="Optional remarks…"
-                          />
-
-                          {it.attachments.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                              No checklist attachments.
-                            </p>
-                          ) : (
-                            <div className="space-y-1">
-                              {it.attachments.map((a) => (
-                                <a
-                                  key={a.id}
-                                  href={a.fileUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block text-xs text-primary underline-offset-4 hover:underline"
-                                >
-                                  {a.fileName ?? a.fileUrl}
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </CardContent>
             </Card>
           </motion.section>
