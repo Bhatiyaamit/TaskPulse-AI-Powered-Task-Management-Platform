@@ -30,6 +30,7 @@ import {
   taskModuleCanUpdate,
 } from "@/lib/permissions";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { taskStatusBadgeClass } from "@/lib/badges";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -67,8 +68,6 @@ type TaskDetail = {
   title: string;
   description: string | null;
   steps: string | null;
-  priority: string;
-  taskType: string;
   startDate: string | null;
   dueDate: string | null;
   escalationAt: string | null;
@@ -372,9 +371,6 @@ export function TaskDetailPage() {
     addTime.mutate(n);
   }
 
-  const priorityLabel =
-    task.priority.charAt(0) + task.priority.slice(1).toLowerCase();
-
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center gap-3">
@@ -410,14 +406,8 @@ export function TaskDetailPage() {
                   {task.title}
                 </h1>
                 <div className="flex flex-wrap gap-2 text-sm">
-                  <span className="rounded-md border border-border bg-muted/40 px-2 py-0.5">
+                  <span className={taskStatusBadgeClass(task.status.code)}>
                     {task.status.label}
-                  </span>
-                  <span className="rounded-md border border-border bg-muted/40 px-2 py-0.5">
-                    {priorityLabel}
-                  </span>
-                  <span className="rounded-md border border-border bg-muted/40 px-2 py-0.5">
-                    {task.taskType.replace(/_/g, " ")}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5">
                     <Clock className="size-3.5 opacity-70" />

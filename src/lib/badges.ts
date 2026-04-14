@@ -52,14 +52,29 @@ export function taskPriorityBadgeClass(priority: string) {
 export function taskStatusBadgeClass(code: string) {
   const c = String(code ?? "").toUpperCase();
   const base = badgeBase();
+  // Terminal / complete
   if (c === "DONE")
     return `${base} border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200`;
+  if (c === "CLOSED")
+    return `${base} border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-500/30 dark:bg-slate-500/15 dark:text-slate-200`;
+  // Active work
   if (c === "WIP" || c === "IN_PROGRESS")
     return `${base} border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200`;
   if (c === "REVIEW")
     return `${base} border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200`;
   if (c === "BLOCKED")
     return `${base} border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200`;
+  if (c === "ESCALATED")
+    return `${base} border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-200`;
+  // Queue / waiting
+  if (c === "TODO")
+    return `${base} border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200`;
+  if (c === "DRAFT")
+    return `${base} border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-500/30 dark:bg-zinc-500/15 dark:text-zinc-200`;
+  if (c === "WAIT_SUPPORT")
+    return `${base} border-cyan-200 bg-cyan-50 text-cyan-900 dark:border-cyan-500/30 dark:bg-cyan-500/10 dark:text-cyan-200`;
+  if (c === "SENT_BACK")
+    return `${base} border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-200`;
   return `${base} border-border bg-muted/40 text-muted-foreground`;
 }
 

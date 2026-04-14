@@ -42,8 +42,6 @@ type TaskPayload = {
   title: string;
   description: string | null;
   steps: string | null;
-  priority: string;
-  taskType: string;
   startDate: string | null;
   dueDate: string | null;
   escalationAt: string | null;
@@ -84,8 +82,6 @@ export function TaskEditPage() {
     useState("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [priority, setPriority] = useState<string>("MEDIUM");
-  const [taskType, setTaskType] = useState<string>("GENERAL");
   const [steps, setSteps] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -137,8 +133,6 @@ export function TaskEditPage() {
     } else {
       setEscalationMinutesBeforeDue("");
     }
-    setPriority(task.priority || "MEDIUM");
-    setTaskType(task.taskType || "GENERAL");
   }, [task]);
 
   function userLabelForValue(v: string) {
@@ -204,8 +198,6 @@ export function TaskEditPage() {
       description: description.trim() || null,
       steps: steps.trim() || null,
       statusId,
-      priority,
-      taskType,
       assignedToId: toNull(assignedToId),
       reviewerId: toNull(reviewerId),
       supporterId: toNull(supporterId),

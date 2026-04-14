@@ -30,7 +30,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -45,7 +44,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 type MeetingTaskRow = {
   id: string;
   title: string;
-  priority: string;
   dueDate: string | null;
   updatedAt: string;
   status: { code: string; label: string };
@@ -59,12 +57,10 @@ type TasksApiResponse = {
   pageSize: number;
 };
 
-const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 const PAGE_SIZES = [10, 20, 50] as const;
 
 const SORT_IDS = [
   "title",
-  "priority",
   "status",
   "overdue",
   "dueDate",
@@ -99,17 +95,6 @@ function formatDateTime(iso: string) {
   }
 }
 
-function priorityClass(p: string) {
-  const u = p.toUpperCase();
-  if (u === "URGENT")
-    return "border-destructive/50 bg-destructive/15 text-destructive";
-  if (u === "HIGH")
-    return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-  if (u === "LOW")
-    return "border-muted-foreground/30 bg-muted text-muted-foreground";
-  return "border-border bg-muted/60 text-foreground";
-}
-
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -130,8 +115,6 @@ function parseMeetingTasksUrlParams(p: URLSearchParams) {
 
   const q = p.get("q") ?? "";
   const statusId = p.get("statusId") ?? "";
-  const priorityRaw = p.get("priority") ?? "";
-  const priority = PRIORITIES.includes(priorityRaw as any) ? priorityRaw : "";
 
   const sortByRaw = p.get("sortBy");
   const sortDirRaw = p.get("sortDir");
@@ -153,7 +136,6 @@ function parseMeetingTasksUrlParams(p: URLSearchParams) {
     pageSize,
     q,
     statusId,
-    priority,
     sortBy,
     sortDir,
     sorting,
@@ -223,7 +205,6 @@ export function MeetingDetailPage() {
           page: parsed.pagination.pageIndex + 1,
           pageSize: parsed.pagination.pageSize,
           ...(parsed.statusId ? { statusId: parsed.statusId } : {}),
-          ...(parsed.priority ? { priority: parsed.priority } : {}),
           ...(parsed.q ? { search: parsed.q } : {}),
           ...(apiSortBy && parsed.sortDir
             ? { sortBy: apiSortBy, sortDir: parsed.sortDir }
@@ -313,12 +294,6 @@ export function MeetingDetailPage() {
     return s?.label ?? v;
   }
 
-  function priorityFilterLabel(v: string) {
-    if (v === "__all__") return "All priorities";
-    if (!v) return "";
-    return v.charAt(0) + v.slice(1).toLowerCase();
-  }
-
   const columns = useMemo<ColumnDef<MeetingTaskRow>[]>(
     () => [
       {
@@ -328,21 +303,6 @@ export function MeetingDetailPage() {
         cell: ({ row }) => (
           <span className="font-medium text-foreground">
             {row.original.title}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "priority",
-        id: "priority",
-        header: "Priority",
-        cell: ({ row }) => (
-          <span
-            className={cn(
-              "inline-flex rounded-md border px-2 py-0.5 text-xs font-medium",
-              priorityClass(row.original.priority),
-            )}
-          >
-            {row.original.priority}
           </span>
         ),
       },
@@ -597,7 +557,7 @@ export function MeetingDetailPage() {
                     <Pencil className="size-3" />
                     Edit
                   </Button>
-      </Link>
+                </Link>
               ) : (
                 <Button variant="outline" disabled>
                   <Pencil className="size-3" />
@@ -697,7 +657,7 @@ export function MeetingDetailPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <div className="space-y-2 lg:col-span-2">
                 <Label htmlFor="meeting-task-search">Search</Label>
                 <Input
@@ -733,37 +693,6 @@ export function MeetingDetailPage() {
                     {(statuses ?? []).map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select
-                  value={parsed.priority || "__all__"}
-                  onValueChange={(v) => {
-                    setSearchParams(
-                      (prev) => {
-                        const p = new URLSearchParams(prev);
-                        if (v === "__all__") p.delete("priority");
-                        else p.set("priority", v);
-                        p.delete("page");
-                        return p;
-                      },
-                      { replace: true },
-                    );
-                  }}
-                  itemToStringLabel={priorityFilterLabel}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All priorities" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All priorities</SelectItem>
-                    {PRIORITIES.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p.charAt(0) + p.slice(1).toLowerCase()}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -857,11 +786,11 @@ export function MeetingDetailPage() {
                   onClick={goNext}
                 >
                   Next
-          </Button>
+                </Button>
               </div>
             </div>
           </CardContent>
-      </Card>
+        </Card>
       ) : null}
     </div>
   );

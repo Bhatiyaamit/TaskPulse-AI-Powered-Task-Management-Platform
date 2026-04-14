@@ -21,11 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  overdueBadgeClass,
-  taskPriorityBadgeClass,
-  taskStatusBadgeClass,
-} from "@/lib/badges";
+import { overdueBadgeClass, taskStatusBadgeClass } from "@/lib/badges";
 import {
   spotlightCardContentLayerClass,
   topLeftSpotlightCardClass,
@@ -34,7 +30,6 @@ import {
 type TaskSummary = {
   id: string;
   title: string;
-  priority: string;
   dueDate: string | null;
   updatedAt: string;
   status: { code: string; label: string; isTerminal: boolean };
@@ -96,9 +91,6 @@ function TaskList({
                 {isOverdue ? (
                   <span className={overdueBadgeClass()}>Overdue</span>
                 ) : null}
-                <span className={cn(taskPriorityBadgeClass(t.priority))}>
-                  {t.priority}
-                </span>
                 {t.dueDate ? (
                   <span>
                     Due{" "}
@@ -169,9 +161,7 @@ export function EodPage() {
   );
 
   if (me.isPending) {
-    return (
-      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
-    );
+    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   }
   if (me.data && !canEod) {
     return <Navigate to="/" replace />;
