@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { io } from "socket.io-client";
 import { api } from "@/api/client";
 import { badgeBase } from "@/lib/badges";
+import { SOCKET_EVENT } from "@/lib/socketEvents";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -55,6 +56,17 @@ function notificationBadgeClass(type: string) {
   return `${base} border-border bg-muted/40 text-muted-foreground`;
 }
 
+function formatLocalDateTime(iso: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
 export function NotificationBell() {
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -79,7 +91,7 @@ export function NotificationBell() {
     const socket = io(import.meta.env.VITE_API_URL || undefined, {
       withCredentials: true,
     });
-    socket.on("NOTIFICATION_NEW", () => {
+    socket.on(SOCKET_EVENT.NOTIFICATION_NEW, () => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
     });
     return () => {
@@ -231,6 +243,15 @@ export function NotificationBell() {
                             <div className="mt-2 text-sm text-foreground">
                               {n.message}
                             </div>
+                            {n.metadata?.kind === "TASK_ESCALATION" &&
+                              n.metadata?.dueDate && (
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  Due{" "}
+                                  {formatLocalDateTime(
+                                    String(n.metadata.dueDate),
+                                  )}
+                                </div>
+                              )}
                           </div>
                         </div>
                       </button>

@@ -99,15 +99,9 @@ function formatWhen(iso: string) {
   }
 }
 
-function formatDay(iso: string | null) {
+function formatDateTime(iso: string | null) {
   if (!iso) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-      new Date(iso),
-    );
-  } catch {
-    return iso;
-  }
+  return formatWhen(iso);
 }
 
 function looksLikeHtml(s: string) {
@@ -426,8 +420,12 @@ export function TaskDetailPage() {
                     {task.taskType.replace(/_/g, " ")}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5">
+                    <Clock className="size-3.5 opacity-70" />
+                    Start {formatDateTime(task.startDate)}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5">
                     <Calendar className="size-3.5 opacity-70" />
-                    Due {formatDay(task.dueDate)}
+                    Due {formatDateTime(task.dueDate)}
                   </span>
                 </div>
               </div>
@@ -528,6 +526,9 @@ export function TaskDetailPage() {
                         if (min == null) return "—";
                         return `${min} min before due`;
                       })()}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Due {formatDateTime(task.escalationAt)}
                     </p>
                   </div>
                   <div className="space-y-1">
