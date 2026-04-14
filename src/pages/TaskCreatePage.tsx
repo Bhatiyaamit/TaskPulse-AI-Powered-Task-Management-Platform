@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Controller, useForm } from "react-hook-form";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
@@ -32,6 +33,20 @@ type UserOption = {
   isReviewer?: boolean;
 };
 
+type TaskCreateFormValues = {
+  title: string;
+  description: string;
+  steps: string;
+  statusId: string;
+  assignedToId: string;
+  reviewerId: string;
+  supporterId: string;
+  escalationToId: string;
+  escalationMinutesBeforeDue: string;
+  startDate: string;
+  dueDate: string;
+};
+
 export function TaskCreatePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -41,19 +56,24 @@ export function TaskCreatePage() {
   const { data: me, isPending: mePending } = useMe();
   const canCreateTask = taskModuleCanCreate(me?.permissions);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [steps, setSteps] = useState("");
-  const [statusId, setStatusId] = useState("");
-  const [assignedToId, setAssignedToId] = useState(UNASSIGNED);
-  const [reviewerId, setReviewerId] = useState(UNASSIGNED);
-  const [supporterId, setSupporterId] = useState(UNASSIGNED);
-  const [escalationToId, setEscalationToId] = useState(UNASSIGNED);
-  const [escalationMinutesBeforeDue, setEscalationMinutesBeforeDue] =
-    useState("");
-  const [startDate, setStartDate] = useState("");
-  const [dueDate, setDueDate] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const { control, handleSubmit, register, setValue, watch } =
+    useForm<TaskCreateFormValues>({
+      defaultValues: {
+        title: "",
+        description: "",
+        steps: "",
+        statusId: "",
+        assignedToId: UNASSIGNED,
+        reviewerId: UNASSIGNED,
+        supporterId: UNASSIGNED,
+        escalationToId: UNASSIGNED,
+        escalationMinutesBeforeDue: "",
+        startDate: "",
+        dueDate: "",
+      },
+    });
+  const statusId = watch("statusId");
 
   const { data: statuses } = useQuery({
     queryKey: ["task-statuses"],
@@ -80,8 +100,8 @@ export function TaskCreatePage() {
   useEffect(() => {
     if (!statuses?.length || statusId) return;
     const todo = statuses.find((s) => s.code === "TODO") ?? statuses[0];
-    setStatusId(todo.id);
-  }, [statuses, statusId]);
+    setValue("statusId", todo.id, { shouldDirty: false });
+  }, [statuses, statusId, setValue]);
 
   function userLabelForValue(v: string) {
     if (v === UNASSIGNED) return "Unassigned";
@@ -118,20 +138,19 @@ export function TaskCreatePage() {
     },
   });
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function onSubmit(values: TaskCreateFormValues) {
     setFormError(null);
-    if (!title.trim()) {
+    if (!values.title.trim()) {
       setFormError("Title is required.");
       return;
     }
-    if (!statusId) {
+    if (!values.statusId) {
       setFormError("Loading statuses… try again in a moment.");
       return;
     }
 
-    const dueIso = dueDate ? new Date(dueDate).toISOString() : null;
-    const minutesRaw = escalationMinutesBeforeDue.trim();
+    const dueIso = values.dueDate ? new Date(values.dueDate).toISOString() : null;
+    const minutesRaw = values.escalationMinutesBeforeDue.trim();
     let escalationAtIso: string | null = null;
     if (minutesRaw !== "") {
       const n = Number.parseInt(minutesRaw, 10);
@@ -149,16 +168,16 @@ export function TaskCreatePage() {
 
     const toNull = (v: string) => (v === UNASSIGNED ? null : v);
     create.mutate({
-      title: title.trim(),
-      description: description.trim() || null,
-      steps: steps.trim() || null,
-      statusId,
-      assignedToId: toNull(assignedToId),
-      reviewerId: toNull(reviewerId),
-      supporterId: toNull(supporterId),
-      escalationToId: toNull(escalationToId),
+      title: values.title.trim(),
+      description: values.description.trim() || null,
+      steps: values.steps.trim() || null,
+      statusId: values.statusId,
+      assignedToId: toNull(values.assignedToId),
+      reviewerId: toNull(values.reviewerId),
+      supporterId: toNull(values.supporterId),
+      escalationToId: toNull(values.escalationToId),
       escalationAt: escalationAtIso,
-      startDate: startDate || null,
+      startDate: values.startDate || null,
       dueDate: dueIso,
       meetingId: meetingId?.trim() ? meetingId : null,
     });
@@ -222,7 +241,7 @@ export function TaskCreatePage() {
         />
       }
     >
-      <form onSubmit={onSubmit} className="space-y-8">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
         <div className="space-y-6">
           <section className="space-y-4">
             <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">
@@ -233,9 +252,9 @@ export function TaskCreatePage() {
                 Title
               </Label>
               <Input
+              
                 id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                {...register("title")}
                 placeholder="Short summary of the work"
                 required
               />
@@ -244,17 +263,22 @@ export function TaskCreatePage() {
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                {...register("description")}
                 placeholder="Context, acceptance criteria, links…"
               />
             </div>
             <div className="space-y-2">
               <Label>Steps (How to do)</Label>
-              <RichTextEditor
-                value={steps}
-                onChange={setSteps}
-                placeholder="Write the steps…"
+              <Controller
+                control={control}
+                name="steps"
+                render={({ field }) => (
+                  <RichTextEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Write the steps…"
+                  />
+                )}
               />
             </div>
           </section>
@@ -269,55 +293,79 @@ export function TaskCreatePage() {
               <div className="grid gap-4 sm:grid-cols-1">
                 <div className="space-y-2">
                   <Label>Responsible person</Label>
-                  <Select
-                    value={assignedToId}
-                    onValueChange={setAssignedToId}
-                    itemToStringLabel={userLabelForValue}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Who owns delivery" />
-                    </SelectTrigger>
-                    <SelectContent>{userItems()}</SelectContent>
-                  </Select>
+                  <Controller
+                    control={control}
+                    name="assignedToId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        itemToStringLabel={userLabelForValue}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Who owns delivery" />
+                        </SelectTrigger>
+                        <SelectContent>{userItems()}</SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Reviewer</Label>
-                  <Select
-                    value={reviewerId}
-                    onValueChange={setReviewerId}
-                    itemToStringLabel={userLabelForValue}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Who signs off" />
-                    </SelectTrigger>
-                    <SelectContent>{reviewerItems()}</SelectContent>
-                  </Select>
+                  <Controller
+                    control={control}
+                    name="reviewerId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        itemToStringLabel={userLabelForValue}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Who signs off" />
+                        </SelectTrigger>
+                        <SelectContent>{reviewerItems()}</SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Supporter</Label>
-                  <Select
-                    value={supporterId}
-                    onValueChange={setSupporterId}
-                    itemToStringLabel={userLabelForValue}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Optional helper" />
-                    </SelectTrigger>
-                    <SelectContent>{userItems()}</SelectContent>
-                  </Select>
+                  <Controller
+                    control={control}
+                    name="supporterId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        itemToStringLabel={userLabelForValue}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Optional helper" />
+                        </SelectTrigger>
+                        <SelectContent>{userItems()}</SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Escalation to whom</Label>
-                  <Select
-                    value={escalationToId}
-                    onValueChange={setEscalationToId}
-                    itemToStringLabel={userLabelForValue}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Who should be notified on escalation" />
-                    </SelectTrigger>
-                    <SelectContent>{userItems()}</SelectContent>
-                  </Select>
+                  <Controller
+                    control={control}
+                    name="escalationToId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        itemToStringLabel={userLabelForValue}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Who should be notified on escalation" />
+                        </SelectTrigger>
+                        <SelectContent>{userItems()}</SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
               </div>
             </section>
@@ -335,8 +383,7 @@ export function TaskCreatePage() {
                 <Input
                   id="start"
                   type="datetime-local"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  {...register("startDate")}
                 />
               </div>
               <div className="space-y-2">
@@ -344,8 +391,7 @@ export function TaskCreatePage() {
                 <Input
                   id="due"
                   type="datetime-local"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
+                  {...register("dueDate")}
                 />
               </div>
             </div>
@@ -360,8 +406,7 @@ export function TaskCreatePage() {
                 type="number"
                 min={0}
                 step={1}
-                value={escalationMinutesBeforeDue}
-                onChange={(e) => setEscalationMinutesBeforeDue(e.target.value)}
+                {...register("escalationMinutesBeforeDue")}
                 placeholder="e.g. 20"
               />
             </div>
