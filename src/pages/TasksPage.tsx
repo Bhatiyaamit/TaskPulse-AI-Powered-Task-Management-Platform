@@ -57,7 +57,13 @@ import {
   taskModuleCanList,
   taskModuleCanUpdate,
 } from "@/lib/permissions";
-import { normalizeTaskQueue, type TaskQueue } from "@/lib/taskQueues";
+import {
+  legacyQueueToDefaultMyTab,
+  normalizeMyTasksTab,
+  normalizeTaskQueue,
+  type MyTasksTab,
+  type TaskQueue,
+} from "@/lib/taskQueues";
 
 type TaskRow = {
   id: string;
@@ -80,6 +86,17 @@ type TasksApiResponse = {
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 const PAGE_SIZES = [10, 20, 50] as const;
+const LIST_STATE_QUERY_KEYS = [
+  "q",
+  "statusId",
+  "priority",
+  "dueFrom",
+  "dueTo",
+  "sortBy",
+  "sortDir",
+  "page",
+  "pageSize",
+] as const;
 
 const SORT_IDS = [
   "title",
@@ -181,8 +198,16 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     : "";
   const dueFrom = searchParams.get("dueFrom") || "";
   const dueTo = searchParams.get("dueTo") || "";
-  const queueRaw = searchParams.get("queue");
-  const queue: TaskQueue = normalizeTaskQueue(queueRaw);
+  const rawQueueParam = searchParams.get("queue");
+  const queue: TaskQueue = normalizeTaskQueue(rawQueueParam);
+  const myTab: MyTasksTab =
+    queue === "my_tasks"
+      ? normalizeMyTasksTab(
+          searchParams.get("myTab") ??
+            legacyQueueToDefaultMyTab(rawQueueParam) ??
+            undefined,
+        )
+      : "assigned";
   const pagination: PaginationState = {
     pageIndex: page - 1,
     pageSize,
@@ -198,7 +223,12 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     priority,
     dueFrom,
     dueTo,
+    myTab,
   };
+}
+
+function clearListStateParams(p: URLSearchParams) {
+  for (const key of LIST_STATE_QUERY_KEYS) p.delete(key);
 }
 
 export function TasksPage() {
@@ -232,6 +262,7 @@ export function TasksPage() {
     priority,
     dueFrom,
     dueTo,
+    myTab,
   } = listParams;
 
   const [searchInput, setSearchInput] = useState(
@@ -306,6 +337,7 @@ export function TasksPage() {
     queryKey: [
       "tasks",
       queue,
+      queue === "my_tasks" ? myTab : null,
       pagination.pageIndex,
       pagination.pageSize,
       statusId,
@@ -323,6 +355,7 @@ export function TasksPage() {
           page: pagination.pageIndex + 1,
           pageSize: pagination.pageSize,
           queue,
+          ...(queue === "my_tasks" ? { myTab: myTab ?? "assigned" } : {}),
           ...(statusId ? { statusId } : {}),
           ...(priority ? { priority } : {}),
           ...(dueFrom
@@ -642,7 +675,15 @@ export function TasksPage() {
   const listEmptyMessage =
     queue === "recurring"
       ? "No recurring tasks yet. This tab will list repeats once recurrence is enabled."
-      : "No tasks match your filters.";
+      : queue === "my_tasks"
+        ? myTab === "assigned"
+          ? "No tasks assigned to you."
+          : myTab === "created"
+            ? "No tasks created by you."
+            : myTab === "supporting"
+              ? "No tasks where you are the supporter."
+                    : "No tasks where you are assigned as reviewer."
+        : "No tasks match your filters.";
 
   function statusFilterLabel(v: string) {
     if (v === "__all__") return "All statuses";
@@ -688,9 +729,29 @@ export function TasksPage() {
       setSearchParams(
         (prev) => {
           const p = new URLSearchParams(prev);
-          if (next === "my_tasks") p.delete("queue");
-          else p.set("queue", next);
-          p.delete("page");
+          clearListStateParams(p);
+          if (next === "my_tasks") {
+            p.delete("queue");
+          } else {
+            p.set("queue", next);
+            p.delete("myTab");
+          }
+          return p;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const setMyTab = useCallback(
+    (tab: MyTasksTab) => {
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          clearListStateParams(p);
+          if (tab === "assigned") p.delete("myTab");
+          else p.set("myTab", tab);
           return p;
         },
         { replace: true },
@@ -805,10 +866,6 @@ export function TasksPage() {
           <h1 className="font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
             Tasks
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Open a task for the full lifecycle. Sort columns and filter the
-            list.
-          </p>
         </div>
         {canCreateTask ? (
           <Link to="/tasks/new" className={cn(buttonVariants())}>
@@ -844,6 +901,42 @@ export function TasksPage() {
           ))}
         </div>
       </Card>
+
+      {queue === "my_tasks" ? (
+        <Card className="p-3">
+          <div
+            className="flex flex-wrap gap-2"
+            role="tablist"
+            aria-label="My tasks views"
+          >
+            {(
+              [
+                { id: "assigned" as const, label: "Assigned to me" },
+                { id: "created" as const, label: "Created by me" },
+                { id: "supporting" as const, label: "Supporting tasks" },
+                { id: "review" as const, label: "Need review" },
+              ] as const
+            ).map(({ id, label }) => (
+              <Button
+                key={id}
+                type="button"
+                size="sm"
+                variant={myTab === id ? "secondary" : "ghost"}
+                className={cn(
+                  "rounded-full ring-1 ring-transparent transition-colors",
+                  myTab === id
+                    ? "pointer-events-none bg-[color-mix(in_oklab,var(--brand),transparent_88%)] text-foreground ring-[color-mix(in_oklab,var(--brand),transparent_70%)] dark:bg-[color-mix(in_oklab,var(--brand),transparent_84%)]"
+                    : "hover:bg-[color-mix(in_oklab,var(--brand),white_72%)] hover:text-foreground hover:ring-[color-mix(in_oklab,var(--brand),transparent_82%)] dark:hover:bg-[color-mix(in_oklab,var(--brand),transparent_88%)]",
+                )}
+                aria-pressed={myTab === id}
+                onClick={() => setMyTab(id)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       <Card className="p-4">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
