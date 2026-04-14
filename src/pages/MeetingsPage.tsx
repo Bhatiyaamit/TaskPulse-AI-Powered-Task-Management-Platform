@@ -5,6 +5,7 @@ import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { Ban, Eye, Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -50,7 +51,7 @@ type MeetingRow = {
   meetingLink: string | null;
   priority: string;
   durationMinutes: number | null;
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
+  status: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
   computedStatus: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
   datetime: string;
   createdAt: string;
@@ -146,20 +147,29 @@ export function MeetingsPage() {
       { page, pageSize, search, priority, status, sortBy, sortDir },
     ],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<MeetingRow>>(
-        "/api/meetings",
-        {
-          params: {
-            page,
-            pageSize,
-            ...(search.trim() ? { search: search.trim() } : {}),
-            ...(priority ? { priority } : {}),
-            ...(status ? { status } : {}),
-            ...(sortBy ? { sortBy, sortDir } : {}),
-          },
+      const { data } = await api.get<
+        ApiSuccess<MeetingRow[], { page: number; limit: number; total: number }>
+      >("/api/meetings", {
+        params: {
+          page,
+          pageSize,
+          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(priority ? { priority } : {}),
+          ...(status ? { status } : {}),
+          ...(sortBy ? { sortBy, sortDir } : {}),
         },
-      );
-      return data;
+      });
+      const limit = data.meta?.limit ?? pageSize;
+      const total = data.meta?.total ?? 0;
+      return {
+        items: data.data ?? [],
+        meta: {
+          page: data.meta?.page ?? page,
+          pageSize: limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
+      } satisfies PaginatedResponse<MeetingRow>;
     },
   });
 
@@ -465,7 +475,8 @@ export function MeetingsPage() {
                 <span className="font-medium text-foreground">
                   Meetings → Read
                 </span>{" "}
-                (<code className="rounded bg-muted px-1 py-0.5 text-xs">
+                (
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
                   {P.MEETINGS_READ}
                 </code>
                 ).
