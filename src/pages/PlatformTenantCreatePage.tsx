@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
+import type { ApiSuccess } from "@/api/types";
 import {
   CenteredFormPage,
   FormBackLink,
@@ -36,7 +37,7 @@ export function PlatformTenantCreatePage() {
 
   const create = useMutation({
     mutationFn: () =>
-      api.post<{ tenant: { id: string } }>("/api/platform/tenants", {
+      api.post<ApiSuccess<{ tenant: { id: string } }>>("/api/platform/tenants", {
         name,
         slug: slugify(name),
         adminUsername: adminUsername.trim().toLowerCase(),
@@ -56,7 +57,7 @@ export function PlatformTenantCreatePage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
-          e.response?.data?.error ??
+          e.response?.data?.message ??
           e.message)
         : "Could not create tenant";
       toast.error(String(msg));

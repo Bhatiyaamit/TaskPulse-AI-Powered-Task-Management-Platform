@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,10 +52,10 @@ export function MeetingEditPage() {
     enabled: canUpdateMeetings,
     queryKey: ["meeting-attendees"],
     queryFn: async () => {
-      const { data } = await api.get<{
-        users: { id: string; name: string; username: string }[];
-      }>("/api/meetings/eligible-attendees");
-      return data.users;
+      const { data } = await api.get<
+        ApiSuccess<{ users: { id: string; name: string; username: string }[] }>
+      >("/api/meetings/eligible-attendees");
+      return data.data.users;
     },
   });
 
@@ -62,10 +63,10 @@ export function MeetingEditPage() {
     enabled: canUpdateMeetings && Boolean(id),
     queryKey: ["meeting", id],
     queryFn: async () => {
-      const { data } = await api.get<{ meeting: Meeting }>(
+      const { data } = await api.get<ApiSuccess<{ meeting: Meeting }>>(
         `/api/meetings/${id}`,
       );
-      return data.meeting;
+      return data.data.meeting;
     },
   });
 

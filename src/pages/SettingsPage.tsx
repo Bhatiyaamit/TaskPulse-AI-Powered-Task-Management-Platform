@@ -58,7 +58,9 @@ export function SettingsPage() {
     onError: (e) =>
       toast.error(
         isAxiosError(e)
-          ? (e.response?.data?.error?.message ?? e.message)
+          ? (e.response?.data?.error?.message ??
+            e.response?.data?.message ??
+            e.message)
           : "Failed",
       ),
   });
@@ -73,7 +75,9 @@ export function SettingsPage() {
     onError: (e) =>
       toast.error(
         isAxiosError(e)
-          ? (e.response?.data?.error?.message ?? e.message)
+          ? (e.response?.data?.error?.message ??
+            e.response?.data?.message ??
+            e.message)
           : "Failed",
       ),
   });
@@ -102,7 +106,9 @@ export function SettingsPage() {
     onError: (e) =>
       toast.error(
         isAxiosError(e)
-          ? (e.response?.data?.error?.message ?? e.message)
+          ? (e.response?.data?.error?.message ??
+            e.response?.data?.message ??
+            e.message)
           : "Failed",
       ),
   });

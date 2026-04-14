@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { taskModuleCanCreate } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -58,10 +59,10 @@ export function TaskCreatePage() {
     queryKey: ["task-statuses"],
     enabled: canCreateTask,
     queryFn: async () => {
-      const { data } = await api.get<{
-        statuses: { id: string; label: string; code: string }[];
-      }>("/api/tasks/statuses");
-      return data.statuses;
+      const { data } = await api.get<
+        ApiSuccess<{ statuses: { id: string; label: string; code: string }[] }>
+      >("/api/tasks/statuses");
+      return data.data.statuses;
     },
   });
 
@@ -69,10 +70,10 @@ export function TaskCreatePage() {
     queryKey: ["task-assignable-users"],
     enabled: canCreateTask,
     queryFn: async () => {
-      const { data } = await api.get<{ users: UserOption[] }>(
+      const { data } = await api.get<ApiSuccess<{ users: UserOption[] }>>(
         "/api/tasks/assignable-users",
       );
-      return data.users;
+      return data.data.users;
     },
   });
 
@@ -90,15 +91,15 @@ export function TaskCreatePage() {
 
   const create = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
-      const { data } = await api.post<{ task: { id: string } }>(
+      const { data } = await api.post<ApiSuccess<{ task: { id: string } }>>(
         "/api/tasks",
         payload,
       );
-      return data.task;
+      return data.data.task;
     },
     onError: (err: unknown) => {
-      const ax = err as { response?: { data?: { error?: string } } };
-      setFormError(ax.response?.data?.error ?? "Could not create task.");
+      const ax = err as { response?: { data?: { message?: string } } };
+      setFormError(ax.response?.data?.message ?? "Could not create task.");
     },
     onSuccess: async (_task) => {
       // Ensure every task list variant (filters/sorts/queues) is refreshed before leaving.

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import {
   meetingModuleCanUpdate,
@@ -157,10 +158,10 @@ export function MeetingDetailPage() {
   const { data } = useQuery({
     queryKey: ["meeting", id],
     queryFn: async () => {
-      const { data } = await api.get<{ meeting: unknown }>(
+      const { data } = await api.get<ApiSuccess<{ meeting: unknown }>>(
         `/api/meetings/${id}`,
       );
-      return data.meeting as {
+      return data.data.meeting as {
         id: string;
         title: string;
         agenda: string | null;
@@ -199,7 +200,9 @@ export function MeetingDetailPage() {
             ? "dueDate"
             : parsed.sortBy
           : undefined;
-      const { data } = await api.get<TasksApiResponse>("/api/tasks", {
+      const { data } = await api.get<
+        ApiSuccess<MeetingTaskRow[], { page: number; limit: number; total: number }>
+      >("/api/tasks", {
         params: {
           meetingId: String(id),
           page: parsed.pagination.pageIndex + 1,
@@ -211,7 +214,12 @@ export function MeetingDetailPage() {
             : {}),
         },
       });
-      return data;
+      return {
+        tasks: data.data,
+        total: data.meta?.total ?? 0,
+        page: data.meta?.page ?? parsed.pagination.pageIndex + 1,
+        pageSize: data.meta?.limit ?? parsed.pagination.pageSize,
+      } satisfies TasksApiResponse;
     },
   });
 
@@ -281,10 +289,10 @@ export function MeetingDetailPage() {
       data?.computedStatus === "COMPLETED" &&
       canListMeetingTasks,
     queryFn: async () => {
-      const { data } = await api.get<{
-        statuses: { id: string; code: string; label: string }[];
-      }>("/api/tasks/statuses");
-      return data.statuses;
+      const { data } = await api.get<
+        ApiSuccess<{ statuses: { id: string; code: string; label: string }[] }>
+      >("/api/tasks/statuses");
+      return data.data.statuses;
     },
   });
 

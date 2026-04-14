@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { toast } from "sonner";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import {
   P,
   PERMISSION_MATRIX_ACTIONS,
@@ -108,10 +109,10 @@ export function TeamUserEditPage() {
     enabled: canUpdateUsers && Boolean(id),
     queryKey: ["tenant-user", id],
     queryFn: async () => {
-      const { data } = await api.get<{ user: UserDetail }>(
+      const { data } = await api.get<ApiSuccess<{ user: UserDetail }>>(
         `/api/tenant/users/${id}`,
       );
-      return data.user;
+      return data.data.user;
     },
   });
 
@@ -119,11 +120,11 @@ export function TeamUserEditPage() {
     queryKey: ["tenant-roles", "all"],
     enabled: canUpdateUsers && canManageRoleOnUser,
     queryFn: async () => {
-      const { data } = await api.get<{ roles: TenantRoleDetail[] }>(
+      const { data } = await api.get<ApiSuccess<{ roles: TenantRoleDetail[] }>>(
         "/api/tenant/roles",
         { params: { for: "all" } },
       );
-      return data.roles;
+      return data.data.roles;
     },
   });
 
@@ -131,12 +132,15 @@ export function TeamUserEditPage() {
     queryKey: ["team-managers-options"],
     enabled: canUpdateUsers && Boolean(id),
     queryFn: async () => {
-      const { data } = await api.get<{
-        items: { id: string; name: string; username: string }[];
-      }>("/api/team/members", {
+      const { data } = await api.get<
+        ApiSuccess<
+          { id: string; name: string; username: string }[],
+          { page: number; limit: number; total: number }
+        >
+      >("/api/team/members", {
         params: { page: 1, pageSize: 100, sortBy: "name", sortDir: "asc" },
       });
-      return data.items as ManagerOption[];
+      return data.data as ManagerOption[];
     },
   });
 
@@ -144,10 +148,10 @@ export function TeamUserEditPage() {
     queryKey: ["org-departments", "options"],
     enabled: canUpdateUsers && Boolean(id),
     queryFn: async () => {
-      const { data } = await api.get<{ departments: DepartmentOption[] }>(
+      const { data } = await api.get<ApiSuccess<{ departments: DepartmentOption[] }>>(
         "/api/org/departments",
       );
-      return data.departments;
+      return data.data.departments;
     },
   });
 
@@ -337,7 +341,7 @@ export function TeamUserEditPage() {
             const [module, action] = k.split(":");
             return { module, action };
           });
-          const { data: roleRes } = await api.post<{ role: { id: string } }>(
+          const { data: roleRes } = await api.post<ApiSuccess<{ role: { id: string } }>>(
             "/api/tenant/roles",
             {
               code: roleCodeFromName(v.roleName),
@@ -346,7 +350,7 @@ export function TeamUserEditPage() {
               permissions,
             },
           );
-          roleId = roleRes.role.id;
+          roleId = roleRes.data.role.id;
         }
       }
 
@@ -360,11 +364,11 @@ export function TeamUserEditPage() {
         birthDate: v.birthDate ? new Date(v.birthDate) : null,
         isReviewer: Boolean(v.isReviewer),
       };
-      const { data } = await api.patch<{ user: UserDetail }>(
+      const { data } = await api.patch<ApiSuccess<{ user: UserDetail }>>(
         `/api/tenant/users/${id}`,
         payload,
       );
-      return data.user;
+      return data.data.user;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["team-members"], exact: false });
@@ -379,7 +383,7 @@ export function TeamUserEditPage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
-          e.response?.data?.error ??
+          e.response?.data?.message ??
           e.message)
         : "Could not update user";
       toast.error(String(msg));

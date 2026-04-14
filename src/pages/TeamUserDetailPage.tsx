@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import {
   P,
@@ -63,10 +64,10 @@ export function TeamUserDetailPage() {
     enabled: canReadUsers && Boolean(id),
     queryKey: ["tenant-user", id],
     queryFn: async () => {
-      const { data } = await api.get<{ user: UserDetail }>(
+      const { data } = await api.get<ApiSuccess<{ user: UserDetail }>>(
         `/api/tenant/users/${id}`,
       );
-      return data.user;
+      return data.data.user;
     },
   });
 
@@ -74,11 +75,11 @@ export function TeamUserDetailPage() {
     enabled: canReadUsers,
     queryKey: ["tenant-roles", "all"],
     queryFn: async () => {
-      const { data } = await api.get<{ roles: TenantRoleDetail[] }>(
+      const { data } = await api.get<ApiSuccess<{ roles: TenantRoleDetail[] }>>(
         "/api/tenant/roles",
         { params: { for: "all" } },
       );
-      return data.roles;
+      return data.data.roles;
     },
   });
 

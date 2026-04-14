@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { ApiFailure, ApiResponse, ApiSuccess } from "./types";
 
 const baseURL = import.meta.env.VITE_API_URL ?? "";
 
@@ -30,6 +31,31 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+function isApiResponseShape(v: unknown): v is { success: boolean } {
+  return Boolean(v) && typeof v === "object" && "success" in (v as any);
+}
+
+api.interceptors.response.use(
+  (response) => {
+    const data = response.data as unknown;
+    if (!isApiResponseShape(data)) return response;
+    if ((data as ApiSuccess<unknown>).success === true) return response;
+
+    const err = data as ApiFailure;
+    const e = new Error(err.message || "Request failed") as Error & {
+      api?: ApiFailure["error"];
+      status?: number;
+    };
+    e.api = err.error;
+    e.status = response.status;
+    throw e;
+  },
+  (error) => {
+    // Preserve existing axios error shape; pages can still use isAxiosError.
+    throw error;
+  },
+);
+
 /** Multipart upload (avoids forcing JSON Content-Type from the axios instance). */
 export async function uploadTaskAttachment(taskId: string, file: File) {
   const token = await ensureCsrf();
@@ -43,8 +69,21 @@ export async function uploadTaskAttachment(taskId: string, file: File) {
     body: fd,
   });
   if (!res.ok) {
-    const text = await res.text();
+    try {
+      const body = (await res.json()) as ApiResponse<unknown>;
+      if (body && typeof body === "object" && "success" in body && body.success === false) {
+        throw new Error(body.message || res.statusText);
+      }
+    } catch {
+      // fall back to plain text
+    }
+    const text = await res.text().catch(() => "");
     throw new Error(text || res.statusText);
   }
-  return res.json() as Promise<{ attachment: { id: string } }>;
+  const body = (await res.json()) as ApiResponse<{ attachment: { id: string } }>;
+  if (body && typeof body === "object" && "success" in body && body.success === true) {
+    return body.data;
+  }
+  // Legacy/fallback
+  return body as any;
 }

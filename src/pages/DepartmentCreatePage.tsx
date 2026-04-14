@@ -4,6 +4,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { departmentModuleCanCreate } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ export function DepartmentCreatePage() {
 
   const create = useMutation({
     mutationFn: async () => {
-      const { data } = await api.post<{ department: { id: string } }>(
+      const { data } = await api.post<ApiSuccess<{ department: { id: string } }>>(
         "/api/org/departments",
         {
           name: name.trim(),
@@ -32,7 +33,7 @@ export function DepartmentCreatePage() {
           branchId: null,
         },
       );
-      return data.department;
+      return data.data.department;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({
@@ -48,9 +49,7 @@ export function DepartmentCreatePage() {
     },
     onError: (e) => {
       const msg = isAxiosError(e)
-        ? ((e.response?.data as { error?: string } | undefined)?.error ??
-          (e.response?.data as { error?: { message?: string } } | undefined)
-            ?.error?.message ??
+        ? ((e.response?.data as { message?: string } | undefined)?.message ??
           e.message)
         : "Could not create department";
       toast.error(String(msg));
