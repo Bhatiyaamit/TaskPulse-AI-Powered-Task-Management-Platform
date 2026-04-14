@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  AlertTriangle,
   Bell,
   Calendar,
   CheckSquare2,
@@ -33,8 +34,13 @@ type Notif = {
   metadata?: any;
 };
 
-function notificationIcon(type: string) {
-  const t = String(type || "").toUpperCase();
+function isTaskEscalationNotification(n: Notif): boolean {
+  return n.metadata?.kind === "TASK_ESCALATION";
+}
+
+function notificationIcon(n: Notif) {
+  if (isTaskEscalationNotification(n)) return AlertTriangle;
+  const t = String(n.type || "").toUpperCase();
   if (t.includes("MEETING")) return Calendar;
   if (t.includes("ASSIGNED")) return ClipboardList;
   if (t.includes("TASK")) return CheckSquare2;
@@ -54,6 +60,23 @@ function notificationBadgeClass(type: string) {
   if (t.includes("TASK"))
     return `${base} border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200`;
   return `${base} border-border bg-muted/40 text-muted-foreground`;
+}
+
+function taskEscalationBadgeClass() {
+  const base = badgeBase();
+  return `${base} border-destructive/40 bg-destructive/10 text-destructive dark:border-destructive/50 dark:bg-destructive/15 dark:text-destructive`;
+}
+
+function notificationBadgeClassFor(n: Notif) {
+  if (isTaskEscalationNotification(n)) return taskEscalationBadgeClass();
+  return notificationBadgeClass(n.type);
+}
+
+function notificationBadgeLabel(n: Notif) {
+  if (isTaskEscalationNotification(n)) return "Task Escalation";
+  return String(n.type || "")
+    .replace(/_/g, " ")
+    .toLowerCase();
 }
 
 function formatLocalDateTime(iso: string) {
@@ -112,7 +135,9 @@ export function NotificationBell() {
     const newest = (data?.notifications ?? []).find((n) => n.id === newIds[0]);
     if (newest) {
       toast(newest.message, {
-        description: String(newest.type || "").replace(/_/g, " "),
+        description: isTaskEscalationNotification(newest)
+          ? "Task Escalation"
+          : String(newest.type || "").replace(/_/g, " "),
         duration: 4000,
       });
     }
@@ -184,14 +209,14 @@ export function NotificationBell() {
 
         {items.length === 0 ? (
           <div className="px-3 py-10 text-center text-sm text-muted-foreground">
-            No notifications
+            No new notifications
           </div>
         ) : (
           <>
             <ul className="no-scrollbar max-h-112 space-y-2 overflow-y-auto px-2 py-2">
               <AnimatePresence initial={false}>
                 {visibleItems.map((n) => {
-                  const Icon = notificationIcon(n.type);
+                  const Icon = notificationIcon(n);
                   return (
                     <motion.li
                       key={n.id}
@@ -223,15 +248,20 @@ export function NotificationBell() {
                         }}
                       >
                         <div className="flex items-start gap-3">
-                          <div className="mt-0.5 inline-flex size-9 items-center justify-center rounded-lg bg-muted/40 text-foreground">
+                          <div
+                            className={cn(
+                              "mt-0.5 inline-flex size-9 items-center justify-center rounded-lg",
+                              isTaskEscalationNotification(n)
+                                ? "bg-destructive/10 text-destructive"
+                                : "bg-muted/40 text-foreground",
+                            )}
+                          >
                             <Icon className="size-4" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className={notificationBadgeClass(n.type)}>
-                                {String(n.type || "")
-                                  .replace(/_/g, " ")
-                                  .toLowerCase()}
+                              <span className={notificationBadgeClassFor(n)}>
+                                {notificationBadgeLabel(n)}
                               </span>
                               <span className="text-xs text-muted-foreground">
                                 {new Intl.DateTimeFormat(undefined, {

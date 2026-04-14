@@ -48,7 +48,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { overdueBadgeClass } from "@/lib/badges";
+import { overdueBadgeClass, taskStatusBadgeClass } from "@/lib/badges";
 import { useMe } from "@/hooks/useAuth";
 import {
   P,
@@ -68,7 +68,6 @@ import {
 type TaskRow = {
   id: string;
   title: string;
-  priority: string;
   dueDate: string | null;
   updatedAt: string;
   status: { code: string; label: string };
@@ -84,7 +83,6 @@ type TasksApiResponse = {
   pageSize: number;
 };
 
-const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 const PAGE_SIZES = [10, 20, 50] as const;
 const LIST_STATE_QUERY_KEYS = [
   "q",
@@ -100,7 +98,6 @@ const LIST_STATE_QUERY_KEYS = [
 
 const SORT_IDS = [
   "title",
-  "priority",
   "status",
   "overdue",
   "dueDate",
@@ -133,17 +130,6 @@ function formatDateTime(iso: string) {
   } catch {
     return iso;
   }
-}
-
-function priorityClass(p: string) {
-  const u = p.toUpperCase();
-  if (u === "URGENT")
-    return "border-destructive/50 bg-destructive/15 text-destructive";
-  if (u === "HIGH")
-    return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-  if (u === "LOW")
-    return "border-muted-foreground/30 bg-muted text-muted-foreground";
-  return "border-border bg-muted/60 text-foreground";
 }
 
 function toEndOfDayIso(dateStr: string) {
@@ -190,12 +176,6 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     ? [{ id: sortByRaw, desc: sortDirRaw === "desc" }]
     : [];
   const statusId = searchParams.get("statusId") || "";
-  const priorityRaw = searchParams.get("priority") || "";
-  const priority = PRIORITIES.includes(
-    priorityRaw as (typeof PRIORITIES)[number],
-  )
-    ? priorityRaw
-    : "";
   const dueFrom = searchParams.get("dueFrom") || "";
   const dueTo = searchParams.get("dueTo") || "";
   const rawQueueParam = searchParams.get("queue");
@@ -220,7 +200,6 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     apiSortDir,
     queue,
     statusId,
-    priority,
     dueFrom,
     dueTo,
     myTab,
@@ -259,7 +238,6 @@ export function TasksPage() {
     apiSortDir,
     queue,
     statusId,
-    priority,
     dueFrom,
     dueTo,
     myTab,
@@ -341,7 +319,6 @@ export function TasksPage() {
       pagination.pageIndex,
       pagination.pageSize,
       statusId,
-      priority,
       dueFrom,
       dueTo,
       search,
@@ -357,7 +334,6 @@ export function TasksPage() {
           queue,
           ...(queue === "my_tasks" ? { myTab: myTab ?? "assigned" } : {}),
           ...(statusId ? { statusId } : {}),
-          ...(priority ? { priority } : {}),
           ...(dueFrom
             ? { dueFrom: new Date(dueFrom + "T00:00:00").toISOString() }
             : {}),
@@ -418,26 +394,11 @@ export function TasksPage() {
         ),
       },
       {
-        accessorKey: "priority",
-        id: "priority",
-        header: "Priority",
-        cell: ({ row }) => (
-          <span
-            className={cn(
-              "inline-flex rounded-md border px-2 py-0.5 text-xs font-medium",
-              priorityClass(row.original.priority),
-            )}
-          >
-            {row.original.priority}
-          </span>
-        ),
-      },
-      {
         id: "status",
         accessorFn: (r) => r.status.label,
         header: "Status",
         cell: ({ row }) => (
-          <span className="rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs">
+          <span className={taskStatusBadgeClass(row.original.status.code)}>
             {row.original.status.label}
           </span>
         ),
@@ -691,12 +652,6 @@ export function TasksPage() {
     return s?.label ?? v;
   }
 
-  function priorityFilterLabel(v: string) {
-    if (v === "__all__") return "All priorities";
-    if (!v) return "";
-    return v.charAt(0) + v.slice(1).toLowerCase();
-  }
-
   const goPrev = useCallback(() => {
     setSearchParams(
       (prev) => {
@@ -939,7 +894,7 @@ export function TasksPage() {
       ) : null}
 
       <Card className="p-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <div className="space-y-2 lg:col-span-2">
             <Label htmlFor="task-search">Search</Label>
             <Input
@@ -975,37 +930,6 @@ export function TasksPage() {
                 {(statuses ?? []).map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Priority</Label>
-            <Select
-              value={priority || "__all__"}
-              onValueChange={(v) => {
-                setSearchParams(
-                  (prev) => {
-                    const p = new URLSearchParams(prev);
-                    if (v === "__all__") p.delete("priority");
-                    else p.set("priority", v);
-                    p.delete("page");
-                    return p;
-                  },
-                  { replace: true },
-                );
-              }}
-              itemToStringLabel={priorityFilterLabel}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All priorities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All priorities</SelectItem>
-                {PRIORITIES.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p.charAt(0) + p.slice(1).toLowerCase()}
                   </SelectItem>
                 ))}
               </SelectContent>
