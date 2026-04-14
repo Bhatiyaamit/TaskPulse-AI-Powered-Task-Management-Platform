@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,10 +36,10 @@ export function MeetingCreatePage() {
     enabled: canCreateMeetings,
     queryKey: ["meeting-attendees"],
     queryFn: async () => {
-      const { data } = await api.get<{
-        users: { id: string; name: string; username: string }[];
-      }>("/api/meetings/eligible-attendees");
-      return data.users;
+      const { data } = await api.get<
+        ApiSuccess<{ users: { id: string; name: string; username: string }[] }>
+      >("/api/meetings/eligible-attendees");
+      return data.data.users;
     },
   });
 
@@ -55,7 +56,8 @@ export function MeetingCreatePage() {
     }) => api.post("/api/meetings", payload),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["meetings"] });
-      const mid = (res.data as { meeting: { id: string } }).meeting?.id;
+      const mid = (res.data as ApiSuccess<{ meeting: { id: string } }>).data
+        .meeting?.id;
       if (mid) navigate(`/meetings/${mid}`);
       else navigate("/meetings");
     },

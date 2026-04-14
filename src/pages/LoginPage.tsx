@@ -46,8 +46,8 @@ export function LoginPage() {
         isAxiosError(e) &&
         e.response?.data &&
         typeof e.response.data === "object" &&
-        "error" in e.response.data
-          ? String((e.response.data as { error?: string }).error)
+        "message" in e.response.data
+          ? String((e.response.data as { message?: string }).message)
           : "Invalid username or password";
       toast.error(msg);
     }

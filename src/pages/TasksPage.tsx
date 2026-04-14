@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -276,10 +277,10 @@ export function TasksPage() {
     queryKey: ["task-statuses"],
     enabled: canListTasks,
     queryFn: async () => {
-      const { data } = await api.get<{
-        statuses: { id: string; code: string; label: string }[];
-      }>("/api/tasks/statuses");
-      return data.statuses;
+      const { data } = await api.get<
+        ApiSuccess<{ statuses: { id: string; code: string; label: string }[] }>
+      >("/api/tasks/statuses");
+      return data.data.statuses;
     },
   });
 
@@ -327,7 +328,9 @@ export function TasksPage() {
     ],
     enabled: canListTasks,
     queryFn: async () => {
-      const { data } = await api.get<TasksApiResponse>("/api/tasks", {
+      const { data } = await api.get<ApiSuccess<TaskRow[], { page: number; limit: number; total: number }>>(
+        "/api/tasks",
+        {
         params: {
           page: pagination.pageIndex + 1,
           pageSize: pagination.pageSize,
@@ -342,8 +345,14 @@ export function TasksPage() {
           sortBy: apiSortBy,
           sortDir: apiSortDir,
         },
-      });
-      return data;
+        },
+      );
+      return {
+        tasks: data.data,
+        total: data.meta?.total ?? 0,
+        page: data.meta?.page ?? pagination.pageIndex + 1,
+        pageSize: data.meta?.limit ?? pagination.pageSize,
+      } satisfies TasksApiResponse;
     },
   });
 

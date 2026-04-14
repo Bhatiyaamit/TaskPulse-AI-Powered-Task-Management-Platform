@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, uploadTaskAttachment } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe, useHasPermission } from "@/hooks/useAuth";
 import {
   P,
@@ -179,8 +180,10 @@ export function TaskDetailPage() {
     queryKey: ["task", id],
     enabled: Boolean(id) && !mePending && canAccessTask,
     queryFn: async () => {
-      const { data } = await api.get<{ task: TaskDetail }>(`/api/tasks/${id}`);
-      return data.task;
+      const { data } = await api.get<ApiSuccess<{ task: TaskDetail }>>(
+        `/api/tasks/${id}`,
+      );
+      return data.data.task;
     },
     retry: false,
   });
@@ -189,10 +192,10 @@ export function TaskDetailPage() {
     queryKey: ["task-statuses"],
     enabled: canLoadStatuses && (canUpdate || canReviewPerm),
     queryFn: async () => {
-      const { data } = await api.get<{
-        statuses: { id: string; code: string; label: string }[];
-      }>("/api/tasks/statuses");
-      return data.statuses;
+      const { data } = await api.get<
+        ApiSuccess<{ statuses: { id: string; code: string; label: string }[] }>
+      >("/api/tasks/statuses");
+      return data.data.statuses;
     },
   });
 
@@ -235,7 +238,7 @@ export function TaskDetailPage() {
     onError: (e) => {
       toast.error(
         isAxiosError(e)
-          ? String(e.response?.data?.error ?? e.message)
+          ? String(e.response?.data?.message ?? e.message)
           : "Update failed",
       );
     },

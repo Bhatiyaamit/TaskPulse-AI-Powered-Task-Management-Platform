@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 
 export type Me = {
   user: {
@@ -20,8 +21,8 @@ export function useMe() {
   return useQuery({
     queryKey: ["me"],
     queryFn: async () => {
-      const { data } = await api.get<Me>("/api/auth/me");
-      return data;
+      const { data } = await api.get<ApiSuccess<Me>>("/api/auth/me");
+      return data.data;
     },
     retry: false,
   });

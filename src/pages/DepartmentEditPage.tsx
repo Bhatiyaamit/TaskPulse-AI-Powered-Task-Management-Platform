@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { departmentModuleCanUpdate } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -39,10 +40,10 @@ export function DepartmentEditPage() {
     queryKey: ["org-department", id],
     enabled: Boolean(id) && canEdit,
     queryFn: async () => {
-      const { data } = await api.get<{ department: DepartmentDetail }>(
+      const { data } = await api.get<ApiSuccess<{ department: DepartmentDetail }>>(
         `/api/org/departments/${id}`,
       );
-      return data.department;
+      return data.data.department;
     },
   });
 
@@ -73,7 +74,7 @@ export function DepartmentEditPage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? String(
-            (e.response?.data as { error?: string } | undefined)?.error ??
+            (e.response?.data as { message?: string } | undefined)?.message ??
               e.message,
           )
         : "Could not update department";

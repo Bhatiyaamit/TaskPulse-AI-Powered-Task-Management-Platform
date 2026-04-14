@@ -8,6 +8,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { taskModuleCanList } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,8 +119,31 @@ export function EodPage() {
     queryKey: ["eod", "today"],
     enabled: canEod,
     queryFn: async () => {
-      const { data } = await api.get<EodTodayResponse>("/api/eod/today");
-      return data;
+      const { data } = await api.get<
+        ApiSuccess<
+          {
+            completedToday: TaskSummary[];
+            workedOnToday: TaskSummary[];
+            inProgress: TaskSummary[];
+            overdue: TaskSummary[];
+            focusNext: TaskSummary[];
+          },
+          { rangeUtc: { start: string; end: string } }
+        >
+      >("/api/eod/today");
+      return {
+        meta: data.meta ?? {
+          rangeUtc: {
+            start: new Date().toISOString(),
+            end: new Date().toISOString(),
+          },
+        },
+        completedToday: data.data.completedToday ?? [],
+        workedOnToday: data.data.workedOnToday ?? [],
+        inProgress: data.data.inProgress ?? [],
+        overdue: data.data.overdue ?? [],
+        focusNext: data.data.focusNext ?? [],
+      } satisfies EodTodayResponse;
     },
   });
 
@@ -133,9 +157,9 @@ export function EodPage() {
 
   const summaryText = useMemo(() => {
     if (!q.data) return "Generating your summary…";
-    const completed = q.data.completedToday.length;
-    const worked = q.data.workedOnToday.length;
-    const overdue = q.data.overdue.length;
+    const completed = q.data.completedToday?.length ?? 0;
+    const worked = q.data.workedOnToday?.length ?? 0;
+    const overdue = q.data.overdue?.length ?? 0;
     const focus = q.data.focusNext[0]?.title;
     const parts = [
       `You completed ${completed} task${completed === 1 ? "" : "s"} today`,

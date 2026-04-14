@@ -6,6 +6,7 @@ import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { isAxiosError } from "axios";
 import { toast } from "sonner";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { canCreateUsers } from "@/lib/userCreationRoles";
 import { P, userModuleCanList } from "@/lib/permissions";
@@ -63,10 +64,7 @@ type TeamMemberRow = {
   role: { id: string; code: string; name: string };
 };
 
-type PaginatedResponse<T> = {
-  items: T[];
-  meta: { page: number; pageSize: number; total: number; totalPages: number };
-};
+type PaginatedResponse<T> = ApiSuccess<T[], { page: number; limit: number; total: number }>;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZES = [10, 20, 50, 100] as const;
@@ -153,7 +151,18 @@ export function TeamPage() {
           },
         },
       );
-      return data;
+      return {
+        items: data.data,
+        meta: {
+          page: data.meta?.page ?? page,
+          pageSize: data.meta?.limit ?? pageSize,
+          total: data.meta?.total ?? 0,
+          totalPages: Math.max(
+            1,
+            Math.ceil((data.meta?.total ?? 0) / (data.meta?.limit ?? pageSize)),
+          ),
+        },
+      };
     },
   });
 
@@ -161,10 +170,10 @@ export function TeamPage() {
     queryKey: ["org-departments", "options"],
     enabled: canListTeam,
     queryFn: async () => {
-      const { data } = await api.get<{
-        departments: { id: string; name: string; code: string | null }[];
-      }>("/api/org/departments");
-      return data.departments;
+      const { data } = await api.get<
+        ApiSuccess<{ departments: { id: string; name: string; code: string | null }[] }>
+      >("/api/org/departments");
+      return data.data.departments;
     },
   });
   const departmentOptions = departmentsQuery.data ?? [];
@@ -173,10 +182,10 @@ export function TeamPage() {
     queryKey: ["tenant-roles", "assignment-options"],
     enabled: canListTeam,
     queryFn: async () => {
-      const { data } = await api.get<{
-        roles: { id: string; code: string; name: string }[];
-      }>("/api/tenant/roles", { params: { for: "assignment" } });
-      return data.roles;
+      const { data } = await api.get<
+        ApiSuccess<{ roles: { id: string; code: string; name: string }[] }>
+      >("/api/tenant/roles", { params: { for: "assignment" } });
+      return data.data.roles;
     },
   });
   const roleOptions = rolesQuery.data ?? [];
@@ -231,12 +240,12 @@ export function TeamPage() {
 
   const setUserStatus = useMutation({
     mutationFn: async (input: { userId: string; isActive: boolean }) => {
-      const { data } = await api.patch<{
-        user: { id: string; isActive: boolean };
-      }>(`/api/tenant/users/${input.userId}/status`, {
+      const { data } = await api.patch<
+        ApiSuccess<{ user: { id: string; isActive: boolean } }>
+      >(`/api/tenant/users/${input.userId}/status`, {
         isActive: input.isActive,
       });
-      return data.user;
+      return data.data.user;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["team-members"], exact: false });
@@ -245,7 +254,7 @@ export function TeamPage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
-          e.response?.data?.error ??
+          e.response?.data?.message ??
           e.message)
         : "Could not update user";
       toast.error(String(msg));
@@ -263,7 +272,7 @@ export function TeamPage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
-          e.response?.data?.error ??
+          e.response?.data?.message ??
           e.message)
         : "Could not delete user";
       toast.error(String(msg));

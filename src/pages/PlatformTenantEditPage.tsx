@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { isAxiosError } from "axios";
 import { toast } from "sonner";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,10 +45,10 @@ export function PlatformTenantEditPage() {
     queryKey: ["platform-tenant", tenantId],
     enabled: Boolean(tenantId),
     queryFn: async () => {
-      const { data } = await api.get<TenantDetailsResponse>(
+      const { data } = await api.get<ApiSuccess<TenantDetailsResponse>>(
         `/api/platform/tenants/${tenantId}`,
       );
-      return data;
+      return data.data;
     },
   });
 
@@ -64,11 +65,11 @@ export function PlatformTenantEditPage() {
 
   const update = useMutation({
     mutationFn: async (input: { name: string }) => {
-      const { data } = await api.patch<{ tenant: Tenant }>(
+      const { data } = await api.patch<ApiSuccess<{ tenant: Tenant }>>(
         `/api/platform/tenants/${tenantId}`,
         { name: input.name },
       );
-      return data.tenant;
+      return data.data.tenant;
     },
     onSuccess: async (t) => {
       await qc.invalidateQueries({ queryKey: ["tenants"], exact: false });
@@ -82,7 +83,7 @@ export function PlatformTenantEditPage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
-          e.response?.data?.error ??
+          e.response?.data?.message ??
           e.message)
         : "Could not update company";
       toast.error(String(msg));

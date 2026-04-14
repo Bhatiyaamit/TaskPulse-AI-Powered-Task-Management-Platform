@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
+import type { ApiSuccess } from "@/api/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,10 +100,10 @@ export function PlatformDashboardPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["platform-dashboard"],
     queryFn: async () => {
-      const { data } = await api.get<PlatformDashboard>(
+      const { data } = await api.get<ApiSuccess<PlatformDashboard>>(
         "/api/platform/dashboard",
       );
-      return data;
+      return data.data;
     },
   });
 
@@ -135,7 +136,9 @@ export function PlatformDashboardPage() {
       sortDir,
     ],
     queryFn: async () => {
-      const { data } = await api.get<TenantsApiResponse>(
+      const { data } = await api.get<
+        ApiSuccess<TenantRow[], { page: number; limit: number; total: number }>
+      >(
         "/api/platform/tenants",
         {
           params: {
@@ -148,7 +151,12 @@ export function PlatformDashboardPage() {
           },
         },
       );
-      return data;
+      return {
+        tenants: data.data,
+        total: data.meta?.total ?? 0,
+        page: data.meta?.page ?? pagination.pageIndex + 1,
+        pageSize: data.meta?.limit ?? pagination.pageSize,
+      } satisfies TenantsApiResponse;
     },
   });
 
@@ -167,11 +175,11 @@ export function PlatformDashboardPage() {
       tenantId: string;
       status: "INVITED" | "ACTIVE" | "INACTIVE";
     }) => {
-      const { data } = await api.patch<{ tenant: TenantRow }>(
+      const { data } = await api.patch<ApiSuccess<{ tenant: TenantRow }>>(
         `/api/platform/tenants/${input.tenantId}/status`,
         { status: input.status },
       );
-      return data.tenant;
+      return data.data.tenant;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["tenants"], exact: false });
@@ -180,7 +188,7 @@ export function PlatformDashboardPage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
-          e.response?.data?.error ??
+          e.response?.data?.message ??
           e.message)
         : "Could not update tenant";
       toast.error(String(msg));
@@ -198,7 +206,7 @@ export function PlatformDashboardPage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
-          e.response?.data?.error ??
+          e.response?.data?.message ??
           e.message)
         : "Could not delete tenant";
       toast.error(String(msg));

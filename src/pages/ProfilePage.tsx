@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { toast } from "sonner";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +40,7 @@ export function ProfilePage() {
         phone: phone.trim() ? phone.trim() : null,
         birthDate: birthDate ? new Date(birthDate) : null,
       };
-      const { data } = await api.patch<{ user: unknown }>(
+      const { data } = await api.patch<ApiSuccess<{ user: unknown }>>(
         "/api/auth/me",
         payload,
       );
@@ -52,7 +53,7 @@ export function ProfilePage() {
     },
     onError: (e) => {
       const msg = isAxiosError(e)
-        ? ((e.response?.data as { error?: string } | undefined)?.error ??
+        ? ((e.response?.data as { message?: string } | undefined)?.message ??
           e.message)
         : "Could not update profile";
       toast.error(String(msg));

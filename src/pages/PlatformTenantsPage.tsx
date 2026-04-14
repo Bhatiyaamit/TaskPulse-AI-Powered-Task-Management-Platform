@@ -8,6 +8,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -173,7 +174,9 @@ export function PlatformTenantsPage() {
       apiSortDir,
     ],
     queryFn: async () => {
-      const { data } = await api.get<TenantsApiResponse>(
+      const { data } = await api.get<
+        ApiSuccess<TenantRow[], { page: number; limit: number; total: number }>
+      >(
         "/api/platform/tenants",
         {
           params: {
@@ -186,7 +189,12 @@ export function PlatformTenantsPage() {
           },
         },
       );
-      return data;
+      return {
+        tenants: data.data,
+        total: data.meta?.total ?? 0,
+        page: data.meta?.page ?? pagination.pageIndex + 1,
+        pageSize: data.meta?.limit ?? pagination.pageSize,
+      } satisfies TenantsApiResponse;
     },
   });
 
@@ -205,11 +213,11 @@ export function PlatformTenantsPage() {
       tenantId: string;
       status: "INVITED" | "ACTIVE" | "INACTIVE";
     }) => {
-      const { data } = await api.patch<{ tenant: TenantRow }>(
+      const { data } = await api.patch<ApiSuccess<{ tenant: TenantRow }>>(
         `/api/platform/tenants/${input.tenantId}/status`,
         { status: input.status },
       );
-      return data.tenant;
+      return data.data.tenant;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["tenants"], exact: false });
@@ -218,7 +226,7 @@ export function PlatformTenantsPage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
-          e.response?.data?.error ??
+          e.response?.data?.message ??
           e.message)
         : "Could not update tenant";
       toast.error(String(msg));
@@ -236,7 +244,7 @@ export function PlatformTenantsPage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
-          e.response?.data?.error ??
+          e.response?.data?.message ??
           e.message)
         : "Could not delete tenant";
       toast.error(String(msg));

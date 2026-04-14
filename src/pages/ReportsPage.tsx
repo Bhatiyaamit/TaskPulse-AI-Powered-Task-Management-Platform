@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -23,22 +24,26 @@ export function ReportsPage() {
   const { data: dash } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const { data } = await api.get<{
-        totalTasks: number;
-        byStatus: Record<string, number>;
-        overdue: number;
-      }>("/api/reports/dashboard");
-      return data;
+      const { data } = await api.get<
+        ApiSuccess<{
+          totalTasks: number;
+          byStatus: Record<string, number>;
+          overdue: number;
+        }>
+      >("/api/reports/dashboard");
+      return data.data;
     },
   });
 
   const { data: byUser } = useQuery({
     queryKey: ["reports-by-user"],
     queryFn: async () => {
-      const { data } = await api.get<{
-        rows: { user: { name: string; username: string }; count: number }[];
-      }>("/api/reports/by-assignee");
-      return data.rows;
+      const { data } = await api.get<
+        ApiSuccess<{
+          rows: { user: { name: string; username: string }; count: number }[];
+        }>
+      >("/api/reports/by-assignee");
+      return data.data.rows;
     },
   });
 

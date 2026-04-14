@@ -7,6 +7,7 @@ import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { canCreateUsers } from "@/lib/userCreationRoles";
 import {
@@ -124,11 +125,11 @@ export function TeamUserCreatePage() {
     queryKey: ["tenant-roles", "assignment"],
     enabled: canAddUser,
     queryFn: async () => {
-      const { data } = await api.get<{ roles: RoleNameComboboxRole[] }>(
+      const { data } = await api.get<ApiSuccess<{ roles: RoleNameComboboxRole[] }>>(
         "/api/tenant/roles",
         { params: { for: "assignment" } },
       );
-      return data.roles;
+      return data.data.roles;
     },
   });
 
@@ -142,17 +143,20 @@ export function TeamUserCreatePage() {
     queryKey: ["team-managers-options"],
     enabled: canAddUser,
     queryFn: async () => {
-      const { data } = await api.get<{
-        items: {
-          id: string;
-          name: string;
-          username: string;
-          role: { code: string; name: string };
-        }[];
-      }>("/api/team/members", {
+      const { data } = await api.get<
+        ApiSuccess<
+          {
+            id: string;
+            name: string;
+            username: string;
+            role: { code: string; name: string };
+          }[],
+          { page: number; limit: number; total: number }
+        >
+      >("/api/team/members", {
         params: { page: 1, pageSize: 100, sortBy: "name", sortDir: "asc" },
       });
-      return data.items.map((u) => ({
+      return data.data.map((u) => ({
         id: u.id,
         name: u.name,
         username: u.username,
@@ -164,10 +168,10 @@ export function TeamUserCreatePage() {
     queryKey: ["org-departments", "options"],
     enabled: canAddUser,
     queryFn: async () => {
-      const { data } = await api.get<{ departments: DepartmentOption[] }>(
+      const { data } = await api.get<ApiSuccess<{ departments: DepartmentOption[] }>>(
         "/api/org/departments",
       );
-      return data.departments;
+      return data.data.departments;
     },
   });
 
@@ -270,7 +274,7 @@ export function TeamUserCreatePage() {
           const [module, action] = k.split(":");
           return { module, action };
         });
-        const { data: roleRes } = await api.post<{ role: { id: string } }>(
+        const { data: roleRes } = await api.post<ApiSuccess<{ role: { id: string } }>>(
           "/api/tenant/roles",
           {
             code: roleCodeFromName(v.roleName),
@@ -279,7 +283,7 @@ export function TeamUserCreatePage() {
             permissions,
           },
         );
-        roleId = roleRes.role.id;
+        roleId = roleRes.data.role.id;
       }
 
       const payload = {
@@ -294,11 +298,11 @@ export function TeamUserCreatePage() {
         birthDate: v.birthDate ? new Date(v.birthDate) : null,
         isReviewer: Boolean(v.isReviewer),
       };
-      const { data } = await api.post<{ user: { id: string } }>(
+      const { data } = await api.post<ApiSuccess<{ user: { id: string } }>>(
         "/api/tenant/users",
         payload,
       );
-      return data.user;
+      return data.data.user;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["team-members"], exact: false });
@@ -309,7 +313,7 @@ export function TeamUserCreatePage() {
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
-          e.response?.data?.error ??
+          e.response?.data?.message ??
           e.message)
         : e instanceof Error
           ? e.message

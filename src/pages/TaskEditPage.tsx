@@ -9,6 +9,7 @@ import {
 } from "react-router-dom";
 import { Controller, useForm } from "react-hook-form";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { taskModuleCanUpdate } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -108,8 +109,10 @@ export function TaskEditPage() {
     queryKey: ["task", id],
     enabled: Boolean(id) && !mePending && canEditTask,
     queryFn: async () => {
-      const { data } = await api.get<{ task: TaskPayload }>(`/api/tasks/${id}`);
-      return data.task;
+      const { data } = await api.get<ApiSuccess<{ task: TaskPayload }>>(
+        `/api/tasks/${id}`,
+      );
+      return data.data.task;
     },
   });
 
@@ -117,10 +120,10 @@ export function TaskEditPage() {
     queryKey: ["task-assignable-users"],
     enabled: canEditTask,
     queryFn: async () => {
-      const { data } = await api.get<{ users: UserOption[] }>(
+      const { data } = await api.get<ApiSuccess<{ users: UserOption[] }>>(
         "/api/tasks/assignable-users",
       );
-      return data.users;
+      return data.data.users;
     },
   });
 
@@ -184,15 +187,15 @@ export function TaskEditPage() {
 
   const update = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
-      const { data } = await api.patch<{ task: { id: string } }>(
+      const { data } = await api.patch<ApiSuccess<{ task: { id: string } }>>(
         `/api/tasks/${id}`,
         payload,
       );
-      return data.task;
+      return data.data.task;
     },
     onError: (err: unknown) => {
-      const ax = err as { response?: { data?: { error?: string } } };
-      setFormError(ax.response?.data?.error ?? "Could not save task.");
+      const ax = err as { response?: { data?: { message?: string } } };
+      setFormError(ax.response?.data?.message ?? "Could not save task.");
     },
     onSuccess: async (t) => {
       await qc.invalidateQueries({ queryKey: ["tasks"], exact: false });

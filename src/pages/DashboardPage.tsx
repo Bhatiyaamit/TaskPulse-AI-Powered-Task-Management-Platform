@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   spotlightCardContentLayerClass,
@@ -19,12 +20,14 @@ export function DashboardPage() {
   const { data } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const { data } = await api.get<{
-        totalTasks: number;
-        byStatus: Record<string, number>;
-        overdue: number;
-      }>("/api/reports/dashboard");
-      return data;
+      const { data } = await api.get<
+        ApiSuccess<{
+          totalTasks: number;
+          byStatus: Record<string, number>;
+          overdue: number;
+        }>
+      >("/api/reports/dashboard");
+      return data.data;
     },
   });
 
