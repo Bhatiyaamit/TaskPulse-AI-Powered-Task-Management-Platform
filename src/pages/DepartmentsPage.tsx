@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DataTable } from "@/components/data-table";
 import { cn } from "@/lib/utils";
+import type { ApiSuccess } from "@/api/types";
 import {
   Tooltip,
   TooltipContent,
@@ -57,10 +58,10 @@ type DepartmentRow = {
   usersCount: number;
 };
 
-type PaginatedResponse<T> = {
-  items: T[];
-  meta: { page: number; pageSize: number; total: number; totalPages: number };
-};
+type DepartmentListResponse = ApiSuccess<
+  DepartmentRow[],
+  { page: number; limit: number; total: number }
+>;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZES = [10, 20, 50] as const;
@@ -127,8 +128,11 @@ export function DepartmentsPage() {
     const t = window.setTimeout(() => {
       setSearchParams(
         (prev) => {
+          const normalized = v.trim();
+          const current = (prev.get("search") ?? "").trim();
+          if (normalized === current) return prev;
           const p = new URLSearchParams(prev);
-          if (v.trim()) p.set("search", v);
+          if (normalized) p.set("search", v);
           else p.delete("search");
           p.delete("page");
           return p;
@@ -146,7 +150,7 @@ export function DepartmentsPage() {
       { page, pageSize, search, sortBy, sortDir },
     ],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<DepartmentRow>>(
+      const { data } = await api.get<DepartmentListResponse>(
         "/api/org/departments",
         {
           params: {
@@ -157,7 +161,17 @@ export function DepartmentsPage() {
           },
         },
       );
-      return data;
+      const total = data.meta?.total ?? 0;
+      const limit = data.meta?.limit ?? pageSize;
+      return {
+        items: data.data ?? [],
+        meta: {
+          page: data.meta?.page ?? page,
+          pageSize: limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / Math.max(1, limit))),
+        },
+      };
     },
   });
 

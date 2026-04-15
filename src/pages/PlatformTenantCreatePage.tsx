@@ -45,6 +45,10 @@ export function PlatformTenantCreatePage() {
       }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["tenants"], exact: false });
+      await qc.invalidateQueries({
+        queryKey: ["platform-dashboard"],
+        exact: false,
+      });
       setCreated({
         username: adminUsername.trim().toLowerCase(),
         password: tempPassword,

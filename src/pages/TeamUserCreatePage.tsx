@@ -11,10 +11,8 @@ import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { canCreateUsers } from "@/lib/userCreationRoles";
 import {
-  P,
   PERMISSION_MATRIX_ACTIONS,
   PERMISSION_MATRIX_MODULES,
-  userIsTenantPrimaryAdmin,
 } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,7 +45,6 @@ const userSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   username: z.string().trim().min(1, "Username is required"),
   roleName: z.string().trim().min(1, "Role name is required"),
-  roleDepartmentId: z.string().default("none").catch("none"),
   employeeCode: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   birthDate: z.string().optional(),
@@ -89,11 +86,6 @@ export function TeamUserCreatePage() {
   const qc = useQueryClient();
   const me = useMe();
   const canAddUser = canCreateUsers(me.data);
-  const perms = new Set(me.data?.permissions ?? []);
-  const canCreateRoleInline =
-    userIsTenantPrimaryAdmin(me.data?.user.roleCode) ||
-    perms.has(P.ROLES_CREATE);
-
   const {
     register,
     control,
@@ -108,7 +100,6 @@ export function TeamUserCreatePage() {
       name: "",
       username: "",
       roleName: "",
-      roleDepartmentId: "none",
       employeeCode: "",
       phone: "",
       birthDate: "",
@@ -180,7 +171,12 @@ export function TeamUserCreatePage() {
 
   const selectedDepartmentId = watch("departmentId");
   const selectedManagerId = watch("managerId");
-  const roleDepartmentId = watch("roleDepartmentId");
+  const phoneValue = watch("phone") ?? "";
+  const phoneOk = phoneValue.length === 0 || phoneValue.length === 10;
+  const phoneHint =
+    phoneValue.length > 0 && phoneValue.length < 10
+      ? `Enter all 10 digits (${phoneValue.length}/10).`
+      : null;
 
   useEffect(() => {
     if (!departmentsQuery.isSuccess) return;
@@ -192,19 +188,6 @@ export function TeamUserCreatePage() {
     departmentsQuery.isSuccess,
     departmentOptions,
     selectedDepartmentId,
-    setValue,
-  ]);
-
-  useEffect(() => {
-    if (!departmentsQuery.isSuccess) return;
-    if (roleDepartmentId === "none") return;
-    if (!departmentOptions.some((d) => d.id === roleDepartmentId)) {
-      setValue("roleDepartmentId", "none");
-    }
-  }, [
-    departmentsQuery.isSuccess,
-    departmentOptions,
-    roleDepartmentId,
     setValue,
   ]);
 
@@ -249,15 +232,14 @@ export function TeamUserCreatePage() {
   const create = useMutation({
     mutationFn: async (values: UserFormValues) => {
       const v = userSchema.parse(values);
-      if (!canCreateRoleInline) {
-        throw new Error("You don’t have permission to create roles.");
-      }
+      // if (!canCreateRoleInline) {
+      //   throw new Error("You don’t have permission to create roles.");
+      // }
       if (roleSelected.size === 0) {
         throw new Error("Select at least one permission for the role.");
       }
 
-      const formDeptId =
-        v.roleDepartmentId === "none" ? null : v.roleDepartmentId;
+      const formDeptId = null;
       const allRoles = rolesQuery.data ?? [];
       const existing = findRoleMatchingForm(
         allRoles,
@@ -345,7 +327,10 @@ export function TeamUserCreatePage() {
     >
       <form
         className="space-y-8"
-        onSubmit={handleSubmit((values) => create.mutate(values))}
+        onSubmit={handleSubmit((values) => {
+          if (!phoneOk) return;
+          create.mutate(values);
+        })}
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-1">
@@ -411,10 +396,57 @@ export function TeamUserCreatePage() {
             <Label htmlFor="phone">Phone</Label>
             <Input
               id="phone"
-              placeholder="e.g. +91 98765 43210"
+              placeholder="10-digit number"
               autoComplete="tel"
-              {...register("phone")}
+              inputMode="numeric"
+              maxLength={10}
+              aria-invalid={Boolean(phoneHint)}
+              aria-describedby={phoneHint ? "phone-hint" : "phone-help"}
+              {...register("phone", {
+                onChange: (e) => {
+                  const next = String(e.target.value ?? "")
+                    .replace(/\D/g, "")
+                    .slice(0, 10);
+                  e.target.value = next;
+                },
+                onBlur: (e) => {
+                  e.target.value = String(e.target.value ?? "")
+                    .replace(/\D/g, "")
+                    .slice(0, 10);
+                },
+              })}
+              onKeyDown={(e) => {
+                const mod = e.ctrlKey || e.metaKey;
+                const allowed =
+                  e.key === "Backspace" ||
+                  e.key === "Delete" ||
+                  e.key === "Tab" ||
+                  e.key === "Escape" ||
+                  e.key === "Enter" ||
+                  e.key === "ArrowLeft" ||
+                  e.key === "ArrowRight" ||
+                  e.key === "Home" ||
+                  e.key === "End" ||
+                  (mod && ["a", "c", "v", "x"].includes(e.key.toLowerCase()));
+                if (allowed) return;
+                if (/^\d$/.test(e.key)) return;
+                e.preventDefault();
+              }}
             />
+            {phoneHint ? (
+              <p
+                id="phone-hint"
+                className="text-xs text-amber-600 dark:text-amber-400"
+                role="status"
+              >
+                {phoneHint}
+              </p>
+            ) : (
+              <p id="phone-help" className="text-xs text-muted-foreground">
+                Digits only, up to 10 characters. Leave empty if you have no
+                phone.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2 sm:col-span-1">
@@ -529,11 +561,10 @@ export function TeamUserCreatePage() {
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
-                  disabled={!canCreateRoleInline}
+                  // disabled={!canCreateRoleInline}
                   placeholder="e.g. Manager"
                   roles={roleOptionsForCombobox}
                   onPickRole={(r) => {
-                    setValue("roleDepartmentId", r.departmentId ?? "none");
                     setRoleSelected(
                       new Set(
                         r.matrixSelections.map((c) =>
@@ -543,55 +574,18 @@ export function TeamUserCreatePage() {
                     );
                   }}
                   onClear={() => {
-                    setValue("roleDepartmentId", "none");
                     setRoleSelected(new Set());
                   }}
                   error={errors.roleName?.message}
                 />
               )}
             />
-            {canCreateRoleInline ? (
-              <p className="text-xs text-muted-foreground">
-                Pick a role to copy its setup, or type a new name. If another role
-                already has the same name, scope, and permissions, that role is
-                reused; otherwise a new role is created.
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                You don’t have permission to create roles.
-              </p>
-            )}
+         
             {rolesQuery.isError ? (
               <p className="text-xs text-destructive">
                 Could not load the role list.
               </p>
             ) : null}
-          </div>
-
-          <div className="space-y-2 sm:col-span-1">
-            <Label>Role department scope (optional)</Label>
-            <Controller
-              control={control}
-              name="roleDepartmentId"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full min-w-0 justify-between">
-                    {field.value === "none"
-                      ? "Company-wide"
-                      : (departmentOptions.find((d) => d.id === field.value)
-                          ?.name ?? "Select department")}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Company-wide</SelectItem>
-                    {departmentOptions.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
           </div>
 
           <div className="rounded-md border border-border bg-muted/20 p-4 sm:col-span-2 space-y-3">
@@ -629,7 +623,7 @@ export function TeamUserCreatePage() {
                                 type="checkbox"
                                 checked={roleSelected.has(k)}
                                 onChange={() => toggleRoleCell(m, a)}
-                                disabled={!canCreateRoleInline || !supported}
+                                disabled={!supported}
                               />
                               <span className="text-xs text-muted-foreground">
                                 Allow
@@ -644,7 +638,7 @@ export function TeamUserCreatePage() {
                             type="checkbox"
                             checked={isModuleAllChecked(m)}
                             onChange={(e) => setModuleAll(m, e.target.checked)}
-                            disabled={!canCreateRoleInline}
+                            // disabled={!canCreateRoleInline}
                           />
                           <span className="text-xs text-muted-foreground">
                             All
@@ -684,7 +678,7 @@ export function TeamUserCreatePage() {
           </Button>
           <Button
             type="submit"
-            disabled={create.isPending || !canCreateRoleInline}
+            disabled={create.isPending  || !phoneOk}
           >
             {create.isPending ? "Creating…" : "Create user"}
           </Button>

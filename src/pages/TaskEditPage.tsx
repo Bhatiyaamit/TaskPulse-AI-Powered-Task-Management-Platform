@@ -218,6 +218,9 @@ export function TaskEditPage() {
     // statusId is hydrated from the task; keep the check but avoid unused error path text
     if (!hasStatusId) return;
 
+    const startIso = values.startDate
+      ? new Date(values.startDate).toISOString()
+      : null;
     const dueIso = values.dueDate ? new Date(values.dueDate).toISOString() : null;
     const minutesRaw = values.escalationMinutesBeforeDue.trim();
     let escalationAtIso: string | null = null;
@@ -246,7 +249,7 @@ export function TaskEditPage() {
       supporterId: toNull(values.supporterId),
       escalationToId: toNull(values.escalationToId),
       escalationAt: escalationAtIso,
-      startDate: values.startDate || null,
+      startDate: startIso,
       dueDate: dueIso,
     });
   }

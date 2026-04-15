@@ -12,6 +12,14 @@ import { CenteredFormPage } from "@/components/layout/CenteredFormPage";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+/** Show up to 10 digits from stored value (strips +91 etc.). */
+function phoneDigitsForInput(stored: string | null | undefined): string {
+  if (!stored) return "";
+  const digits = stored.replace(/\D/g, "");
+  if (digits.length >= 10) return digits.slice(-10);
+  return digits.slice(0, 10);
+}
+
 export function ProfilePage() {
   const { data } = useMe();
   if (!data) return null;
@@ -30,14 +38,22 @@ export function ProfilePage() {
   }, [data.user.birthDate]);
 
   const [name, setName] = useState(data.user.name);
-  const [phone, setPhone] = useState(data.user.phone ?? "");
+  const [phone, setPhone] = useState(() =>
+    phoneDigitsForInput(data.user.phone),
+  );
   const [birthDate, setBirthDate] = useState(initialBirth);
+
+  const phoneOk = phone.length === 0 || phone.length === 10;
+  const phoneHint =
+    phone.length > 0 && phone.length < 10
+      ? `Enter all 10 digits (${phone.length}/10).`
+      : null;
 
   const update = useMutation({
     mutationFn: async () => {
       const payload = {
         name: name.trim(),
-        phone: phone.trim() ? phone.trim() : null,
+        phone: phone.length === 10 ? phone : null,
         birthDate: birthDate ? new Date(birthDate) : null,
       };
       const { data } = await api.patch<ApiSuccess<{ user: unknown }>>(
@@ -73,7 +89,7 @@ export function ProfilePage() {
           onClick={() => {
             setIsEditing(false);
             setName(data.user.name);
-            setPhone(data.user.phone ?? "");
+            setPhone(phoneDigitsForInput(data.user.phone));
             setBirthDate(initialBirth);
             navigate(-1);
           }}
@@ -106,6 +122,7 @@ export function ProfilePage() {
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
+            if (!phoneOk) return;
             update.mutate();
           }}
         >
@@ -135,11 +152,49 @@ export function ProfilePage() {
               value={phone}
               onChange={(e) => {
                 setIsEditing(true);
-                setPhone(e.target.value);
+                const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setPhone(digitsOnly);
               }}
-              placeholder="e.g. +91 98765 43210"
+              onKeyDown={(e) => {
+                const mod = e.ctrlKey || e.metaKey;
+                const allowed =
+                  e.key === "Backspace" ||
+                  e.key === "Delete" ||
+                  e.key === "Tab" ||
+                  e.key === "Escape" ||
+                  e.key === "Enter" ||
+                  e.key === "ArrowLeft" ||
+                  e.key === "ArrowRight" ||
+                  e.key === "Home" ||
+                  e.key === "End" ||
+                  (mod && ["a", "c", "v", "x"].includes(e.key.toLowerCase()));
+                if (allowed) return;
+                if (/^\d$/.test(e.key)) return;
+                e.preventDefault();
+              }}
+              placeholder="10-digit number"
               autoComplete="tel"
+              inputMode="numeric"
+              maxLength={10}
+              aria-invalid={Boolean(phoneHint)}
+              aria-describedby={
+                phoneHint ? "profile-phone-hint" : "profile-phone-help"
+              }
             />
+            {phoneHint ? (
+              <p
+                id="profile-phone-hint"
+                className="text-xs text-amber-600 dark:text-amber-400"
+                role="status"
+              >
+                {phoneHint}
+              </p>
+            ) : (
+              <p id="profile-phone-help" className="text-xs text-muted-foreground">
+                Digits only, up to 10 characters. Leave empty if you have no
+                phone.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="profile-birthDate">Birthdate</Label>
@@ -158,7 +213,9 @@ export function ProfilePage() {
             <Button
               type="submit"
               isLoading={update.isPending}
-              disabled={!isEditing || update.isPending || !name.trim()}
+              disabled={
+                !isEditing || update.isPending || !name.trim() || !phoneOk
+              }
             >
               Save changes
             </Button>

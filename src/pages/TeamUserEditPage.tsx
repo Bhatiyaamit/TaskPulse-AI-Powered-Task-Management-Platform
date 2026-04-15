@@ -9,7 +9,6 @@ import {
   P,
   PERMISSION_MATRIX_ACTIONS,
   PERMISSION_MATRIX_MODULES,
-  userIsTenantPrimaryAdmin,
 } from "@/lib/permissions";
 import { useMe } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -51,7 +50,6 @@ const schema = z.object({
   managerId: z.string().default("__none__"),
   departmentId: z.string().default("__none__"),
   roleName: z.string().trim().min(1, "Role name is required"),
-  roleDepartmentId: z.string().default("none").catch("none"),
   isReviewer: z.boolean().default(false).catch(false),
 });
 type FormValues = z.input<typeof schema>;
@@ -101,10 +99,6 @@ export function TeamUserEditPage() {
   const me = useMe();
   const perms = new Set(me.data?.permissions ?? []);
   const canUpdateUsers = perms.has(P.USERS_UPDATE);
-  const canManageRoleOnUser =
-    userIsTenantPrimaryAdmin(me.data?.user.roleCode) ||
-    perms.has(P.ROLES_CREATE);
-
   const userQuery = useQuery({
     enabled: canUpdateUsers && Boolean(id),
     queryKey: ["tenant-user", id],
@@ -118,7 +112,8 @@ export function TeamUserEditPage() {
 
   const rolesQuery = useQuery({
     queryKey: ["tenant-roles", "all"],
-    enabled: canUpdateUsers && canManageRoleOnUser,
+    enabled: canUpdateUsers,
+     // && canManageRoleOnUser,
     queryFn: async () => {
       const { data } = await api.get<ApiSuccess<{ roles: TenantRoleDetail[] }>>(
         "/api/tenant/roles",
@@ -180,7 +175,6 @@ export function TeamUserEditPage() {
       managerId: "__none__",
       departmentId: "__none__",
       roleName: "",
-      roleDepartmentId: "none",
       isReviewer: false,
     },
   });
@@ -188,7 +182,12 @@ export function TeamUserEditPage() {
   const [roleSelected, setRoleSelected] = useState<Set<string>>(new Set());
   const selectedManagerId = watch("managerId");
   const selectedDepartmentId = watch("departmentId");
-  const roleDepartmentId = watch("roleDepartmentId");
+  const phoneValue = watch("phone") ?? "";
+  const phoneOk = phoneValue.length === 0 || phoneValue.length === 10;
+  const phoneHint =
+    phoneValue.length > 0 && phoneValue.length < 10
+      ? `Enter all 10 digits (${phoneValue.length}/10).`
+      : null;
 
   useEffect(() => {
     const u = userQuery.data;
@@ -211,18 +210,17 @@ export function TeamUserEditPage() {
   }, [userQuery.data]);
 
   useEffect(() => {
-    if (!canManageRoleOnUser) return;
+    // if (!canManageRoleOnUser) return;
     const u = userQuery.data;
     const roles = rolesQuery.data;
     if (!u || !roles) return;
     const r = roles.find((x) => x.id === u.role.id);
     if (!r) return;
     setValue("roleName", r.name);
-    setValue("roleDepartmentId", r.departmentId ?? "none");
     setRoleSelected(
       new Set(r.matrixSelections.map((c) => cellKey(c.module, c.action))),
     );
-  }, [canManageRoleOnUser, rolesQuery.data, userQuery.data, setValue]);
+  }, [ rolesQuery.data, userQuery.data, setValue]);
 
   useEffect(() => {
     if (!departmentsQuery.isSuccess) return;
@@ -234,19 +232,6 @@ export function TeamUserEditPage() {
     departmentsQuery.isSuccess,
     departmentOptions,
     selectedDepartmentId,
-    setValue,
-  ]);
-
-  useEffect(() => {
-    if (!departmentsQuery.isSuccess) return;
-    if (roleDepartmentId === "none") return;
-    if (!departmentOptions.some((d) => d.id === roleDepartmentId)) {
-      setValue("roleDepartmentId", "none");
-    }
-  }, [
-    departmentsQuery.isSuccess,
-    departmentOptions,
-    roleDepartmentId,
     setValue,
   ]);
 
@@ -294,9 +279,9 @@ export function TeamUserEditPage() {
       if (!canUpdateUsers) {
         throw new Error("You don’t have permission to update users.");
       }
-      if (!canManageRoleOnUser) {
-        throw new Error("You don’t have permission to manage roles for users.");
-      }
+      // if (!canManageRoleOnUser) {
+      //   throw new Error("You don’t have permission to manage roles for users.");
+      // }
       if (roleSelected.size === 0) {
         throw new Error("Select at least one permission for the role.");
       }
@@ -310,8 +295,7 @@ export function TeamUserEditPage() {
         throw new Error("Role directory is still loading.");
       }
 
-      const formDeptId =
-        v.roleDepartmentId === "none" ? null : v.roleDepartmentId;
+      const formDeptId = null;
       const currentRoleDetail = rolesList.find(
         (x) => x.id === userRow.role.id,
       );
@@ -438,7 +422,10 @@ export function TeamUserEditPage() {
     >
       <form
         className="space-y-8"
-        onSubmit={handleSubmit((values) => update.mutate(values))}
+        onSubmit={handleSubmit((values) => {
+          if (!phoneOk) return;
+          update.mutate(values);
+        })}
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-1">
@@ -485,10 +472,57 @@ export function TeamUserEditPage() {
             <Label htmlFor="phone">Phone</Label>
             <Input
               id="phone"
-              placeholder="e.g. +91 98765 43210"
+              placeholder="10-digit number"
               autoComplete="tel"
-              {...register("phone")}
+              inputMode="numeric"
+              maxLength={10}
+              aria-invalid={Boolean(phoneHint)}
+              aria-describedby={phoneHint ? "phone-hint" : "phone-help"}
+              {...register("phone", {
+                onChange: (e) => {
+                  const next = String(e.target.value ?? "")
+                    .replace(/\D/g, "")
+                    .slice(0, 10);
+                  e.target.value = next;
+                },
+                onBlur: (e) => {
+                  e.target.value = String(e.target.value ?? "")
+                    .replace(/\D/g, "")
+                    .slice(0, 10);
+                },
+              })}
+              onKeyDown={(e) => {
+                const mod = e.ctrlKey || e.metaKey;
+                const allowed =
+                  e.key === "Backspace" ||
+                  e.key === "Delete" ||
+                  e.key === "Tab" ||
+                  e.key === "Escape" ||
+                  e.key === "Enter" ||
+                  e.key === "ArrowLeft" ||
+                  e.key === "ArrowRight" ||
+                  e.key === "Home" ||
+                  e.key === "End" ||
+                  (mod && ["a", "c", "v", "x"].includes(e.key.toLowerCase()));
+                if (allowed) return;
+                if (/^\d$/.test(e.key)) return;
+                e.preventDefault();
+              }}
             />
+            {phoneHint ? (
+              <p
+                id="phone-hint"
+                className="text-xs text-amber-600 dark:text-amber-400"
+                role="status"
+              >
+                {phoneHint}
+              </p>
+            ) : (
+              <p id="phone-help" className="text-xs text-muted-foreground">
+                Digits only, up to 10 characters. Leave empty if you have no
+                phone.
+              </p>
+            )}
           </div>
           <div className="space-y-2 sm:col-span-1">
             <Label htmlFor="birthDate">Birthdate</Label>
@@ -597,11 +631,10 @@ export function TeamUserEditPage() {
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
-                  disabled={!canManageRoleOnUser || !canUpdateUsers}
+                  disabled={ !canUpdateUsers}
                   placeholder="e.g. Manager"
                   roles={roleOptionsForCombobox}
                   onPickRole={(r) => {
-                    setValue("roleDepartmentId", r.departmentId ?? "none");
                     setRoleSelected(
                       new Set(
                         r.matrixSelections.map((c) =>
@@ -611,60 +644,29 @@ export function TeamUserEditPage() {
                     );
                   }}
                   onClear={() => {
-                    setValue("roleDepartmentId", "none");
                     setRoleSelected(new Set());
                   }}
                   error={errors.roleName?.message}
                 />
               )}
             />
-            {canManageRoleOnUser && canUpdateUsers ? (
+            { canUpdateUsers ? (
               <p className="text-xs text-muted-foreground">
                 Pick a role to copy its setup, or type a new name. An existing
                 role is reused when name, scope, and permissions match; otherwise
                 a new role is created.
               </p>
             ) : null}
-            {!canManageRoleOnUser ? (
+            {/* {!canManageRoleOnUser ? (
               <p className="text-xs text-muted-foreground">
                 You don’t have permission to update roles.
               </p>
-            ) : null}
+            ) : null} */}
             {rolesQuery.isError ? (
               <p className="text-xs text-destructive">
                 Could not load the role list.
               </p>
             ) : null}
-          </div>
-
-          <div className="space-y-2 sm:col-span-1">
-            <Label>Role department scope (optional)</Label>
-            <Controller
-              control={control}
-              name="roleDepartmentId"
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={!canManageRoleOnUser || !canUpdateUsers}
-                >
-                  <SelectTrigger className="w-full min-w-0 justify-between">
-                    {field.value === "none"
-                      ? "Company-wide"
-                      : (departmentOptions.find((d) => d.id === field.value)
-                          ?.name ?? "Select department")}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Company-wide</SelectItem>
-                    {departmentOptions.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
           </div>
 
           <div className="rounded-md border border-border bg-muted/20 p-4 sm:col-span-2 space-y-3">
@@ -703,7 +705,7 @@ export function TeamUserEditPage() {
                                 checked={roleSelected.has(k)}
                                 onChange={() => toggleRoleCell(m, a)}
                                 disabled={
-                                  !canManageRoleOnUser ||
+                                  
                                   !canUpdateUsers ||
                                   !supported
                                 }
@@ -721,7 +723,7 @@ export function TeamUserEditPage() {
                             type="checkbox"
                             checked={isModuleAllChecked(m)}
                             onChange={(e) => setModuleAll(m, e.target.checked)}
-                            disabled={!canManageRoleOnUser || !canUpdateUsers}
+                            disabled={ !canUpdateUsers}
                           />
                           <span className="text-xs text-muted-foreground">
                             All
@@ -745,8 +747,9 @@ export function TeamUserEditPage() {
             disabled={
               update.isPending ||
               !canUpdateUsers ||
-              !canManageRoleOnUser ||
-              (canManageRoleOnUser &&
+          
+              !phoneOk ||
+              ( 
                 (rolesQuery.isLoading || rolesQuery.isError))
             }
           >

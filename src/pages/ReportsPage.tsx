@@ -18,7 +18,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
-import { chartColor } from "@/lib/chartColors";
+import { statusChartColor } from "@/lib/chartColors";
 
 export function ReportsPage() {
   const { data: dash } = useQuery({
@@ -99,8 +99,8 @@ export function ReportsPage() {
                     return `${name} ${pct}%`;
                   }}
                 >
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={chartColor(i)} />
+                  {chartData.map((d, i) => (
+                    <Cell key={i} fill={statusChartColor(d.name, i)} />
                   ))}
                 </Pie>
               </PieChart>
