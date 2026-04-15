@@ -14,7 +14,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
-import { chartColor } from "@/lib/chartColors";
+import { statusChartColor } from "@/lib/chartColors";
 
 export function DashboardPage() {
   const { data } = useQuery({
@@ -119,8 +119,8 @@ export function DashboardPage() {
                   stroke="hsl(var(--background))"
                   strokeWidth={2}
                 >
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={chartColor(i)} />
+                  {chartData.map((d, i) => (
+                    <Cell key={i} fill={statusChartColor(d.name, i)} />
                   ))}
                 </Pie>
               </PieChart>
