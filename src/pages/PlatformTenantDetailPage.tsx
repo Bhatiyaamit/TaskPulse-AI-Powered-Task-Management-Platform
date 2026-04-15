@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { tenantStatusBadgeClass } from "@/lib/badges";
@@ -52,10 +53,10 @@ export function PlatformTenantDetailPage() {
     queryKey: ["platform-tenant", tenantId],
     enabled: Boolean(tenantId),
     queryFn: async () => {
-      const { data } = await api.get<TenantDetailsResponse>(
+      const { data } = await api.get<ApiSuccess<TenantDetailsResponse>>(
         `/api/platform/tenants/${tenantId}`,
       );
-      return data;
+      return data.data;
     },
   });
 

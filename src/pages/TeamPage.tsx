@@ -69,6 +69,20 @@ type PaginatedResponse<T> = ApiSuccess<T[], { page: number; limit: number; total
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZES = [10, 20, 50, 100] as const;
 
+type RoleOption = { id: string; code: string; name: string };
+
+function dedupeRolesByDisplayName(roles: RoleOption[]): RoleOption[] {
+  const byName = new Map<string, RoleOption>();
+  for (const r of roles) {
+    const key = r.name.trim();
+    if (!key) continue;
+    if (!byName.has(key)) byName.set(key, r);
+  }
+  return [...byName.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+}
+
 function parseTeamUrlParams(p: URLSearchParams) {
   const page = Math.max(1, Number(p.get("page") ?? "1") || 1);
   const pageSize = Math.max(
@@ -81,7 +95,8 @@ function parseTeamUrlParams(p: URLSearchParams) {
   );
   const search = String(p.get("search") ?? "");
   const departmentId = String(p.get("departmentId") ?? "");
-  const roleId = String(p.get("roleId") ?? "");
+  const roleName = String(p.get("roleName") ?? "").trim();
+  const legacyRoleId = String(p.get("roleId") ?? "");
   const status = (p.get("status") ?? "") as "" | "active" | "inactive";
   const sortBy = (p.get("sortBy") ?? "createdAt") as
     | "createdAt"
@@ -94,7 +109,8 @@ function parseTeamUrlParams(p: URLSearchParams) {
     pageSize,
     search,
     departmentId,
-    roleId,
+    roleName,
+    legacyRoleId,
     status,
     sortBy,
     sortDir,
@@ -110,6 +126,7 @@ export function TeamPage() {
   const canDeleteUsers = perms.has(P.USERS_DELETE);
   const canAddUser = canCreateUsers(me.data);
   const canMutateUsers = canAddUser || canEditUsers || canDeleteUsers;
+  const myUserId = me.data?.user.id;
 
   const [searchParams, setSearchParams] = useSearchParams();
   const {
@@ -117,7 +134,8 @@ export function TeamPage() {
     pageSize,
     search,
     departmentId,
-    roleId,
+    roleName,
+    legacyRoleId,
     status,
     sortBy,
     sortDir,
@@ -132,7 +150,17 @@ export function TeamPage() {
   const membersQuery = useQuery({
     queryKey: [
       "team-members",
-      { page, pageSize, search, departmentId, roleId, status, sortBy, sortDir },
+      {
+        page,
+        pageSize,
+        search,
+        departmentId,
+        roleName,
+        legacyRoleId,
+        status,
+        sortBy,
+        sortDir,
+      },
     ],
     enabled: canListTeam,
     queryFn: async () => {
@@ -144,7 +172,11 @@ export function TeamPage() {
             pageSize,
             ...(search.trim() ? { search: search.trim() } : {}),
             ...(departmentId ? { departmentId } : {}),
-            ...(roleId ? { roleId } : {}),
+            ...(roleName
+              ? { roleName }
+              : legacyRoleId
+                ? { roleId: legacyRoleId }
+                : {}),
             ...(status ? { status } : {}),
             sortBy,
             sortDir,
@@ -182,13 +214,35 @@ export function TeamPage() {
     queryKey: ["tenant-roles", "assignment-options"],
     enabled: canListTeam,
     queryFn: async () => {
-      const { data } = await api.get<
-        ApiSuccess<{ roles: { id: string; code: string; name: string }[] }>
-      >("/api/tenant/roles", { params: { for: "assignment" } });
+      const { data } = await api.get<ApiSuccess<{ roles: RoleOption[] }>>(
+        "/api/tenant/roles",
+        { params: { for: "assignment" } },
+      );
       return data.data.roles;
     },
   });
   const roleOptions = rolesQuery.data ?? [];
+  const roleFilterOptions = useMemo(
+    () => dedupeRolesByDisplayName(roleOptions),
+    [roleOptions],
+  );
+
+  useEffect(() => {
+    if (roleName || !legacyRoleId) return;
+    const roles = rolesQuery.data;
+    if (!roles?.length) return;
+    const found = roles.find((x) => x.id === legacyRoleId);
+    if (!found) return;
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.delete("roleId");
+        p.set("roleName", found.name.trim());
+        return p;
+      },
+      { replace: true },
+    );
+  }, [legacyRoleId, roleName, rolesQuery.data, setSearchParams]);
 
   function deptBadge(seed: string) {
     const n = Array.from(seed).reduce((acc, c) => acc + c.charCodeAt(0), 0);
@@ -215,8 +269,11 @@ export function TeamPage() {
     const t = window.setTimeout(() => {
       setSearchParams(
         (prev) => {
+          const normalized = v.trim();
+          const currentSearch = (prev.get("search") ?? "").trim();
+          if (currentSearch === normalized) return prev;
           const p = new URLSearchParams(prev);
-          if (v.trim()) p.set("search", v);
+          if (normalized) p.set("search", normalized);
           else p.delete("search");
           p.delete("page");
           return p;
@@ -346,115 +403,195 @@ export function TeamPage() {
       {
         id: "actions",
         header: "Actions",
-        cell: ({ row }) => (
-          <div className="flex items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Link to={`/team/${row.original.id}`}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      aria-label="View user details"
-                    >
-                      <Eye className="size-4" />
-                    </Button>
-                  </Link>
-                }
-              ></TooltipTrigger>
-              <TooltipContent>View</TooltipContent>
-            </Tooltip>
-
-            {canEditUsers ? (
-              <>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Link to={`/team/${row.original.id}/edit`}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          aria-label="Edit user"
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                      </Link>
-                    }
-                  ></TooltipTrigger>
-                  <TooltipContent>Edit</TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
+        cell: ({ row }) => {
+          const isSelf = Boolean(myUserId && row.original.id === myUserId);
+          const isCompanyAdminRole =
+            row.original.role?.code?.toUpperCase() === "COMPANY_ADMIN";
+          return (
+            <div className="flex items-center gap-0.5">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Link to={`/team/${row.original.id}`}>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         className="size-8"
-                        aria-label={
-                          row.original.isActive
-                            ? "Deactivate user"
-                            : "Activate user"
-                        }
-                        onClick={() =>
-                          setConfirm({
-                            userId: row.original.id,
-                            userName: row.original.name,
-                            next: !row.original.isActive,
-                          })
-                        }
+                        aria-label="View user details"
                       >
-                        {row.original.isActive ? (
-                          <ToggleRight className="size-5 text-green-500" />
-                        ) : (
-                          <ToggleLeft className="size-5 text-red-500" />
-                        )}
+                        <Eye className="size-4" />
                       </Button>
+                    </Link>
+                  }
+                ></TooltipTrigger>
+                <TooltipContent>View</TooltipContent>
+              </Tooltip>
+
+              {canEditUsers ? (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        isCompanyAdminRole ? (
+                          <span className="inline-flex cursor-not-allowed rounded-md">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 pointer-events-none opacity-50"
+                              disabled
+                              aria-label="Edit user (not available for company admin)"
+                            >
+                              <Pencil className="size-4 text-muted-foreground" />
+                            </Button>
+                          </span>
+                        ) : (
+                          <Link to={`/team/${row.original.id}/edit`}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label="Edit user"
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                          </Link>
+                        )
+                      }
+                    ></TooltipTrigger>
+                    <TooltipContent>
+                      {isCompanyAdminRole
+                        ? "Company admin users cannot be edited from Team"
+                        : "Edit"}
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        isSelf || isCompanyAdminRole ? (
+                          <span className="inline-flex cursor-not-allowed rounded-md">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 pointer-events-none opacity-50"
+                              disabled
+                              aria-label={
+                                isCompanyAdminRole
+                                  ? row.original.isActive
+                                    ? "Deactivate user (not available for company admin)"
+                                    : "Activate user (not available for company admin)"
+                                  : row.original.isActive
+                                    ? "Deactivate user (not available for your account)"
+                                    : "Activate user (not available for your account)"
+                              }
+                            >
+                              {row.original.isActive ? (
+                                <ToggleRight className="size-5 text-muted-foreground" />
+                              ) : (
+                                <ToggleLeft className="size-5 text-muted-foreground" />
+                              )}
+                            </Button>
+                          </span>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            aria-label={
+                              row.original.isActive
+                                ? "Deactivate user"
+                                : "Activate user"
+                            }
+                            onClick={() =>
+                              setConfirm({
+                                userId: row.original.id,
+                                userName: row.original.name,
+                                next: !row.original.isActive,
+                              })
+                            }
+                          >
+                            {row.original.isActive ? (
+                              <ToggleRight className="size-5 text-green-500" />
+                            ) : (
+                              <ToggleLeft className="size-5 text-red-500" />
+                            )}
+                          </Button>
+                        )
+                      }
+                    ></TooltipTrigger>
+                    <TooltipContent>
+                      {isCompanyAdminRole
+                        ? "Company admin user status cannot be changed from Team"
+                        : isSelf
+                          ? "You cannot activate or deactivate your own account"
+                        : row.original.isActive
+                          ? "Deactivate user"
+                          : "Activate user"}
+                    </TooltipContent>
+                  </Tooltip>
+                </>
+              ) : null}
+
+              {canDeleteUsers ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      isSelf || isCompanyAdminRole ? (
+                        <span className="inline-flex cursor-not-allowed rounded-md">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 pointer-events-none text-muted-foreground opacity-50"
+                            disabled
+                            aria-label={
+                              isCompanyAdminRole
+                                ? "Delete user (not available for company admin)"
+                                : "Delete user (not available for your account)"
+                            }
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </span>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          aria-label="Delete user"
+                          onClick={() =>
+                            setDeleteConfirm({
+                              userId: row.original.id,
+                              userName: row.original.name,
+                            })
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )
                     }
                   ></TooltipTrigger>
                   <TooltipContent>
-                    {row.original.isActive
-                      ? "Deactivate user"
-                      : "Activate user"}
+                    {isCompanyAdminRole
+                      ? "Company admin users cannot be deleted from Team"
+                      : isSelf
+                        ? "You cannot delete your own account"
+                      : "Delete"}
                   </TooltipContent>
                 </Tooltip>
-              </>
-            ) : null}
-
-            {canDeleteUsers ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      aria-label="Delete user"
-                      onClick={() =>
-                        setDeleteConfirm({
-                          userId: row.original.id,
-                          userName: row.original.name,
-                        })
-                      }
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  }
-                ></TooltipTrigger>
-                <TooltipContent>Delete</TooltipContent>
-              </Tooltip>
-            ) : null}
-          </div>
-        ),
+              ) : null}
+            </div>
+          );
+        },
       } satisfies ColumnDef<TeamMemberRow>,
     ],
-    [canDeleteUsers, canEditUsers],
+    [canDeleteUsers, canEditUsers, myUserId],
   );
 
   const table = useReactTable({
@@ -641,13 +778,14 @@ export function TeamPage() {
               <div className="w-full sm:w-56 flex flex-col gap-2">
                 <Label>Role</Label>
                 <Select
-                  value={roleId || "__all__"}
+                  value={roleName || "__all__"}
                   onValueChange={(v) => {
                     setSearchParams(
                       (prev) => {
                         const p = new URLSearchParams(prev);
-                        if (v === "__all__") p.delete("roleId");
-                        else p.set("roleId", v);
+                        p.delete("roleId");
+                        if (v === "__all__") p.delete("roleName");
+                        else p.set("roleName", v);
                         p.delete("page");
                         return p;
                       },
@@ -657,28 +795,33 @@ export function TeamPage() {
                 >
                   <SelectTrigger className="w-full">
                     {(() => {
-                      if (!roleId) {
+                      if (!roleName) {
                         return (
                           <span className="text-muted-foreground">
                             All roles
                           </span>
                         );
                       }
-                      const selected = roleOptions.find((r) => r.id === roleId);
-                      if (!selected) {
-                        return (
-                          <span className="text-muted-foreground">
-                            All roles
-                          </span>
-                        );
-                      }
-                      return <span className="truncate">{selected.name}</span>;
+                      const selected = roleFilterOptions.find(
+                        (r) => r.name.trim() === roleName,
+                      );
+                      return (
+                        <span className="truncate">
+                          {selected?.name ?? roleName}
+                        </span>
+                      );
                     })()}
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">All roles</SelectItem>
-                    {roleOptions.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
+                    {roleName &&
+                    !roleFilterOptions.some(
+                      (r) => r.name.trim() === roleName,
+                    ) ? (
+                      <SelectItem value={roleName}>{roleName}</SelectItem>
+                    ) : null}
+                    {roleFilterOptions.map((r) => (
+                      <SelectItem key={r.id} value={r.name.trim()}>
                         {r.name}
                       </SelectItem>
                     ))}

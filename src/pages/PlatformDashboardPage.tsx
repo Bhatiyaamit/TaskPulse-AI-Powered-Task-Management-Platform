@@ -183,6 +183,10 @@ export function PlatformDashboardPage() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["tenants"], exact: false });
+      await qc.invalidateQueries({
+        queryKey: ["platform-dashboard"],
+        exact: false,
+      });
       toast.success("Tenant updated");
     },
     onError: (e) => {
@@ -201,6 +205,10 @@ export function PlatformDashboardPage() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["tenants"], exact: false });
+      await qc.invalidateQueries({
+        queryKey: ["platform-dashboard"],
+        exact: false,
+      });
       toast.success("Tenant deleted");
     },
     onError: (e) => {

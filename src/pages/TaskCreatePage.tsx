@@ -149,6 +149,9 @@ export function TaskCreatePage() {
       return;
     }
 
+    const startIso = values.startDate
+      ? new Date(values.startDate).toISOString()
+      : null;
     const dueIso = values.dueDate ? new Date(values.dueDate).toISOString() : null;
     const minutesRaw = values.escalationMinutesBeforeDue.trim();
     let escalationAtIso: string | null = null;
@@ -177,7 +180,7 @@ export function TaskCreatePage() {
       supporterId: toNull(values.supporterId),
       escalationToId: toNull(values.escalationToId),
       escalationAt: escalationAtIso,
-      startDate: values.startDate || null,
+      startDate: startIso,
       dueDate: dueIso,
       meetingId: meetingId?.trim() ? meetingId : null,
     });

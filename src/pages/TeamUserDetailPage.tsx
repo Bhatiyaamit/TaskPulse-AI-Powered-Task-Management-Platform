@@ -30,6 +30,7 @@ type UserDetail = {
   birthDate: string | null;
   createdAt?: string;
   role: { id: string; code: string; name: string };
+  department?: { id: string; name: string } | null;
 };
 
 type TenantRoleDetail = {
@@ -137,7 +138,8 @@ export function TeamUserDetailPage() {
   }
 
   const user = userQuery.data;
-  const role = rolesQuery.data?.find((r) => r.id === user.role.id) ?? null;
+  const isCompanyAdminRole =
+    user.role?.code?.toUpperCase() === "COMPANY_ADMIN";
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
@@ -157,14 +159,28 @@ export function TeamUserDetailPage() {
           >
             Back to team
           </Link>
-          <Link
-            to={`/team/${user.id}/edit`}
-            className={cn(
-              "text-sm font-medium text-primary underline-offset-4 hover:underline",
-            )}
-          >
-            Edit
-          </Link>
+          {canUpdateUsers ? (
+            isCompanyAdminRole ? (
+              <span
+                className={cn(
+                  "text-sm font-medium text-muted-foreground cursor-not-allowed",
+                )}
+                aria-disabled
+                title="Company admin users cannot be edited from Team"
+              >
+                Edit
+              </span>
+            ) : (
+              <Link
+                to={`/team/${user.id}/edit`}
+                className={cn(
+                  "text-sm font-medium text-primary underline-offset-4 hover:underline",
+                )}
+              >
+                Edit
+              </Link>
+            )
+          ) : null}
         </div>
       </div>
 
@@ -209,10 +225,14 @@ export function TeamUserDetailPage() {
               <span className="font-medium">{user.role.name}</span>
             </div>
             <div className="flex justify-between gap-6">
-              <span className="text-muted-foreground">Scope</span>
-              <span className="font-medium">
-                {role?.departmentId ? "Department-scoped" : "Company-wide"}
-              </span>
+              <span className="text-muted-foreground">Department</span>
+              {user.department?.name ? (
+                <span className="font-medium">{user.department.name}</span>
+              ) : (
+                <span className="inline-block w-8 text-center font-medium">
+                  —
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>

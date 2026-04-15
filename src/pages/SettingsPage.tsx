@@ -24,15 +24,12 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { PasswordInput } from "@/components/ui/password-input";
 
 export function SettingsPage() {
   const qc = useQueryClient();
   const { data: me } = useMe();
   const { preference, setPreference } = useTheme();
-  const navigate = useNavigate();
-
   const [notificationEnabled, setNotificationEnabled] = useState<boolean>(
     me?.user.notificationEnabled ?? true,
   );
@@ -88,25 +85,18 @@ export function SettingsPage() {
         currentPassword,
         newPassword,
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmNewPassword("");
-      toast.success("Password updated. Please sign in again.");
-      api
-        .post("/api/auth/logout")
-        .catch(() => {
-          // If logout fails, we still navigate away to avoid leaving the user in a weird state.
-        })
-        .finally(() => {
-          qc.clear();
-          navigate("/login");
-        });
+      await qc.invalidateQueries({ queryKey: ["me"] });
+      toast.success("Password updated successfully.");
     },
     onError: (e) =>
       toast.error(
         isAxiosError(e)
-          ? (e.response?.data?.error?.message ??
+          ? ((e.response?.data as { error?: { details?: { reason?: string } } } | undefined)?.error?.details?.reason ??
+            e.response?.data?.error?.message ??
             e.response?.data?.message ??
             e.message)
           : "Failed",
@@ -117,6 +107,10 @@ export function SettingsPage() {
     newPassword.length > 0 &&
     confirmNewPassword.length > 0 &&
     newPassword === confirmNewPassword;
+  const sameAsCurrentPassword =
+    currentPassword.length > 0 &&
+    newPassword.length > 0 &&
+    currentPassword === newPassword;
 
   return (
     <motion.div
@@ -228,6 +222,11 @@ export function SettingsPage() {
                     Passwords do not match.
                   </p>
                 ) : null}
+                {sameAsCurrentPassword ? (
+                  <p className="text-xs text-destructive">
+                    Current password and new password must be different.
+                  </p>
+                ) : null}
               </div>
               <div className="flex justify-end">
                 <Button
@@ -237,6 +236,7 @@ export function SettingsPage() {
                     !currentPassword ||
                     newPassword.length < 8 ||
                     !passwordsMatch ||
+                    sameAsCurrentPassword ||
                     changePassword.isPending
                   }
                   onClick={() => changePassword.mutate()}
