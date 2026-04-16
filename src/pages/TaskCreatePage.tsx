@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
@@ -45,6 +45,9 @@ type TaskCreateFormValues = {
   escalationMinutesBeforeDue: string;
   startDate: string;
   dueDate: string;
+  isRecurring: boolean;
+  recurrencePattern: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  checklistItems: { text: string; mandatory: boolean }[];
 };
 
 export function TaskCreatePage() {
@@ -57,7 +60,14 @@ export function TaskCreatePage() {
   const canCreateTask = taskModuleCanCreate(me?.permissions);
 
   const [formError, setFormError] = useState<string | null>(null);
-  const { control, handleSubmit, register, setValue, watch } =
+  const {
+    control,
+    handleSubmit,
+    register,
+    setValue,
+    watch,
+    formState: { errors },
+  } =
     useForm<TaskCreateFormValues>({
       defaultValues: {
         title: "",
@@ -71,9 +81,19 @@ export function TaskCreatePage() {
         escalationMinutesBeforeDue: "",
         startDate: "",
         dueDate: "",
+        isRecurring: false,
+        recurrencePattern: "DAILY",
+        checklistItems: [{ text: "", mandatory: true }],
       },
     });
   const statusId = watch("statusId");
+  const startDateValue = watch("startDate");
+  const isRecurring = watch("isRecurring");
+  const checklistItemsValue = watch("checklistItems");
+  const { fields: checklistFields, append, remove } = useFieldArray({
+    control,
+    name: "checklistItems",
+  });
 
   const { data: statuses } = useQuery({
     queryKey: ["task-statuses"],
@@ -153,6 +173,14 @@ export function TaskCreatePage() {
       ? new Date(values.startDate).toISOString()
       : null;
     const dueIso = values.dueDate ? new Date(values.dueDate).toISOString() : null;
+    if (startIso && dueIso) {
+      const startMs = new Date(startIso).getTime();
+      const dueMs = new Date(dueIso).getTime();
+      if (dueMs < startMs) {
+        setFormError("Due date/time cannot be earlier than Start date/time.");
+        return;
+      }
+    }
     const minutesRaw = values.escalationMinutesBeforeDue.trim();
     let escalationAtIso: string | null = null;
     if (minutesRaw !== "") {
@@ -167,6 +195,16 @@ export function TaskCreatePage() {
       }
       const dueMs = new Date(dueIso).getTime();
       escalationAtIso = new Date(dueMs - n * 60_000).toISOString();
+    }
+    const cleanedChecklistItems = (values.checklistItems ?? [])
+      .map((item) => ({
+        text: item.text.trim(),
+        mandatory: Boolean(item.mandatory),
+      }))
+      .filter((item) => item.text);
+    if (values.isRecurring && cleanedChecklistItems.length === 0) {
+      setFormError("Add at least one checklist item for recurring task.");
+      return;
     }
 
     const toNull = (v: string) => (v === UNASSIGNED ? null : v);
@@ -183,6 +221,9 @@ export function TaskCreatePage() {
       startDate: startIso,
       dueDate: dueIso,
       meetingId: meetingId?.trim() ? meetingId : null,
+      checklistItems: cleanedChecklistItems,
+      isRecurring: values.isRecurring,
+      recurrencePattern: values.isRecurring ? values.recurrencePattern : null,
     });
   }
 
@@ -394,8 +435,26 @@ export function TaskCreatePage() {
                 <Input
                   id="due"
                   type="datetime-local"
-                  {...register("dueDate")}
+                  min={startDateValue || undefined}
+                  {...register("dueDate", {
+                    validate: (value) => {
+                      const start = startDateValue;
+                      if (!start || !value) return true;
+                      const startMs = new Date(start).getTime();
+                      const dueMs = new Date(value).getTime();
+                      if (Number.isNaN(startMs) || Number.isNaN(dueMs)) return true;
+                      return (
+                        dueMs >= startMs ||
+                        "Due date/time cannot be earlier than Start date/time."
+                      );
+                    },
+                  })}
                 />
+                {errors.dueDate?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.dueDate.message}
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="space-y-2 sm:max-w-xs">
@@ -413,7 +472,103 @@ export function TaskCreatePage() {
                 placeholder="e.g. 20"
               />
             </div>
+            <div className="pt-2">
+              <Label className="inline-flex items-center gap-2">
+                <input type="checkbox" {...register("isRecurring")} />
+                Create as recurring task
+              </Label>
+            </div>
           </section>
+
+          {isRecurring ? (
+            <>
+              <Separator />
+
+              <section className="space-y-4">
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">
+                  Recurrence & Checklist
+                </h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Recurring pattern</Label>
+                    <Controller
+                      control={control}
+                      name="recurrencePattern"
+                      render={({ field }) => (
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="DAILY">Daily</SelectItem>
+                            <SelectItem value="WEEKLY">Weekly</SelectItem>
+                            <SelectItem value="MONTHLY">Monthly</SelectItem>
+                            <SelectItem value="YEARLY">Yearly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-3 sm:col-span-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label>Checklist line items</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Add items users can check or uncheck on each recurring task.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => append({ text: "", mandatory: false })}
+                      >
+                        Add item
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {checklistFields.map((field, index) => (
+                        <div
+                          key={field.id}
+                          className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+                        >
+                          <Input
+                            {...register(`checklistItems.${index}.text`)}
+                            placeholder="Line item text"
+                          />
+                          <Label className="inline-flex items-center gap-2 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              {...register(`checklistItems.${index}.mandatory`)}
+                            />
+                            <span
+                              className="text-destructive"
+                              aria-label="Mandatory checklist item"
+                              title="Mandatory"
+                            >
+                              *
+                            </span>
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => remove(index)}
+                            disabled={
+                              checklistFields.length === 1 &&
+                              !checklistItemsValue?.[0]?.text?.trim()
+                            }
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </>
+          ) : null}
         </div>
 
         {formError && (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import {
@@ -19,9 +19,14 @@ import {
   Paperclip,
   Shield,
   User,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { api, uploadTaskAttachment } from "@/api/client";
+import {
+  api,
+  deleteTaskAttachment,
+  uploadTaskAttachment,
+} from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe, useHasPermission } from "@/hooks/useAuth";
 import {
@@ -86,6 +91,19 @@ type TaskDetail = {
     fileName: string | null;
     createdAt: string;
   }[];
+  isRecurring?: boolean;
+  recurrencePattern?: string | null;
+};
+
+type ChecklistItem = {
+  id: string;
+  text: string;
+  sortOrder: number;
+  mandatory: boolean;
+  isChecked: boolean;
+  checkedAt: string | null;
+  checkedById: string | null;
+  checkedBy?: UserBrief | null;
 };
 
 function formatWhen(iso: string) {
@@ -201,6 +219,20 @@ export function TaskDetailPage() {
 
   const task = taskQuery.data;
   const statuses = statusesQuery.data ?? [];
+  const checklistQuery = useQuery({
+    queryKey: ["task-checklist", id],
+    enabled: Boolean(id) && Boolean(task),
+    queryFn: async () => {
+      const { data } = await api.get<ApiSuccess<{ items: ChecklistItem[] }>>(
+        `/api/tasks/${id}/checklist`,
+      );
+      return data.data.items;
+    },
+  });
+  const checklistItems = checklistQuery.data ?? [];
+  const hasMandatoryChecklistGap = checklistItems.some(
+    (item) => item.mandatory && !item.isChecked,
+  );
 
   const doneStatusId = useMemo(
     () => statuses.find((s) => s.code === "DONE")?.id,
@@ -284,6 +316,25 @@ export function TaskDetailPage() {
   });
 
   const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const deleteAttachmentMutation = useMutation({
+    mutationFn: (attachmentId: string) => deleteTaskAttachment(id!, attachmentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["task", id] });
+      toast.success("Attachment deleted");
+    },
+    onError: () => toast.error("Could not delete attachment"),
+  });
+  const updateChecklistItem = useMutation({
+    mutationFn: async (payload: {
+      itemId: string;
+      isChecked?: boolean;
+    }) => api.patch(`/api/tasks/${id}/checklist/${payload.itemId}`, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["task-checklist", id] });
+    },
+  });
 
   async function onPickFile(files: FileList | null) {
     if (!files?.length || !id || !canUpdate) return;
@@ -298,6 +349,7 @@ export function TaskDetailPage() {
       toast.error("Upload failed");
     } finally {
       setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
@@ -352,6 +404,10 @@ export function TaskDetailPage() {
   }
 
   function markComplete() {
+    if (hasMandatoryChecklistGap) {
+      toast.error("Complete all mandatory checklist items before marking done.");
+      return;
+    }
     if (!doneStatusId) {
       toast.error("No “Done” status configured for this tenant.");
       return;
@@ -586,6 +642,71 @@ export function TaskDetailPage() {
             </Card>
           </motion.section>
 
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.11 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold uppercase tracking-wide text-primary">
+                  Checklist
+                </CardTitle>
+                <CardDescription>
+                  Check and update required line items for this task.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {checklistItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No checklist items.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {checklistItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-lg border border-border p-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={item.isChecked}
+                            onChange={(e) =>
+                              updateChecklistItem.mutate({
+                                itemId: item.id,
+                                isChecked: e.target.checked,
+                              })
+                            }
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-foreground">
+                                {item.text}
+                              </p>
+                              {item.mandatory ? (
+                                <span
+                                  className="text-destructive"
+                                  aria-label="Mandatory checklist item"
+                                  title="Mandatory"
+                                >
+                                  *
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {item.isChecked && item.checkedAt
+                                ? `Checked ${formatWhen(item.checkedAt)}`
+                                : "Not checked yet"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.section>
+
           {/* 5. Attachments */}
           <motion.section
             initial={{ opacity: 0, y: 8 }}
@@ -612,6 +733,7 @@ export function TaskDetailPage() {
                     </Label>
                     <Input
                       id="file-up"
+                      ref={fileInputRef}
                       type="file"
                       multiple
                       disabled={uploading}
@@ -634,7 +756,7 @@ export function TaskDetailPage() {
                     {task.attachments.map((att) => (
                       <li
                         key={att.id}
-                        className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                        className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
                       >
                         <span className="flex min-w-0 items-center gap-2">
                           <Paperclip className="size-4 shrink-0 text-muted-foreground" />
@@ -642,14 +764,29 @@ export function TaskDetailPage() {
                             {att.fileName ?? att.fileUrl}
                           </span>
                         </span>
-                        <a
-                          href={att.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="shrink-0 text-primary underline-offset-4 hover:underline"
-                        >
-                          Open
-                        </a>
+                        <div className="ml-auto flex shrink-0 items-center gap-0">
+                          <a
+                            href={att.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary underline-offset-4 hover:underline"
+                          >
+                            Open
+                          </a>
+                          {canUpdate ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              aria-label={`Delete ${att.fileName ?? "attachment"}`}
+                              onClick={() => deleteAttachmentMutation.mutate(att.id)}
+                              disabled={deleteAttachmentMutation.isPending}
+                            >
+                              <X className="size-4" />
+                            </Button>
+                          ) : null}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -823,7 +960,8 @@ export function TaskDetailPage() {
                   disabled={
                     patchTask.isPending ||
                     task.status.code === "DONE" ||
-                    !doneStatusId
+                    !doneStatusId ||
+                    hasMandatoryChecklistGap
                   }
                 >
                   <CheckCircle2 className="mr-2 size-4" />

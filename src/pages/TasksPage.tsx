@@ -10,6 +10,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -73,8 +74,15 @@ type TaskRow = {
   updatedAt: string;
   status: { code: string; label: string };
   createdFrom: string;
+  isRecurring?: boolean | null;
+  recurrenceSourceTaskId?: string | null;
   meetingId: string | null;
   reviewer: { id: string; name: string; username: string } | null;
+};
+type TeamMemberOption = {
+  id: string;
+  name: string;
+  username: string;
 };
 
 type TasksApiResponse = {
@@ -95,6 +103,9 @@ const LIST_STATE_QUERY_KEYS = [
   "sortDir",
   "page",
   "pageSize",
+  "teamUserId",
+  "teamUserIds",
+  "teamUsersMode",
 ] as const;
 
 const SORT_IDS = [
@@ -179,6 +190,15 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
   const statusId = searchParams.get("statusId") || "";
   const dueFrom = searchParams.get("dueFrom") || "";
   const dueTo = searchParams.get("dueTo") || "";
+  const teamUserIds = (
+    searchParams.get("teamUserIds") ??
+    searchParams.get("teamUserId") ??
+    ""
+  )
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const teamUsersMode = searchParams.get("teamUsersMode") === "none" ? "none" : "all_or_custom";
   const rawQueueParam = searchParams.get("queue");
   const queue: TaskQueue = normalizeTaskQueue(rawQueueParam);
   const myTab: MyTasksTab =
@@ -203,6 +223,8 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     statusId,
     dueFrom,
     dueTo,
+    teamUserIds,
+    teamUsersMode,
     myTab,
   };
 }
@@ -241,13 +263,31 @@ export function TasksPage() {
     statusId,
     dueFrom,
     dueTo,
+    teamUserIds,
+    teamUsersMode,
     myTab,
   } = listParams;
 
   const [searchInput, setSearchInput] = useState(
     () => searchParams.get("q") ?? "",
   );
+  const [teamUsersOpen, setTeamUsersOpen] = useState(false);
+  const teamUsersDropdownRef = useRef<HTMLDivElement | null>(null);
   const search = useDebouncedValue(searchInput, 350);
+
+  useEffect(() => {
+    if (!teamUsersOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!teamUsersDropdownRef.current) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (!teamUsersDropdownRef.current.contains(target)) {
+        setTeamUsersOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [teamUsersOpen]);
 
   useEffect(() => {
     if (skipSearchInputSync.current) {
@@ -283,6 +323,34 @@ export function TasksPage() {
       return data.data.statuses;
     },
   });
+  const teamMembersQuery = useQuery({
+    queryKey: ["team-members", "task-team-options"],
+    enabled: canListTasks && queue === "team",
+    queryFn: async () => {
+      const { data } = await api.get<
+        ApiSuccess<TeamMemberOption[], { page: number; limit: number; total: number }>
+      >("/api/team/members", {
+        params: {
+          page: 1,
+          pageSize: 100,
+          sortBy: "name",
+          sortDir: "asc",
+        },
+      });
+      return data.data;
+    },
+  });
+  const teamMembers = teamMembersQuery.data ?? [];
+  const allTeamUserIds = teamMembers.map((u) => u.id);
+  const effectiveSelectedTeamUserIds =
+    teamUsersMode === "none"
+      ? []
+      : teamUserIds.length > 0
+        ? teamUserIds
+        : allTeamUserIds;
+  const isAllTeamUsersSelected =
+    allTeamUserIds.length > 0 &&
+    effectiveSelectedTeamUserIds.length === allTeamUserIds.length;
 
   const deleteTask = useMutation({
     mutationFn: async (taskId: string) => {
@@ -322,6 +390,8 @@ export function TasksPage() {
       statusId,
       dueFrom,
       dueTo,
+      teamUserIds.join(","),
+      teamUsersMode,
       search,
       apiSortBy,
       apiSortDir,
@@ -341,6 +411,11 @@ export function TasksPage() {
             ? { dueFrom: new Date(dueFrom + "T00:00:00").toISOString() }
             : {}),
           ...(dueTo ? { dueTo: toEndOfDayIso(dueTo) } : {}),
+          ...(teamUsersMode === "none"
+            ? { assignedToIds: "__none__" }
+            : teamUserIds.length
+              ? { assignedToIds: teamUserIds.join(",") }
+              : {}),
           ...(search ? { search } : {}),
           sortBy: apiSortBy,
           sortDir: apiSortDir,
@@ -446,6 +521,9 @@ export function TasksPage() {
         accessorFn: (r) => r.createdFrom,
         cell: ({ row }) => {
           const cf = String(row.original.createdFrom ?? "TASK").toUpperCase();
+          const isRecurringTask =
+            Boolean(row.original.isRecurring) ||
+            Boolean(row.original.recurrenceSourceTaskId);
           if (cf === "MEETING" && row.original.meetingId) {
             return (
               <Link
@@ -455,6 +533,13 @@ export function TasksPage() {
               >
                 Meeting
               </Link>
+            );
+          }
+          if (isRecurringTask) {
+            return (
+              <span className="text-muted-foreground">
+                Recurring task
+              </span>
             );
           }
           return <span className="text-muted-foreground">Task</span>;
@@ -521,7 +606,7 @@ export function TasksPage() {
               </TooltipTrigger>
               <TooltipContent>View</TooltipContent>
             </Tooltip>
-            {canUpdateTask ? (
+            {canUpdateTask && queue !== "team" ? (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -545,7 +630,7 @@ export function TasksPage() {
                 <TooltipContent>Edit</TooltipContent>
               </Tooltip>
             ) : null}
-            {canDeleteTask ? (
+            {canDeleteTask && queue !== "team" ? (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -576,7 +661,7 @@ export function TasksPage() {
         ),
       },
     ],
-    [navigate, canUpdateTask, canDeleteTask, deleteTask.isPending],
+    [navigate, canUpdateTask, canDeleteTask, deleteTask.isPending, queue],
   );
 
   const onChangeSort = useCallback(
@@ -654,6 +739,9 @@ export function TasksPage() {
               ? "No tasks where you are the supporter."
                     : "No tasks where you are assigned as reviewer."
         : "No tasks match your filters.";
+  const selectedTeamUsers = teamMembers.filter((u) =>
+    effectiveSelectedTeamUserIds.includes(u.id),
+  );
 
   function statusFilterLabel(v: string) {
     if (v === "__all__") return "All statuses";
@@ -902,8 +990,8 @@ export function TasksPage() {
         </Card>
       ) : null}
 
-      <Card className="p-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <Card className="relative z-30 overflow-visible p-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <div className="space-y-2 lg:col-span-2">
             <Label htmlFor="task-search">Search</Label>
             <Input
@@ -986,91 +1074,214 @@ export function TasksPage() {
               }}
             />
           </div>
+          {queue === "team" ? (
+            <div className="space-y-2">
+              <Label htmlFor="team-user-filter">Team users</Label>
+              <div
+                id="team-user-filter"
+                ref={teamUsersDropdownRef}
+                className="relative"
+              >
+                <button
+                  type="button"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm"
+                  onClick={() => setTeamUsersOpen((v) => !v)}
+                  aria-haspopup="listbox"
+                  aria-expanded={teamUsersOpen}
+                >
+                  <span className="truncate text-left">
+                    {teamMembersQuery.isLoading
+                      ? "Loading users..."
+                      : teamUsersMode === "none"
+                        ? "No user selected"
+                      : selectedTeamUsers.length
+                        ? `${selectedTeamUsers.length} user${selectedTeamUsers.length > 1 ? "s" : ""} selected`
+                        : "All users selected"}
+                  </span>
+                  <ChevronRight
+                    className={cn(
+                      "size-4 shrink-0 text-muted-foreground transition-transform",
+                      teamUsersOpen && "rotate-90",
+                    )}
+                  />
+                </button>
+                <div
+                  className={cn(
+                    "absolute left-0 top-full z-70 mt-2 max-h-64 w-full overflow-auto rounded-md border border-border bg-card p-2 shadow-lg",
+                    !teamUsersOpen && "hidden",
+                  )}
+                >
+                  <label className="mb-2 flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted/60">
+                    <input
+                      type="checkbox"
+                      checked={isAllTeamUsersSelected}
+                      onChange={() =>
+                        setSearchParams(
+                          (prev) => {
+                            const p = new URLSearchParams(prev);
+                            p.delete("teamUserId");
+                            if (!isAllTeamUsersSelected && allTeamUserIds.length) {
+                              p.set("teamUserIds", allTeamUserIds.join(","));
+                              p.delete("teamUsersMode");
+                            } else {
+                              p.delete("teamUserIds");
+                              p.set("teamUsersMode", "none");
+                            }
+                            p.delete("page");
+                            return p;
+                          },
+                          { replace: true },
+                        )
+                      }
+                    />
+                    <span>All users selected</span>
+                  </label>
+                  {teamMembers.map((u) => {
+                    const selected = effectiveSelectedTeamUserIds.includes(u.id);
+                    return (
+                      <label
+                        key={u.id}
+                        className={cn(
+                          "flex cursor-pointer items-center justify-between rounded px-2 py-1 text-sm hover:bg-muted/60",
+                          selected && "bg-primary/5",
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() =>
+                              setSearchParams(
+                                (prev) => {
+                                  const p = new URLSearchParams(prev);
+                                  const current = effectiveSelectedTeamUserIds;
+                                  const next = selected
+                                    ? current.filter((id) => id !== u.id)
+                                    : Array.from(new Set([...current, u.id]));
+                                  p.delete("teamUserId");
+                                  if (next.length) {
+                                    p.set("teamUserIds", next.join(","));
+                                    p.delete("teamUsersMode");
+                                  } else {
+                                    p.delete("teamUserIds");
+                                    p.set("teamUsersMode", "none");
+                                  }
+                                  p.delete("page");
+                                  return p;
+                                },
+                                { replace: true },
+                              )
+                            }
+                          />
+                          <span className="truncate">{u.name}</span>
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {u.username}
+                        </span>
+                        {selected ? (
+                          <Check className="size-3 text-primary" />
+                        ) : null}
+                      </label>
+                    );
+                  })}
+                  {!teamMembersQuery.isLoading && teamMembers.length === 0 ? (
+                    <div className="px-2 py-1 text-xs text-muted-foreground">
+                      No team users found.
+                    </div>
+                  ) : null}
+                  {teamMembersQuery.isError ? (
+                    <div className="px-2 py-1 text-xs text-destructive">
+                      Could not load team users.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </Card>
-
       <Card className="overflow-hidden p-0">
-        <DataTable
-          table={table}
-          columnCount={columns.length}
-          sort={tableSorting}
-          onChangeSort={onChangeSort}
-          isLoading={query.isLoading}
-          emptyMessage={listEmptyMessage}
-          getRowProps={getTaskRowProps}
-        />
+          <DataTable
+            table={table}
+            columnCount={columns.length}
+            sort={tableSorting}
+            onChangeSort={onChangeSort}
+            isLoading={query.isLoading}
+            emptyMessage={listEmptyMessage}
+            getRowProps={getTaskRowProps}
+          />
 
-        <div className="flex flex-col gap-4 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span>
-              {total === 0
-                ? "0 tasks"
-                : `Showing ${fromIdx}–${toIdx} of ${total}`}
-            </span>
-            <span className="hidden sm:inline">·</span>
+          <div className="flex flex-col gap-4 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>
+                {total === 0
+                  ? "0 tasks"
+                  : `Showing ${fromIdx}–${toIdx} of ${total}`}
+              </span>
+              <span className="hidden sm:inline">·</span>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="page-size" className="text-muted-foreground">
+                  Rows per page
+                </Label>
+                <Select
+                  value={String(pagination.pageSize)}
+                  onValueChange={(v) => {
+                    const n = Number(v) as (typeof PAGE_SIZES)[number];
+                    setSearchParams(
+                      (prev) => {
+                        const p = new URLSearchParams(prev);
+                        if (n === DEFAULT_PAGE_SIZE) p.delete("pageSize");
+                        else p.set("pageSize", String(n));
+                        p.delete("page");
+                        return p;
+                      },
+                      { replace: true },
+                    );
+                  }}
+                  itemToStringLabel={(v) => v}
+                >
+                  <SelectTrigger id="page-size" className="h-8 w-18">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZES.map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
-              <Label htmlFor="page-size" className="text-muted-foreground">
-                Rows per page
-              </Label>
-              <Select
-                value={String(pagination.pageSize)}
-                onValueChange={(v) => {
-                  const n = Number(v) as (typeof PAGE_SIZES)[number];
-                  setSearchParams(
-                    (prev) => {
-                      const p = new URLSearchParams(prev);
-                      if (n === DEFAULT_PAGE_SIZE) p.delete("pageSize");
-                      else p.set("pageSize", String(n));
-                      p.delete("page");
-                      return p;
-                    },
-                    { replace: true },
-                  );
-                }}
-                itemToStringLabel={(v) => v}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={goPrev}
+                disabled={pagination.pageIndex <= 0 || query.isLoading}
               >
-                <SelectTrigger id="page-size" className="h-8 w-18">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZES.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <ChevronLeft className="size-4" />
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {pagination.pageIndex + 1} / {pageCount}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={goNext}
+                disabled={
+                  pagination.pageIndex >= pageCount - 1 || query.isLoading
+                }
+              >
+                Next
+                <ChevronRight className="size-4" />
+              </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={goPrev}
-              disabled={pagination.pageIndex <= 0 || query.isLoading}
-            >
-              <ChevronLeft className="size-4" />
-              Previous
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Page {pagination.pageIndex + 1} / {pageCount}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={goNext}
-              disabled={
-                pagination.pageIndex >= pageCount - 1 || query.isLoading
-              }
-            >
-              Next
-              <ChevronRight className="size-4" />
-            </Button>
-          </div>
-        </div>
-      </Card>
+        </Card>
     </div>
   );
 }

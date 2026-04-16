@@ -87,3 +87,26 @@ export async function uploadTaskAttachment(taskId: string, file: File) {
   // Legacy/fallback
   return body as any;
 }
+
+export async function deleteTaskAttachment(taskId: string, attachmentId: string) {
+  await api.delete(`/api/tasks/${taskId}/attachments/${attachmentId}`);
+}
+
+export async function uploadTaskChecklistAttachment(
+  taskId: string,
+  itemId: string,
+  file: File,
+) {
+  const token = await ensureCsrf();
+  const path = `${baseURL || ""}/api/tasks/${taskId}/checklist/${itemId}/attachments`;
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(path, {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRF-Token": token },
+    body: fd,
+  });
+  if (!res.ok) throw new Error("Checklist attachment upload failed");
+  return res.json();
+}

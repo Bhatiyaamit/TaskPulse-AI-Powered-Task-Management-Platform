@@ -32,6 +32,7 @@ export function MeetingCreatePage() {
   const [priority, setPriority] =
     useState<(typeof MEETING_PRIORITIES)[number]>("MEDIUM");
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
+  const [formError, setFormError] = useState<string | null>(null);
   const { data: users } = useQuery({
     enabled: canCreateMeetings,
     queryKey: ["meeting-attendees"],
@@ -87,8 +88,13 @@ export function MeetingCreatePage() {
         className="space-y-8"
         onSubmit={(e) => {
           e.preventDefault();
+          setFormError(null);
           const fd = new FormData(e.currentTarget);
           const attendeeIds = fd.getAll("attendees") as string[];
+          if (!attendeeIds.length) {
+            setFormError("Select at least one attendee.");
+            return;
+          }
           create.mutate({
             title: String(fd.get("title")),
             agenda: String(fd.get("agenda") ?? ""),
@@ -125,12 +131,15 @@ export function MeetingCreatePage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="meetingLink">Meeting link</Label>
+            <Label htmlFor="meetingLink" required>
+              Meeting link
+            </Label>
             <Input
               id="meetingLink"
               name="meetingLink"
               placeholder="e.g. https://meet.google.com/xxx-xxxx-xxx"
               type="url"
+              required
             />
           </div>
 
@@ -194,7 +203,7 @@ export function MeetingCreatePage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Attendees</Label>
+            <Label required>Attendees</Label>
             <div className="max-h-32 space-y-1 overflow-auto rounded-lg border border-border bg-background/30 p-2">
               {(users ?? []).map((u) => (
                 <label key={u.id} className="flex items-center gap-2 text-sm">
@@ -211,6 +220,12 @@ export function MeetingCreatePage() {
             </div>
           </div>
         </div>
+
+        {formError ? (
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {formError}
+          </p>
+        ) : null}
 
         <div className="mt-8 flex flex-wrap gap-3 justify-end border-t border-border pt-6">
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
