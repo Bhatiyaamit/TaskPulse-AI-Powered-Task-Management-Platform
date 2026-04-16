@@ -7,7 +7,7 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
@@ -53,6 +53,8 @@ type TaskPayload = {
   reviewer: UserOption | null;
   supporter: UserOption | null;
   escalationTo: UserOption | null;
+  isRecurring?: boolean | null;
+  recurrencePattern?: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | null;
 };
 
 type TaskEditFormValues = {
@@ -67,6 +69,9 @@ type TaskEditFormValues = {
   escalationMinutesBeforeDue: string;
   startDate: string;
   dueDate: string;
+  isRecurring: boolean;
+  recurrencePattern: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  checklistItems: { text: string; mandatory: boolean }[];
 };
 
 function isoToDatetimeLocal(iso: string | null): string {
@@ -88,7 +93,14 @@ export function TaskEditPage() {
   const canEditTask = taskModuleCanUpdate(me?.permissions);
 
   const [formError, setFormError] = useState<string | null>(null);
-  const { control, handleSubmit, register, reset, watch } =
+  const {
+    control,
+    handleSubmit,
+    register,
+    reset,
+    watch,
+    formState: { errors },
+  } =
     useForm<TaskEditFormValues>({
       defaultValues: {
         title: "",
@@ -102,8 +114,15 @@ export function TaskEditPage() {
         escalationMinutesBeforeDue: "",
         startDate: "",
         dueDate: "",
+        isRecurring: false,
+        recurrencePattern: "DAILY",
+        checklistItems: [{ text: "", mandatory: true }],
       },
     });
+  const { fields: checklistFields, append, remove, replace } = useFieldArray({
+    control,
+    name: "checklistItems",
+  });
 
   const taskQuery = useQuery({
     queryKey: ["task", id],
@@ -129,7 +148,20 @@ export function TaskEditPage() {
 
   const task = taskQuery.data;
   const statusId = watch("statusId");
+  const startDateValue = watch("startDate");
+  const isRecurring = watch("isRecurring");
+  const checklistItemsValue = watch("checklistItems");
   const hasStatusId = Boolean(statusId);
+  const checklistQuery = useQuery({
+    queryKey: ["task-checklist", id, "edit"],
+    enabled: Boolean(id) && !mePending && canEditTask,
+    queryFn: async () => {
+      const { data } = await api.get<
+        ApiSuccess<{ items: { id: string; text: string; mandatory: boolean }[] }>
+      >(`/api/tasks/${id}/checklist`);
+      return data.data.items;
+    },
+  });
 
   useLayoutEffect(() => {
     hydrated.current = false;
@@ -145,7 +177,11 @@ export function TaskEditPage() {
       escalationMinutesBeforeDue: "",
       startDate: "",
       dueDate: "",
+      isRecurring: false,
+      recurrencePattern: "DAILY",
+      checklistItems: [{ text: "", mandatory: true }],
     });
+    replace([{ text: "", mandatory: true }]);
   }, [id]);
 
   useLayoutEffect(() => {
@@ -176,8 +212,23 @@ export function TaskEditPage() {
       startDate: isoToDatetimeLocal(task.startDate),
       dueDate: isoToDatetimeLocal(task.dueDate),
       escalationMinutesBeforeDue,
+      isRecurring: Boolean(task.isRecurring),
+      recurrencePattern: task.recurrencePattern ?? "DAILY",
+      checklistItems: [{ text: "", mandatory: true }],
     });
   }, [task]);
+
+  useLayoutEffect(() => {
+    if (checklistQuery.data === undefined) return;
+    replace(
+      checklistQuery.data.length
+        ? checklistQuery.data.map((item) => ({
+            text: item.text,
+            mandatory: item.mandatory,
+          }))
+        : [{ text: "", mandatory: true }],
+    );
+  }, [checklistQuery.data, replace]);
 
   function userLabelForValue(v: string) {
     if (v === UNASSIGNED) return "Unassigned";
@@ -191,6 +242,11 @@ export function TaskEditPage() {
         `/api/tasks/${id}`,
         payload,
       );
+      if ("checklistItems" in payload) {
+        await api.put(`/api/tasks/${id}/checklist`, {
+          items: Array.isArray(payload.checklistItems) ? payload.checklistItems : [],
+        });
+      }
       return data.data.task;
     },
     onError: (err: unknown) => {
@@ -222,6 +278,14 @@ export function TaskEditPage() {
       ? new Date(values.startDate).toISOString()
       : null;
     const dueIso = values.dueDate ? new Date(values.dueDate).toISOString() : null;
+    if (startIso && dueIso) {
+      const startMs = new Date(startIso).getTime();
+      const dueMs = new Date(dueIso).getTime();
+      if (dueMs < startMs) {
+        setFormError("Due date/time cannot be earlier than Start date/time.");
+        return;
+      }
+    }
     const minutesRaw = values.escalationMinutesBeforeDue.trim();
     let escalationAtIso: string | null = null;
     if (minutesRaw !== "") {
@@ -239,6 +303,16 @@ export function TaskEditPage() {
     }
 
     const toNull = (v: string) => (v === UNASSIGNED ? null : v);
+    const cleanedChecklistItems = (values.checklistItems ?? [])
+      .map((item) => ({
+        text: item.text.trim(),
+        mandatory: Boolean(item.mandatory),
+      }))
+      .filter((item) => item.text);
+    if (values.isRecurring && cleanedChecklistItems.length === 0) {
+      setFormError("Add at least one checklist item for recurring task.");
+      return;
+    }
     update.mutate({
       title: values.title.trim(),
       description: values.description.trim() || null,
@@ -251,6 +325,9 @@ export function TaskEditPage() {
       escalationAt: escalationAtIso,
       startDate: startIso,
       dueDate: dueIso,
+      isRecurring: values.isRecurring,
+      recurrencePattern: values.isRecurring ? values.recurrencePattern : null,
+      checklistItems: cleanedChecklistItems,
     });
   }
 
@@ -476,8 +553,26 @@ export function TaskEditPage() {
                 <Input
                   id="due"
                   type="datetime-local"
-                  {...register("dueDate")}
+                  min={startDateValue || undefined}
+                  {...register("dueDate", {
+                    validate: (value) => {
+                      const start = startDateValue;
+                      if (!start || !value) return true;
+                      const startMs = new Date(start).getTime();
+                      const dueMs = new Date(value).getTime();
+                      if (Number.isNaN(startMs) || Number.isNaN(dueMs)) return true;
+                      return (
+                        dueMs >= startMs ||
+                        "Due date/time cannot be earlier than Start date/time."
+                      );
+                    },
+                  })}
                 />
+                {errors.dueDate?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.dueDate.message}
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="space-y-2 sm:max-w-xs">
@@ -495,7 +590,103 @@ export function TaskEditPage() {
                 placeholder="e.g. 20"
               />
             </div>
+            <div className="pt-2">
+              <Label className="inline-flex items-center gap-2">
+                <input type="checkbox" {...register("isRecurring")} />
+                Recurring task
+              </Label>
+            </div>
           </section>
+
+          {isRecurring ? (
+            <>
+              <Separator />
+
+              <section className="space-y-4">
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">
+                  Recurrence & Checklist
+                </h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Recurring pattern</Label>
+                    <Controller
+                      control={control}
+                      name="recurrencePattern"
+                      render={({ field }) => (
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="DAILY">Daily</SelectItem>
+                            <SelectItem value="WEEKLY">Weekly</SelectItem>
+                            <SelectItem value="MONTHLY">Monthly</SelectItem>
+                            <SelectItem value="YEARLY">Yearly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-3 sm:col-span-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label>Checklist line items</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Edit the items users can check or uncheck on each recurring task.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => append({ text: "", mandatory: false })}
+                      >
+                        Add item
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {checklistFields.map((field, index) => (
+                        <div
+                          key={field.id}
+                          className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+                        >
+                          <Input
+                            {...register(`checklistItems.${index}.text`)}
+                            placeholder="Line item text"
+                          />
+                          <Label className="inline-flex items-center gap-2 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              {...register(`checklistItems.${index}.mandatory`)}
+                            />
+                            <span
+                              className="text-destructive"
+                              aria-label="Mandatory checklist item"
+                              title="Mandatory"
+                            >
+                              *
+                            </span>
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => remove(index)}
+                            disabled={
+                              checklistFields.length === 1 &&
+                              !checklistItemsValue?.[0]?.text?.trim()
+                            }
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </>
+          ) : null}
         </div>
 
         {formError && (

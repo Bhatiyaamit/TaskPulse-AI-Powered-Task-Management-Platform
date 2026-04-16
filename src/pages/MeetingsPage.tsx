@@ -123,8 +123,11 @@ export function MeetingsPage() {
     const t = window.setTimeout(() => {
       setSearchParams(
         (prev) => {
+          const normalized = v.trim();
+          const currentSearch = (prev.get("search") ?? "").trim();
+          if (currentSearch === normalized) return prev;
           const p = new URLSearchParams(prev);
-          if (v.trim()) p.set("search", v);
+          if (normalized) p.set("search", normalized);
           else p.delete("search");
           p.delete("page");
           return p;

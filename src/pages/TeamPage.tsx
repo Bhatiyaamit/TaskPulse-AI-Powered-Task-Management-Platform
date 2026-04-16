@@ -673,8 +673,7 @@ export function TeamPage() {
                 (<code className="rounded bg-muted px-1 py-0.5 text-xs">
                   {P.USERS_READ}
                 </code>
-                ). You can still add or edit users if those actions are
-                allowed—open a user from a direct link or use the buttons below.
+                ).
               </p>
               <div className="flex flex-wrap gap-2 pt-1">
                 {canAddUser ? (
