@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
@@ -23,6 +23,7 @@ import {
 import { meetingModuleCanCreate } from "@/lib/permissions";
 
 const MEETING_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
+const MEETING_TYPES = ["ONLINE", "OFFLINE"] as const;
 
 export function MeetingCreatePage() {
   const navigate = useNavigate();
@@ -31,8 +32,11 @@ export function MeetingCreatePage() {
   const canCreateMeetings = meetingModuleCanCreate(me.data?.permissions);
   const [priority, setPriority] =
     useState<(typeof MEETING_PRIORITIES)[number]>("MEDIUM");
+  const [meetingType, setMeetingType] =
+    useState<(typeof MEETING_TYPES)[number]>("ONLINE");
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
   const [formError, setFormError] = useState<string | null>(null);
+  const [attendeeSearch, setAttendeeSearch] = useState("");
   const { data: users } = useQuery({
     enabled: canCreateMeetings,
     queryKey: ["meeting-attendees"],
@@ -48,7 +52,9 @@ export function MeetingCreatePage() {
     mutationFn: (payload: {
       title: string;
       agenda?: string;
+      meetingType?: (typeof MEETING_TYPES)[number];
       meetingLink?: string;
+      meetingLocation?: string;
       preparationNotes?: string;
       priority?: (typeof MEETING_PRIORITIES)[number];
       durationMinutes?: number;
@@ -63,6 +69,14 @@ export function MeetingCreatePage() {
       else navigate("/meetings");
     },
   });
+
+  const filteredUsers = useMemo(() => {
+    const q = attendeeSearch.trim().toLowerCase();
+    if (!q) return users ?? [];
+    return (users ?? []).filter((u) =>
+      `${u.name} ${u.username}`.toLowerCase().includes(q),
+    );
+  }, [attendeeSearch, users]);
 
   if (!canCreateMeetings) {
     return (
@@ -98,7 +112,15 @@ export function MeetingCreatePage() {
           create.mutate({
             title: String(fd.get("title")),
             agenda: String(fd.get("agenda") ?? ""),
-            meetingLink: String(fd.get("meetingLink") ?? "") || undefined,
+            meetingType,
+            meetingLink:
+              meetingType === "ONLINE"
+                ? String(fd.get("meetingLink") ?? "") || undefined
+                : undefined,
+            meetingLocation:
+              meetingType === "OFFLINE"
+                ? String(fd.get("meetingLocation") ?? "") || undefined
+                : undefined,
             preparationNotes:
               String(fd.get("preparationNotes") ?? "") || undefined,
             priority,
@@ -131,17 +153,49 @@ export function MeetingCreatePage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="meetingLink" required>
-              Meeting link
-            </Label>
-            <Input
-              id="meetingLink"
-              name="meetingLink"
-              placeholder="e.g. https://meet.google.com/xxx-xxxx-xxx"
-              type="url"
-              required
-            />
+            <Label>Meeting type</Label>
+            <Select
+              value={meetingType}
+              onValueChange={(v) =>
+                setMeetingType(v as (typeof MEETING_TYPES)[number])
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ONLINE">Online</SelectItem>
+                <SelectItem value="OFFLINE">Offline</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
+          {meetingType === "ONLINE" ? (
+            <div className="space-y-2">
+              <Label htmlFor="meetingLink" required>
+                Meeting link
+              </Label>
+              <Input
+                id="meetingLink"
+                name="meetingLink"
+                placeholder="e.g. https://meet.google.com/xxx-xxxx-xxx"
+                type="url"
+                required
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="meetingLocation" required>
+                Meeting location
+              </Label>
+              <Input
+                id="meetingLocation"
+                name="meetingLocation"
+                placeholder="e.g. Meeting Room 2, Head Office"
+                required
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="preparationNotes">Preparation notes</Label>
@@ -204,8 +258,13 @@ export function MeetingCreatePage() {
 
           <div className="space-y-2">
             <Label required>Attendees</Label>
+            <Input
+              value={attendeeSearch}
+              onChange={(e) => setAttendeeSearch(e.target.value)}
+              placeholder="Search attendees by name or username"
+            />
             <div className="max-h-32 space-y-1 overflow-auto rounded-lg border border-border bg-background/30 p-2">
-              {(users ?? []).map((u) => (
+              {filteredUsers.map((u) => (
                 <label key={u.id} className="flex items-center gap-2 text-sm">
                   <input type="checkbox" name="attendees" value={u.id} />
                   <span>
@@ -217,6 +276,11 @@ export function MeetingCreatePage() {
                   </span>
                 </label>
               ))}
+              {filteredUsers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No attendees found.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

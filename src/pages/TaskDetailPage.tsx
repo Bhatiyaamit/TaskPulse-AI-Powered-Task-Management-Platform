@@ -93,6 +93,13 @@ type TaskDetail = {
   }[];
   isRecurring?: boolean;
   recurrencePattern?: string | null;
+  meetingId?: string | null;
+  meeting?: {
+    id: string;
+    title: string;
+    datetime: string;
+    momNotes: string | null;
+  } | null;
 };
 
 type ChecklistItem = {
@@ -594,6 +601,26 @@ export function TaskDetailPage() {
                     )}
                   </div>
                 </div>
+                {task.meetingId && task.meeting ? (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="text-sm font-semibold uppercase tracking-wide text-primary">
+                        Meeting MOM (read only)
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        From meeting: {task.meeting.title} (
+                        {formatDateTime(task.meeting.datetime)})
+                      </p>
+                      <Textarea
+                        value={task.meeting.momNotes ?? ""}
+                        readOnly
+                        rows={5}
+                        placeholder="No MOM added for this meeting yet."
+                      />
+                    </div>
+                  </>
+                ) : null}
               </CardContent>
             </Card>
           </motion.section>

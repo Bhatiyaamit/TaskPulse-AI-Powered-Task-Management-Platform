@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "@/api/client";
@@ -24,6 +24,7 @@ import { CheckCircle2 } from "lucide-react";
 import { meetingModuleCanUpdate } from "@/lib/permissions";
 
 const MEETING_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
+const MEETING_TYPES = ["ONLINE", "OFFLINE"] as const;
 
 function isoToDatetimeLocal(iso: string): string {
   const d = new Date(iso);
@@ -38,7 +39,9 @@ type Meeting = {
   id: string;
   title: string;
   agenda: string | null;
+  meetingType: "ONLINE" | "OFFLINE";
   meetingLink: string | null;
+  meetingLocation: string | null;
   preparationNotes: string | null;
   priority: string;
   durationMinutes: number | null;
@@ -81,8 +84,11 @@ export function MeetingEditPage() {
 
   const [priority, setPriority] =
     useState<(typeof MEETING_PRIORITIES)[number]>("MEDIUM");
+  const [meetingType, setMeetingType] =
+    useState<(typeof MEETING_TYPES)[number]>("ONLINE");
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
   const [formError, setFormError] = useState<string | null>(null);
+  const [attendeeSearch, setAttendeeSearch] = useState("");
 
   useEffect(() => {
     const m = meetingQuery.data;
@@ -93,6 +99,7 @@ export function MeetingEditPage() {
         ? (p as (typeof MEETING_PRIORITIES)[number])
         : "MEDIUM",
     );
+    setMeetingType(m.meetingType ?? "ONLINE");
     setDurationMinutes(m.durationMinutes ?? 30);
   }, [meetingQuery.data]);
 
@@ -100,7 +107,9 @@ export function MeetingEditPage() {
     mutationFn: (payload: {
       title?: string;
       agenda?: string | null;
+      meetingType?: (typeof MEETING_TYPES)[number];
       meetingLink?: string | null;
+      meetingLocation?: string | null;
       preparationNotes?: string | null;
       priority?: (typeof MEETING_PRIORITIES)[number];
       durationMinutes?: number | null;
@@ -132,6 +141,14 @@ export function MeetingEditPage() {
   });
 
   const m = meetingQuery.data;
+  const filteredUsers = useMemo(() => {
+    const q = attendeeSearch.trim().toLowerCase();
+    if (!q) return users ?? [];
+    return (users ?? []).filter((u) =>
+      `${u.name} ${u.username}`.toLowerCase().includes(q),
+    );
+  }, [attendeeSearch, users]);
+
   if (!canUpdateMeetings) {
     return (
       <CenteredFormPage
@@ -169,7 +186,15 @@ export function MeetingEditPage() {
           update.mutate({
             title: String(fd.get("title") ?? ""),
             agenda: String(fd.get("agenda") ?? "") || null,
-            meetingLink: String(fd.get("meetingLink") ?? "") || null,
+            meetingType,
+            meetingLink:
+              meetingType === "ONLINE"
+                ? String(fd.get("meetingLink") ?? "") || null
+                : null,
+            meetingLocation:
+              meetingType === "OFFLINE"
+                ? String(fd.get("meetingLocation") ?? "") || null
+                : null,
             preparationNotes: String(fd.get("preparationNotes") ?? "") || null,
             priority,
             durationMinutes,
@@ -201,18 +226,51 @@ export function MeetingEditPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="meetingLink" required>
-              Meeting link
-            </Label>
-            <Input
-              id="meetingLink"
-              name="meetingLink"
-              placeholder="e.g. https://meet.google.com/xxx-xxxx-xxx"
-              type="url"
-              defaultValue={m.meetingLink ?? ""}
-              required
-            />
+            <Label>Meeting type</Label>
+            <Select
+              value={meetingType}
+              onValueChange={(v) =>
+                setMeetingType(v as (typeof MEETING_TYPES)[number])
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ONLINE">Online</SelectItem>
+                <SelectItem value="OFFLINE">Offline</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
+          {meetingType === "ONLINE" ? (
+            <div className="space-y-2">
+              <Label htmlFor="meetingLink" required>
+                Meeting link
+              </Label>
+              <Input
+                id="meetingLink"
+                name="meetingLink"
+                placeholder="e.g. https://meet.google.com/xxx-xxxx-xxx"
+                type="url"
+                defaultValue={m.meetingLink ?? ""}
+                required
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="meetingLocation" required>
+                Meeting location
+              </Label>
+              <Input
+                id="meetingLocation"
+                name="meetingLocation"
+                placeholder="e.g. Meeting Room 2, Head Office"
+                defaultValue={m.meetingLocation ?? ""}
+                required
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="preparationNotes">Preparation notes</Label>
@@ -275,8 +333,13 @@ export function MeetingEditPage() {
 
           <div className="space-y-2">
             <Label required>Attendees</Label>
+            <Input
+              value={attendeeSearch}
+              onChange={(e) => setAttendeeSearch(e.target.value)}
+              placeholder="Search attendees by name or username"
+            />
             <div className="max-h-40 space-y-1 overflow-auto rounded-lg border border-border bg-background/30 p-2">
-              {(users ?? []).map((u) => {
+              {filteredUsers.map((u) => {
                 const checked = m.attendees.some((a) => a.userId === u.id);
                 return (
                   <label key={u.id} className="flex items-center gap-2 text-sm">
@@ -296,6 +359,11 @@ export function MeetingEditPage() {
                   </label>
                 );
               })}
+              {filteredUsers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No attendees found.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

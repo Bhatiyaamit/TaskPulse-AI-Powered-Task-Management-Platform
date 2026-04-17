@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import { Ban, Eye, Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { Ban, Eye, Pencil, Play, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
@@ -97,6 +97,7 @@ function parseMeetingsUrlParams(p: URLSearchParams) {
 
 export function MeetingsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const me = useMe();
   const perms = me.data?.permissions;
   const canReadMeetings = meetingModuleCanList(perms);
@@ -208,6 +209,20 @@ export function MeetingsPage() {
       await qc.invalidateQueries({ queryKey: ["meeting"], exact: false });
     },
   });
+  const startMeeting = useMutation({
+    mutationFn: async (id: string) => {
+      await api.post(`/api/meetings/${id}/start`);
+    },
+    onSuccess: async (_data, meetingId) => {
+      await qc.invalidateQueries({
+        queryKey: ["meetings-paginated"],
+        exact: false,
+      });
+      await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
+      await qc.invalidateQueries({ queryKey: ["meeting"], exact: false });
+      navigate(`/meetings/${meetingId}`);
+    },
+  });
 
   const columns = useMemo<ColumnDef<MeetingRow>[]>(
     () => [
@@ -310,6 +325,32 @@ export function MeetingsPage() {
                 <TooltipContent>View</TooltipContent>
               </Tooltip>
             </Link>
+            {canUpdateMeetings &&
+            row.original.computedStatus === "SCHEDULED" ? (
+              <button
+                type="button"
+                onClick={() => startMeeting.mutate(row.original.id)}
+                disabled={startMeeting.isPending}
+              >
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-primary"
+                        aria-label="Start meeting"
+                        disabled={startMeeting.isPending}
+                      />
+                    }
+                  >
+                    <Play className="size-4" />
+                  </TooltipTrigger>
+                  <TooltipContent>Start meeting</TooltipContent>
+                </Tooltip>
+              </button>
+            ) : null}
             {canUpdateMeetings ? (
               row.original.computedStatus !== "SCHEDULED" ? (
                 <Tooltip>
@@ -413,6 +454,7 @@ export function MeetingsPage() {
       canUpdateMeetings,
       deleteMeeting.isPending,
       cancelMeeting.isPending,
+      startMeeting.isPending,
     ],
   );
 
