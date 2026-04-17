@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Settings, User } from "lucide-react";
+import { KeyRound, LogOut, Settings, User } from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
+import { isAxiosError } from "axios";
 import { api } from "@/api/client";
 import type { Me } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useQueryClient } from "@tanstack/react-query";
+import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,8 +40,56 @@ function initials(name: string) {
 export function UserMenu({ me }: { me: Me }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
+
+  // --- Logout state ---
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  // --- Change Password state ---
+  const [changePassOpen, setChangePassOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+
+  const passwordsMatch =
+    newPassword.length > 0 &&
+    confirmNewPassword.length > 0 &&
+    newPassword === confirmNewPassword;
+
+  const sameAsCurrentPassword =
+    currentPassword.length > 0 &&
+    newPassword.length > 0 &&
+    currentPassword === newPassword;
+
+  function resetPasswordFields() {
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+  }
+
+  const changePassword = useMutation({
+    mutationFn: async () =>
+      api.post("/api/auth/change-password", { currentPassword, newPassword }),
+    onSuccess: async () => {
+      resetPasswordFields();
+      setChangePassOpen(false);
+      await qc.invalidateQueries({ queryKey: ["me"] });
+      toast.success("Password updated successfully.");
+    },
+    onError: (e) =>
+      toast.error(
+        isAxiosError(e)
+          ? ((
+              e.response?.data as
+                | { error?: { details?: { reason?: string } } }
+                | undefined
+            )?.error?.details?.reason ??
+              e.response?.data?.error?.message ??
+              e.response?.data?.message ??
+              e.message)
+          : "Failed to update password.",
+      ),
+  });
 
   async function confirmLogout() {
     setLoggingOut(true);
@@ -57,6 +108,7 @@ export function UserMenu({ me }: { me: Me }) {
 
   return (
     <>
+      {/* ── Dropdown ── */}
       <DropdownMenu>
         <DropdownMenuTrigger className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
           <motion.span
@@ -72,7 +124,9 @@ export function UserMenu({ me }: { me: Me }) {
             </Avatar>
           </motion.span>
         </DropdownMenuTrigger>
+
         <DropdownMenuContent align="end" sideOffset={8} className="min-w-48">
+          {/* User info label */}
           <DropdownMenuGroup>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col gap-0.5">
@@ -83,7 +137,10 @@ export function UserMenu({ me }: { me: Me }) {
               </div>
             </DropdownMenuLabel>
           </DropdownMenuGroup>
+
           <DropdownMenuSeparator />
+
+          {/* 3 main actions */}
           <DropdownMenuGroup>
             <DropdownMenuItem
               onClick={() => navigate("/profile")}
@@ -99,8 +156,21 @@ export function UserMenu({ me }: { me: Me }) {
               <Settings className="size-4" />
               Settings
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                resetPasswordFields();
+                setChangePassOpen(true);
+              }}
+              className="cursor-pointer gap-2"
+            >
+              <KeyRound className="size-4" />
+              Reset password
+            </DropdownMenuItem>
           </DropdownMenuGroup>
+
           <DropdownMenuSeparator />
+
+          {/* Log out */}
           <DropdownMenuGroup>
             <DropdownMenuItem
               variant="destructive"
@@ -114,6 +184,100 @@ export function UserMenu({ me }: { me: Me }) {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* ── Change Password Dialog ── */}
+      <AlertDialog
+        open={changePassOpen}
+        onOpenChange={(open) => {
+          if (!open) resetPasswordFields();
+          setChangePassOpen(open);
+        }}
+      >
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change password</AlertDialogTitle>
+            <AlertDialogDescription>
+              Enter your current password and choose a new one.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4 py-1">
+            <div className="space-y-2">
+              <Label htmlFor="um-currentPassword">Current password</Label>
+              <PasswordInput
+                id="um-currentPassword"
+                placeholder="Enter current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="um-newPassword">New password</Label>
+              <PasswordInput
+                id="um-newPassword"
+                placeholder="Min 8 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="um-confirmPassword">Confirm new password</Label>
+              <PasswordInput
+                id="um-confirmPassword"
+                placeholder="Re-enter new password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                autoComplete="new-password"
+                aria-invalid={
+                  confirmNewPassword.length > 0 && !passwordsMatch
+                    ? true
+                    : undefined
+                }
+              />
+              {confirmNewPassword.length > 0 && !passwordsMatch && (
+                <p className="text-xs text-destructive">
+                  Passwords do not match.
+                </p>
+              )}
+              {sameAsCurrentPassword && (
+                <p className="text-xs text-destructive">
+                  New password must be different from the current one.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              variant="outline"
+              size="default"
+              disabled={changePassword.isPending}
+              onClick={resetPasswordFields}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              isLoading={changePassword.isPending}
+              disabled={
+                !currentPassword ||
+                newPassword.length < 8 ||
+                !passwordsMatch ||
+                sameAsCurrentPassword ||
+                changePassword.isPending
+              }
+              onClick={() => changePassword.mutate()}
+            >
+              Save password
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Logout Confirm Dialog ── */}
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent className="sm:max-w-sm">
           <AlertDialogHeader>
