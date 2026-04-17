@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 export type RoleNameComboboxRole = {
   id: string;
   name: string;
+  level: number;
   departmentId: string | null;
   matrixSelections: { module: string; action: string }[];
   /** Used to pick a single row when several roles share the same display name. */
@@ -184,15 +185,18 @@ export function RoleNameCombobox({
                   }}
                 >
                   {r.name}
+                  {r.level > 0 ? (
+                    <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      L{r.level}
+                    </span>
+                  ) : null}
                 </button>
               </li>
             ))
           )}
         </ul>
       ) : null}
-      {error ? (
-        <p className="mt-1 text-xs text-destructive">{error}</p>
-      ) : null}
+      {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

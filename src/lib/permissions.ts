@@ -174,8 +174,11 @@ export function roleModuleCanAccessRolesSettings(
 
 export function roleModuleCanList(
   permissions: readonly string[] | undefined,
+  roleCode?: string | null,
 ): boolean {
-  return permSet(permissions).has(P.ROLES_READ);
+  if (userIsTenantPrimaryAdmin(roleCode)) return true;
+  const s = permSet(permissions);
+  return s.has(P.ROLES_READ) || s.has(P.USERS_READ);
 }
 
 export function roleModuleCanFetchTenantRoleList(

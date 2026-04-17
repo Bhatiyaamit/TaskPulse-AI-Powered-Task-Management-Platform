@@ -45,6 +45,7 @@ const userSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   username: z.string().trim().min(1, "Username is required"),
   roleName: z.string().trim().min(1, "Role name is required"),
+  roleLevel: z.coerce.number().int().min(0).max(999).default(0),
   employeeCode: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   birthDate: z.string().optional(),
@@ -100,6 +101,7 @@ export function TeamUserCreatePage() {
       name: "",
       username: "",
       roleName: "",
+      roleLevel: 0,
       employeeCode: "",
       phone: "",
       birthDate: "",
@@ -116,10 +118,9 @@ export function TeamUserCreatePage() {
     queryKey: ["tenant-roles", "assignment"],
     enabled: canAddUser,
     queryFn: async () => {
-      const { data } = await api.get<ApiSuccess<{ roles: RoleNameComboboxRole[] }>>(
-        "/api/tenant/roles",
-        { params: { for: "assignment" } },
-      );
+      const { data } = await api.get<
+        ApiSuccess<{ roles: RoleNameComboboxRole[] }>
+      >("/api/tenant/roles", { params: { for: "assignment" } });
       return data.data.roles;
     },
   });
@@ -159,9 +160,9 @@ export function TeamUserCreatePage() {
     queryKey: ["org-departments", "options"],
     enabled: canAddUser,
     queryFn: async () => {
-      const { data } = await api.get<ApiSuccess<{ departments: DepartmentOption[] }>>(
-        "/api/org/departments",
-      );
+      const { data } = await api.get<
+        ApiSuccess<{ departments: DepartmentOption[] }>
+      >("/api/org/departments");
       return data.data.departments;
     },
   });
@@ -256,15 +257,15 @@ export function TeamUserCreatePage() {
           const [module, action] = k.split(":");
           return { module, action };
         });
-        const { data: roleRes } = await api.post<ApiSuccess<{ role: { id: string } }>>(
-          "/api/tenant/roles",
-          {
-            code: roleCodeFromName(v.roleName),
-            name: v.roleName.trim(),
-            departmentId: formDeptId,
-            permissions,
-          },
-        );
+        const { data: roleRes } = await api.post<
+          ApiSuccess<{ role: { id: string } }>
+        >("/api/tenant/roles", {
+          code: roleCodeFromName(v.roleName),
+          name: v.roleName.trim(),
+          level: v.roleLevel ?? 0,
+          departmentId: formDeptId,
+          permissions,
+        });
         roleId = roleRes.data.role.id;
       }
 
@@ -580,7 +581,7 @@ export function TeamUserCreatePage() {
                 />
               )}
             />
-         
+
             {rolesQuery.isError ? (
               <p className="text-xs text-destructive">
                 Could not load the role list.
@@ -676,10 +677,7 @@ export function TeamUserCreatePage() {
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            disabled={create.isPending  || !phoneOk}
-          >
+          <Button type="submit" disabled={create.isPending || !phoneOk}>
             {create.isPending ? "Creating…" : "Create user"}
           </Button>
         </div>

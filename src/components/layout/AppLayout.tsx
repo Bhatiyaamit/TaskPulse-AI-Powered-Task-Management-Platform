@@ -14,6 +14,7 @@ import {
   taskModuleCanCreate,
   taskModuleCanList,
   userModuleCanAccessUserRecord,
+  roleModuleCanList,
 } from "@/lib/permissions";
 import {
   LayoutDashboard,
@@ -25,6 +26,7 @@ import {
   Calendar,
   Layers,
   ClipboardList,
+  ShieldHalf,
 } from "lucide-react";
 
 export function AppLayout() {
@@ -96,13 +98,11 @@ export function AppLayout() {
                   label="Meetings"
                 />
               )}
-              {userModuleCanAccessUserRecord(p) && (
-                <Nav
-                  to="/team"
-                  icon={<Users className="h-4 w-4" />}
-                  label="Team"
-                />
-              )}
+              <Nav
+                to="/team"
+                icon={<Users className="h-4 w-4" />}
+                label="Team"
+              />
               {departmentModuleCanAccessDepartmentsNav(p) && (
                 <Nav
                   to="/departments"
@@ -117,6 +117,11 @@ export function AppLayout() {
                   label="Reports"
                 />
               )}
+              <Nav
+                to="/roles"
+                icon={<ShieldHalf className="h-4 w-4" />}
+                label="Hierarchy"
+              />
               <Nav
                 to="/settings"
                 icon={<Settings className="h-4 w-4" />}

@@ -121,7 +121,7 @@ export function TeamPage() {
   const qc = useQueryClient();
   const me = useMe();
   const perms = new Set(me.data?.permissions ?? []);
-  const canListTeam = userModuleCanList(me.data?.permissions);
+  const canListTeam = true; // No restriction on viewing user directory
   const canEditUsers = perms.has(P.USERS_UPDATE);
   const canDeleteUsers = perms.has(P.USERS_DELETE);
   const canAddUser = canCreateUsers(me.data);
