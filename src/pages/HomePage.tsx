@@ -8,12 +8,13 @@ export function HomePage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (data?.user.tenantId == null) {
+    if (data?.user.tenantId == null && !data?.selectedTenantId) {
       navigate("/platform/dashboard", { replace: true });
     }
   }, [data, navigate]);
 
-  if (data?.user.tenantId == null) {
+  // For Super Admin: if a company is selected, treat "/" as company dashboard.
+  if (data?.user.tenantId == null && !data?.selectedTenantId) {
     return null;
   }
   return <DashboardPage />;

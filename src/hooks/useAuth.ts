@@ -15,6 +15,9 @@ export type Me = {
     roleCode?: string;
   };
   permissions: string[];
+  /** For Super Admin only: currently selected company (tenant) context. */
+  selectedTenantId?: string | null;
+  selectedTenant?: { id: string; name: string; slug: string } | null;
 };
 
 export function useMe() {
