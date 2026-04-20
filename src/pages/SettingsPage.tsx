@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
-import { PasswordInput } from "@/components/ui/password-input";
 
 export function SettingsPage() {
   const qc = useQueryClient();
@@ -36,9 +35,6 @@ export function SettingsPage() {
   const [notificationDraft, setNotificationDraft] = useState<boolean>(
     me?.user.notificationEnabled ?? true,
   );
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
 
   useEffect(() => {
     setNotificationEnabled(me?.user.notificationEnabled ?? true);
@@ -56,8 +52,8 @@ export function SettingsPage() {
       toast.error(
         isAxiosError(e)
           ? (e.response?.data?.error?.message ??
-            e.response?.data?.message ??
-            e.message)
+              e.response?.data?.message ??
+              e.message)
           : "Failed",
       ),
   });
@@ -73,44 +69,11 @@ export function SettingsPage() {
       toast.error(
         isAxiosError(e)
           ? (e.response?.data?.error?.message ??
-            e.response?.data?.message ??
-            e.message)
+              e.response?.data?.message ??
+              e.message)
           : "Failed",
       ),
   });
-
-  const changePassword = useMutation({
-    mutationFn: async () =>
-      api.post("/api/auth/change-password", {
-        currentPassword,
-        newPassword,
-      }),
-    onSuccess: async () => {
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmNewPassword("");
-      await qc.invalidateQueries({ queryKey: ["me"] });
-      toast.success("Password updated successfully.");
-    },
-    onError: (e) =>
-      toast.error(
-        isAxiosError(e)
-          ? ((e.response?.data as { error?: { details?: { reason?: string } } } | undefined)?.error?.details?.reason ??
-            e.response?.data?.error?.message ??
-            e.response?.data?.message ??
-            e.message)
-          : "Failed",
-      ),
-  });
-
-  const passwordsMatch =
-    newPassword.length > 0 &&
-    confirmNewPassword.length > 0 &&
-    newPassword === confirmNewPassword;
-  const sameAsCurrentPassword =
-    currentPassword.length > 0 &&
-    newPassword.length > 0 &&
-    currentPassword === newPassword;
 
   return (
     <motion.div
@@ -131,7 +94,6 @@ export function SettingsPage() {
       <Tabs defaultValue="preferences" className="w-full max-w-3xl">
         <TabsList variant="pills">
           <TabsTrigger value="preferences">Preferences</TabsTrigger>
-          <TabsTrigger value="password">Change password</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
 
@@ -170,80 +132,6 @@ export function SettingsPage() {
                 System follows your OS light or dark mode. Default for new
                 visits is dark.
               </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="password" className="mt-4 outline-none">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-heading text-base font-semibold uppercase tracking-wide text-primary">
-                Change password
-              </CardTitle>
-              <CardDescription>Update your account password.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="currentPassword">Current password</Label>
-                <PasswordInput
-                  id="currentPassword"
-                  placeholder="Enter current password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="newPassword">New password</Label>
-                <PasswordInput
-                  id="newPassword"
-                  placeholder="Enter new password (min 8 characters)"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmNewPassword">Confirm new password</Label>
-                <PasswordInput
-                  id="confirmNewPassword"
-                  placeholder="Re-enter new password"
-                  value={confirmNewPassword}
-                  onChange={(e) => setConfirmNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                  aria-invalid={
-                    confirmNewPassword.length > 0 && !passwordsMatch
-                      ? true
-                      : undefined
-                  }
-                />
-                {confirmNewPassword.length > 0 && !passwordsMatch ? (
-                  <p className="text-xs text-destructive">
-                    Passwords do not match.
-                  </p>
-                ) : null}
-                {sameAsCurrentPassword ? (
-                  <p className="text-xs text-destructive">
-                    Current password and new password must be different.
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  isLoading={changePassword.isPending}
-                  disabled={
-                    !currentPassword ||
-                    newPassword.length < 8 ||
-                    !passwordsMatch ||
-                    sameAsCurrentPassword ||
-                    changePassword.isPending
-                  }
-                  onClick={() => changePassword.mutate()}
-                >
-                  Save password
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
