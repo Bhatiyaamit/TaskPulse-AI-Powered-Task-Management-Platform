@@ -145,6 +145,14 @@ export function PlatformTenantCreatePage() {
         className="space-y-8"
         onSubmit={(e) => {
           e.preventDefault();
+          if (adminUsername.includes(" ")) {
+            toast.error("Username cannot contain spaces.");
+            return;
+          }
+          if (tempPassword.includes(" ")) {
+            toast.error("Password cannot contain spaces.");
+            return;
+          }
           create.mutate();
         }}
       >
@@ -171,7 +179,14 @@ export function PlatformTenantCreatePage() {
               value={adminUsername}
               placeholder="e.g. acme.admin"
               autoComplete="off"
-              onChange={(e) => setAdminUsername(e.target.value)}
+              onChange={(e) => {
+                let val = e.target.value;
+                if (val.includes(" ")) {
+                  toast.error("Username cannot contain spaces");
+                  val = val.replace(/ /g, "");
+                }
+                setAdminUsername(val);
+              }}
               required
             />
             <p className="text-xs text-muted-foreground">
@@ -188,7 +203,14 @@ export function PlatformTenantCreatePage() {
               value={tempPassword}
               placeholder="Minimum 8 characters"
               autoComplete="new-password"
-              onChange={(e) => setTempPassword(e.target.value)}
+              onChange={(e) => {
+                let val = e.target.value;
+                if (val.includes(" ")) {
+                  toast.error("Password cannot contain spaces");
+                  val = val.replace(/ /g, "");
+                }
+                setTempPassword(val);
+              }}
               required
               minLength={8}
             />
