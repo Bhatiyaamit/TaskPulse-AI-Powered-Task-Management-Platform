@@ -37,16 +37,23 @@ export function PlatformTenantCreatePage() {
 
   const create = useMutation({
     mutationFn: () =>
-      api.post<ApiSuccess<{ tenant: { id: string } }>>("/api/platform/tenants", {
-        name,
-        slug: slugify(name),
-        adminUsername: adminUsername.trim().toLowerCase(),
-        tempPassword,
-      }),
+      api.post<ApiSuccess<{ tenant: { id: string } }>>(
+        "/api/platform/tenants",
+        {
+          name,
+          slug: slugify(name),
+          adminUsername: adminUsername.trim().toLowerCase(),
+          tempPassword,
+        },
+      ),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["tenants"], exact: false });
       await qc.invalidateQueries({
         queryKey: ["platform-dashboard"],
+        exact: false,
+      });
+      await qc.invalidateQueries({
+        queryKey: ["platform-tenants", "options"],
         exact: false,
       });
       setCreated({

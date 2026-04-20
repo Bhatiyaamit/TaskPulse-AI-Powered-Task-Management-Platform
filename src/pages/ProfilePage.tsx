@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CenteredFormPage } from "@/components/layout/CenteredFormPage";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { roleCodeBadgeClass } from "@/lib/badges";
 
 /** Show up to 10 digits from stored value (strips +91 etc.). */
 function phoneDigitsForInput(stored: string | null | undefined): string {
@@ -106,14 +107,8 @@ export function ProfilePage() {
             <span className="text-sm font-semibold uppercase tracking-wide text-primary">
               Role
             </span>
-            <span className="font-medium">{data.user.roleCode ?? "—"}</span>
-          </div>
-          <div className="flex justify-between gap-4 py-2">
-            <span className="text-sm font-semibold uppercase tracking-wide text-primary">
-              Workspace
-            </span>
-            <span className="font-medium">
-              {data.user.tenantId ? "Tenant user" : "Platform"}
+            <span className={roleCodeBadgeClass(data.user.roleCode)}>
+              {data.user.roleCode ? String(data.user.roleCode) : "—"}
             </span>
           </div>
         </div>
@@ -127,7 +122,9 @@ export function ProfilePage() {
           }}
         >
           <div className="space-y-2">
-            <Label htmlFor="profile-username">Username</Label>
+            <Label htmlFor="profile-username" required>
+              Username
+            </Label>
             <Input id="profile-username" value={data.user.username} disabled />
           </div>
           <div className="space-y-2">
@@ -152,7 +149,9 @@ export function ProfilePage() {
               value={phone}
               onChange={(e) => {
                 setIsEditing(true);
-                const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 10);
+                const digitsOnly = e.target.value
+                  .replace(/\D/g, "")
+                  .slice(0, 10);
                 setPhone(digitsOnly);
               }}
               onKeyDown={(e) => {
@@ -190,7 +189,10 @@ export function ProfilePage() {
                 {phoneHint}
               </p>
             ) : (
-              <p id="profile-phone-help" className="text-xs text-muted-foreground">
+              <p
+                id="profile-phone-help"
+                className="text-xs text-muted-foreground"
+              >
                 Digits only, up to 10 characters. Leave empty if you have no
                 phone.
               </p>
@@ -217,6 +219,7 @@ export function ProfilePage() {
                 !isEditing || update.isPending || !name.trim() || !phoneOk
               }
             >
+              <Save className="size-4 shrink-0" />
               Save changes
             </Button>
           </div>
