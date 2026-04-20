@@ -15,6 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { io } from "socket.io-client";
 import { api } from "@/api/client";
+import type { ApiSuccess } from "@/api/types";
 import { badgeBase } from "@/lib/badges";
 import { SOCKET_EVENT } from "@/lib/socketEvents";
 import { cn } from "@/lib/utils";
@@ -102,11 +103,13 @@ export function NotificationBell() {
   const { data } = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
-      const { data } = await api.get<{
-        notifications: Notif[];
-        unreadCount: number;
-      }>("/api/notifications");
-      return data;
+      const { data } = await api.get<
+        ApiSuccess<{
+          notifications: Notif[];
+          unreadCount: number;
+        }>
+      >("/api/notifications");
+      return data.data;
     },
   });
 

@@ -10,12 +10,27 @@ export const api = axios.create({
 });
 
 let csrfToken: string | null = null;
+let csrfRefreshInFlight: Promise<string> | null = null;
 
 export async function ensureCsrf() {
   if (csrfToken) return csrfToken;
   const { data } = await api.get<{ csrfToken: string }>("/api/csrf");
   csrfToken = data.csrfToken;
   return csrfToken;
+}
+
+async function refreshCsrfToken() {
+  if (csrfRefreshInFlight) return csrfRefreshInFlight;
+  csrfRefreshInFlight = (async () => {
+    const { data } = await api.get<{ csrfToken: string }>("/api/csrf");
+    csrfToken = data.csrfToken;
+    return csrfToken;
+  })();
+  try {
+    return await csrfRefreshInFlight;
+  } finally {
+    csrfRefreshInFlight = null;
+  }
 }
 
 api.interceptors.request.use(async (config) => {
@@ -50,7 +65,26 @@ api.interceptors.response.use(
     e.status = response.status;
     throw e;
   },
-  (error) => {
+  async (error) => {
+    const status = error?.response?.status;
+    const msg = String(error?.response?.data?.error ?? "");
+    const original = error?.config as
+      | (typeof error.config & { _csrfRetried?: boolean })
+      | undefined;
+
+    // If CSRF token expired/mismatched, refresh token once and retry request.
+    if (
+      status === 403 &&
+      msg === "CSRF validation failed" &&
+      original &&
+      !original._csrfRetried
+    ) {
+      original._csrfRetried = true;
+      const t = await refreshCsrfToken();
+      original.headers = { ...(original.headers ?? {}), "X-CSRF-Token": t };
+      return api.request(original);
+    }
+
     // Preserve existing axios error shape; pages can still use isAxiosError.
     throw error;
   },

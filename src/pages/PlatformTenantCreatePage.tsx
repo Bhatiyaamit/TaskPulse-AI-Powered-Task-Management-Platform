@@ -35,6 +35,31 @@ export function PlatformTenantCreatePage() {
     return s || "tenant";
   }
 
+  function humanizeValidationMessage(field: string, message: string) {
+    const f = String(field || "").toLowerCase();
+    const m = String(message || "").toLowerCase();
+
+    if (f === "slug") {
+      if (m.includes("at least 2")) {
+        return "Company name must be at least 2 characters.";
+      }
+      if (m.includes("regex") || m.includes("invalid")) {
+        return "Company name can use letters, numbers, and hyphens.";
+      }
+      return "Please enter a valid company name.";
+    }
+    if (f === "name") {
+      return "Please enter a valid company name.";
+    }
+    if (f === "adminusername") {
+      return "Please enter a valid company admin username.";
+    }
+    if (f === "temppassword") {
+      return "Temporary password must be at least 8 characters.";
+    }
+    return message || "Please check the highlighted fields.";
+  }
+
   const create = useMutation({
     mutationFn: () =>
       api.post<ApiSuccess<{ tenant: { id: string } }>>(
@@ -66,12 +91,43 @@ export function PlatformTenantCreatePage() {
       toast.success("Company created.");
     },
     onError: (e) => {
-      const msg = isAxiosError(e)
-        ? (e.response?.data?.error?.message ??
-          e.response?.data?.message ??
-          e.message)
-        : "Could not create tenant";
-      toast.error(String(msg));
+      if (isAxiosError(e)) {
+        const body = e.response?.data as
+          | {
+              message?: string;
+              error?: {
+                message?: string;
+                details?: {
+                  formErrors?: string[];
+                  fieldErrors?: Record<string, string[]>;
+                };
+              };
+            }
+          | undefined;
+        const details = body?.error?.details;
+        const fieldMsg = details?.fieldErrors
+          ? Array.from(
+              new Set(
+                Object.entries(details.fieldErrors)
+              .flatMap(([field, msgs]) =>
+                (msgs ?? []).map((m) => humanizeValidationMessage(field, m)),
+              )
+              .filter(Boolean),
+              ),
+            ).join(" ")
+          : "";
+        const formMsg = (details?.formErrors ?? []).filter(Boolean).join(" | ");
+        const msg =
+          fieldMsg ||
+          formMsg ||
+          body?.error?.message ||
+          body?.message ||
+          e.message ||
+          "Could not create company";
+        toast.error(String(msg));
+        return;
+      }
+      toast.error("Could not create company");
     },
   });
 
@@ -115,7 +171,7 @@ export function PlatformTenantCreatePage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="tenant-admin-username" required>
-              First admin username
+              Company admin username
             </Label>
             <Input
               id="tenant-admin-username"

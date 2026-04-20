@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
+import { isAxiosError } from "axios";
 import { useMe } from "@/hooks/useAuth";
 import {
   meetingModuleCanUpdate,
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -41,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 type MeetingTaskRow = {
   id: string;
@@ -48,6 +51,8 @@ type MeetingTaskRow = {
   dueDate: string | null;
   updatedAt: string;
   status: { code: string; label: string };
+  createdBy: { id: string; name: string; username: string } | null;
+  assignedTo: { id: string; name: string; username: string } | null;
   reviewer: { id: string; name: string; username: string } | null;
 };
 
@@ -154,6 +159,7 @@ export function MeetingDetailPage() {
   const canListMeetingTasks = taskModuleCanList(perms);
   const canCreateTask = taskModuleCanCreate(perms);
   const canUpdateTask = taskModuleCanUpdate(perms);
+  const [momNotesDraft, setMomNotesDraft] = useState("");
 
   const { data } = useQuery({
     queryKey: ["meeting", id],
@@ -165,7 +171,10 @@ export function MeetingDetailPage() {
         id: string;
         title: string;
         agenda: string | null;
+        momNotes: string | null;
+        meetingType: "ONLINE" | "OFFLINE";
         meetingLink: string | null;
+        meetingLocation: string | null;
         preparationNotes: string | null;
         priority: string;
         durationMinutes: number | null;
@@ -186,10 +195,15 @@ export function MeetingDetailPage() {
     },
   });
 
+  useEffect(() => {
+    setMomNotesDraft(data?.momNotes ?? "");
+  }, [data?.momNotes]);
+
   const meetingTasksQuery = useQuery({
     enabled:
       Boolean(id) &&
-      data?.computedStatus === "COMPLETED" &&
+      (data?.computedStatus === "COMPLETED" ||
+        data?.computedStatus === "IN_PROGRESS") &&
       canListMeetingTasks,
     queryKey: ["meeting-tasks", id, searchParams.toString()],
     queryFn: async () => {
@@ -204,6 +218,7 @@ export function MeetingDetailPage() {
         ApiSuccess<MeetingTaskRow[], { page: number; limit: number; total: number }>
       >("/api/tasks", {
         params: {
+          queue: "team",
           meetingId: String(id),
           page: parsed.pagination.pageIndex + 1,
           pageSize: parsed.pagination.pageSize,
@@ -234,6 +249,23 @@ export function MeetingDetailPage() {
         exact: false,
       });
       await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
+    },
+    onError: (e) => {
+      const message = isAxiosError(e)
+        ? String(e.response?.data?.message ?? e.message)
+        : "Could not complete meeting";
+      toast.error(message);
+    },
+  });
+  const saveMomNotes = useMutation({
+    mutationFn: async (momNotes: string) =>
+      api.patch(`/api/meetings/${id}`, { momNotes }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["meeting", id] });
+      await qc.invalidateQueries({
+        queryKey: ["meetings-paginated"],
+        exact: false,
+      });
     },
   });
 
@@ -286,7 +318,8 @@ export function MeetingDetailPage() {
     queryKey: ["task-statuses"],
     enabled:
       Boolean(id) &&
-      data?.computedStatus === "COMPLETED" &&
+      (data?.computedStatus === "COMPLETED" ||
+        data?.computedStatus === "IN_PROGRESS") &&
       canListMeetingTasks,
     queryFn: async () => {
       const { data } = await api.get<
@@ -321,6 +354,32 @@ export function MeetingDetailPage() {
         cell: ({ row }) => (
           <span className={taskStatusBadgeClass(row.original.status.code)}>
             {row.original.status.label}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "assignedTo",
+        id: "assignedTo",
+        header: "Assigned to",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.assignedTo?.name ||
+              row.original.assignedTo?.username ||
+              "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "createdBy",
+        id: "createdBy",
+        header: "Created by",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.createdBy?.name ||
+              row.original.createdBy?.username ||
+              "—"}
           </span>
         ),
       },
@@ -533,12 +592,16 @@ export function MeetingDetailPage() {
     canUpdateMeeting &&
     meeting.computedStatus !== "COMPLETED" &&
     meeting.computedStatus !== "CANCELLED";
+  const hasMomNotes = Boolean((momNotesDraft ?? "").trim());
   const canEditMeeting =
     canUpdateMeeting && meeting.computedStatus === "SCHEDULED";
   const isCompleted = meeting.computedStatus === "COMPLETED";
+  const canCreateTasksFromMeeting =
+    meeting.computedStatus === "IN_PROGRESS" ||
+    meeting.computedStatus === "COMPLETED";
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex justify-start items-center">
         <FormBackLink to="/meetings">Back to meetings</FormBackLink>
       </div>
@@ -576,8 +639,16 @@ export function MeetingDetailPage() {
                 type="button"
                 variant="default"
                 isLoading={markCompleted.isPending}
-                disabled={!canMarkCompleted || markCompleted.isPending}
-                onClick={() => markCompleted.mutate()}
+                disabled={!canMarkCompleted || markCompleted.isPending || !hasMomNotes}
+                onClick={() => {
+                  if (!hasMomNotes) {
+                    toast.warning(
+                      "Please add MOM before marking meeting as completed.",
+                    );
+                    return;
+                  }
+                  markCompleted.mutate();
+                }}
               >
                 <CheckCircle2 className="size-4" />
                 <span>Mark as completed</span>
@@ -587,65 +658,105 @@ export function MeetingDetailPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <div>
-            <div className="text-xs text-muted-foreground">Host</div>
-            <div className="text-foreground">
-              {meeting.createdBy.name}{" "}
-              <span className="text-muted-foreground">
-                · {meeting.createdBy.username}
-              </span>
-            </div>
-          </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2 lg:h-[360px]">
+          <CardHeader>
+            <CardTitle>Details</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[calc(100%-56px)] overflow-y-auto space-y-4 text-sm">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground">Host</div>
+                <div className="text-foreground">
+                  {meeting.createdBy.name}{" "}
+                  <span className="text-muted-foreground">
+                    · {meeting.createdBy.username}
+                  </span>
+                </div>
+              </div>
 
-          <div>
-            <div className="text-xs text-muted-foreground">Attendees</div>
-            <div className="text-foreground">
-              {(meeting.attendees ?? []).length
-                ? meeting.attendees.map((a) => a.user.name).join(", ")
-                : "—"}
-            </div>
-          </div>
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground">
+                  {meeting.meetingType === "OFFLINE"
+                    ? "Meeting location"
+                    : "Meeting link"}
+                </div>
+                {meeting.meetingType === "OFFLINE" ? (
+                  <div className="text-foreground">
+                    {meeting.meetingLocation?.trim() || "—"}
+                  </div>
+                ) : meeting.meetingLink ? (
+                  <a
+                    href={meeting.meetingLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                  >
+                    Open link <ExternalLink className="size-4" />
+                  </a>
+                ) : (
+                  <div className="text-muted-foreground">—</div>
+                )}
+              </div>
 
-          <div>
-            <div className="text-xs text-muted-foreground">Meeting link</div>
-            {meeting.meetingLink ? (
-              <a
-                href={meeting.meetingLink}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-primary hover:underline"
-              >
-                Open link <ExternalLink className="size-4" />
-              </a>
-            ) : (
-              <div className="text-muted-foreground">—</div>
-            )}
-          </div>
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground">Attendees</div>
+                <div className="text-foreground">
+                  {(meeting.attendees ?? []).length
+                    ? meeting.attendees.map((a) => a.user.name).join(", ")
+                    : "—"}
+                </div>
+              </div>
 
-          <div>
-            <div className="text-xs text-muted-foreground">Agenda</div>
-            <div className="whitespace-pre-wrap text-muted-foreground">
-              {meeting.agenda ?? "—"}
-            </div>
-          </div>
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground">Agenda</div>
+                <div className="whitespace-pre-wrap text-muted-foreground">
+                  {meeting.agenda ?? "—"}
+                </div>
+              </div>
 
-          <div>
-            <div className="text-xs text-muted-foreground">
-              Preparation notes
+              <div className="space-y-1 md:col-span-2">
+                <div className="text-xs text-muted-foreground">
+                  Preparation notes
+                </div>
+                <div className="whitespace-pre-wrap text-muted-foreground">
+                  {meeting.preparationNotes ?? "—"}
+                </div>
+              </div>
             </div>
-            <div className="whitespace-pre-wrap text-muted-foreground">
-              {meeting.preparationNotes ?? "—"}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {isCompleted && canListMeetingTasks ? (
+        <Card className="lg:h-[360px]">
+          <CardHeader>
+            <CardTitle>MOM</CardTitle>
+          </CardHeader>
+          <CardContent className="flex h-[calc(100%-56px)] flex-col gap-2">
+            <Textarea
+              value={momNotesDraft}
+              onChange={(e) => setMomNotesDraft(e.target.value)}
+              placeholder="Add meeting MOM (minutes of meeting)..."
+              className="h-full min-h-0 resize-none overflow-y-auto"
+              readOnly={!canUpdateMeeting}
+            />
+            {canUpdateMeeting ? (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => saveMomNotes.mutate(momNotesDraft)}
+                  isLoading={saveMomNotes.isPending}
+                  disabled={saveMomNotes.isPending}
+                >
+                  Save MOM
+                </Button>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+
+      {canCreateTasksFromMeeting && canListMeetingTasks ? (
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
