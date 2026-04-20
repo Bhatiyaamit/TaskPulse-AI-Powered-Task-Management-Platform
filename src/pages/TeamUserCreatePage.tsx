@@ -43,7 +43,15 @@ type MatrixCell = { module: string; action: string };
 
 const userSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
-  username: z.string().trim().min(1, "Username is required"),
+  username: z
+    .string()
+    .min(3, "Username must be at least 3 characters")
+    .max(64)
+    .transform((v) => v.toLowerCase())
+    .refine((v) => /^[a-z0-9._-]{3,64}$/.test(v), {
+      message:
+        "Username cannot have spaces and must use only letters, numbers, dots, underscores, or hyphens",
+    }),
   roleName: z.string().trim().min(1, "Role name is required"),
   roleLevel: z.coerce.number().int().min(0).max(999).default(0),
   employeeCode: z.string().trim().optional(),
@@ -51,7 +59,10 @@ const userSchema = z.object({
   birthDate: z.string().optional(),
   password: z
     .string()
-    .min(8, "Temporary password must be at least 8 characters"),
+    .min(8, "Temporary password must be at least 8 characters")
+    .refine((v) => !v.includes(" "), {
+      message: "Password cannot contain spaces",
+    }),
   managerId: z.string().default("__none__"),
   departmentId: z.string().default("__none__"),
   isReviewer: z.boolean().default(false).catch(false),
@@ -360,7 +371,14 @@ export function TeamUserCreatePage() {
               placeholder="e.g. priya.patel"
               autoComplete="username"
               required
-              {...register("username")}
+              {...register("username", {
+                onChange: (e) => {
+                  if (e.target.value.includes(" ")) {
+                    toast.error("Username cannot contain spaces");
+                    e.target.value = e.target.value.replace(/ /g, "");
+                  }
+                },
+              })}
             />
             {errors.username ? (
               <p className="text-xs text-destructive">
@@ -663,7 +681,14 @@ export function TeamUserCreatePage() {
               autoComplete="new-password"
               minLength={8}
               required
-              {...register("password")}
+              {...register("password", {
+                onChange: (e) => {
+                  if (e.target.value.includes(" ")) {
+                    toast.error("Password cannot contain spaces");
+                    e.target.value = e.target.value.replace(/ /g, "");
+                  }
+                },
+              })}
             />
             {errors.password ? (
               <p className="text-xs text-destructive">
