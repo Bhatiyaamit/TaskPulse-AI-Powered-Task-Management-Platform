@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { UserCircle2, CornerDownRight, GripVertical } from "lucide-react";
+import { UserCircle2, CornerDownRight, GripVertical, Lock } from "lucide-react";
 import { api } from "@/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { isAxiosError } from "axios";
@@ -28,20 +28,27 @@ function OrgNode({
   const [dragCounter, setDragCounter] = useState(0);
   const isDragOver = dragCounter > 0;
 
+  const isAdmin =
+    member.role.code === "COMPANY_ADMIN" || member.role.code === "SUPER_ADMIN";
+
   return (
-    <div className="flex flex-col ml-6 relative">
+    <div className="flex flex-col ml-7 relative">
       {/* Visual thread line to children */}
       {children.length > 0 && (
         <div className="absolute top-9 bottom-0 left-4.75 w-px bg-border/60" />
       )}
 
       <div
-        className={`flex items-start gap-3 py-2 px-3 mx-[-12px] relative z-10 rounded-lg transition-all cursor-grab active:cursor-grabbing border-2 ${
+        className={`flex items-start gap-3 py-2 px-3 -mx-3 relative z-10 rounded-lg transition-all border-2 ${
+          !isAdmin ? "cursor-grab active:cursor-grabbing" : ""
+        } ${
           isDragOver
             ? "border-primary border-dashed bg-primary/5"
-            : "border-transparent hover:bg-muted/40"
+            : isAdmin
+              ? "border-amber-500/20 bg-amber-500/10 dark:bg-amber-500/15 shadow-sm"
+              : "border-transparent hover:bg-muted/40"
         }`}
-        draggable
+        draggable={!isAdmin}
         onDragStart={(e) => {
           e.dataTransfer.setData(
             "application/json",
@@ -76,7 +83,11 @@ function OrgNode({
         }}
       >
         <div className="flex items-center justify-center shrink-0 w-5 h-10 pointer-events-none opacity-40">
-          <GripVertical className="w-4 h-4" />
+          {!isAdmin ? (
+            <GripVertical className="w-4 h-4" />
+          ) : (
+            <Lock className="w-4 h-4 text-amber-600 dark:text-amber-500 opacity-60" />
+          )}
         </div>
 
         <div className="flex items-center justify-center min-w-10 h-10 rounded-full bg-muted border border-border shadow-sm text-muted-foreground/80 pointer-events-none">
@@ -87,7 +98,7 @@ function OrgNode({
           <span className="font-semibold text-foreground truncate block text-sm">
             {member.name}
           </span>
-          <div className="flex items-center gap-2 flex-wrap mt-[1px]">
+          <div className="flex items-center gap-2 flex-wrap mt-px">
             <span className="text-xs text-muted-foreground bg-muted/60 border border-border/50 px-2 py-0.5 rounded-md truncate">
               {member.role.name}
             </span>
@@ -105,7 +116,7 @@ function OrgNode({
           {children.map((child) => (
             <div key={child.id} className="relative">
               {/* Corner branch joining the thread to the child node */}
-              <div className="absolute top-6 left-[-5px] text-border/60 pointer-events-none">
+              <div className="absolute top-6 -left-1.25 text-border/60 pointer-events-none">
                 <CornerDownRight className="w-5 h-5" strokeWidth={1.5} />
               </div>
               <OrgNode
@@ -117,49 +128,6 @@ function OrgNode({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function TopLevelDropZone({
-  onDropUser,
-}: {
-  onDropUser: (id: string, managerId: null) => void;
-}) {
-  const [dragCounter, setDragCounter] = useState(0);
-  const isDragOver = dragCounter > 0;
-
-  return (
-    <div
-      className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center transition-colors mb-6 text-sm ${
-        isDragOver
-          ? "border-primary bg-primary/5 text-primary"
-          : "border-border/60 text-muted-foreground/60 hover:bg-muted/30"
-      }`}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-      }}
-      onDragEnter={(e) => {
-        e.preventDefault();
-        setDragCounter((c) => c + 1);
-      }}
-      onDragLeave={(e) => {
-        e.preventDefault();
-        setDragCounter((c) => c - 1);
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragCounter(0);
-        try {
-          const data = JSON.parse(e.dataTransfer.getData("application/json"));
-          onDropUser(data.id, null);
-        } catch (err) {}
-      }}
-    >
-      <div className="pointer-events-none text-center">
-        Drag and drop a user here to make them a top-level manager
-      </div>
     </div>
   );
 }
@@ -232,8 +200,6 @@ export function RolesPage() {
             </div>
           ) : (
             <>
-              <TopLevelDropZone onDropUser={handleDropUser} />
-
               <div className="overflow-x-auto pb-8 -ml-6">
                 {(() => {
                   const members = orgQuery.data || [];
