@@ -13,8 +13,6 @@ import {
   departmentModuleCanAccessDepartmentsNav,
   taskModuleCanCreate,
   taskModuleCanList,
-  userModuleCanAccessUserRecord,
-  roleModuleCanList,
 } from "@/lib/permissions";
 import {
   LayoutDashboard,

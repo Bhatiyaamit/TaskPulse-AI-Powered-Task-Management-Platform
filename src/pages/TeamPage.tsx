@@ -9,7 +9,7 @@ import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { canCreateUsers } from "@/lib/userCreationRoles";
-import { P, userModuleCanList } from "@/lib/permissions";
+import { P } from "@/lib/permissions";
 import {
   Eye,
   Pencil,
@@ -64,7 +64,10 @@ type TeamMemberRow = {
   role: { id: string; code: string; name: string };
 };
 
-type PaginatedResponse<T> = ApiSuccess<T[], { page: number; limit: number; total: number }>;
+type PaginatedResponse<T> = ApiSuccess<
+  T[],
+  { page: number; limit: number; total: number }
+>;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZES = [10, 20, 50, 100] as const;
@@ -203,7 +206,9 @@ export function TeamPage() {
     enabled: canListTeam,
     queryFn: async () => {
       const { data } = await api.get<
-        ApiSuccess<{ departments: { id: string; name: string; code: string | null }[] }>
+        ApiSuccess<{
+          departments: { id: string; name: string; code: string | null }[];
+        }>
       >("/api/org/departments");
       return data.data.departments;
     },
@@ -529,9 +534,9 @@ export function TeamPage() {
                         ? "Company admin user status cannot be changed from Team"
                         : isSelf
                           ? "You cannot activate or deactivate your own account"
-                        : row.original.isActive
-                          ? "Deactivate user"
-                          : "Activate user"}
+                          : row.original.isActive
+                            ? "Deactivate user"
+                            : "Activate user"}
                     </TooltipContent>
                   </Tooltip>
                 </>
@@ -582,7 +587,7 @@ export function TeamPage() {
                       ? "Company admin users cannot be deleted from Team"
                       : isSelf
                         ? "You cannot delete your own account"
-                      : "Delete"}
+                        : "Delete"}
                   </TooltipContent>
                 </Tooltip>
               ) : null}
@@ -628,9 +633,7 @@ export function TeamPage() {
   );
 
   if (me.isPending) {
-    return (
-      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
-    );
+    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   }
 
   return (
@@ -670,7 +673,8 @@ export function TeamPage() {
                 <span className="font-medium text-foreground">
                   Users → Read
                 </span>{" "}
-                (<code className="rounded bg-muted px-1 py-0.5 text-xs">
+                (
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
                   {P.USERS_READ}
                 </code>
                 ).
