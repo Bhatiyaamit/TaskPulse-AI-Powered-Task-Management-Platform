@@ -66,7 +66,14 @@ export function LoginPage() {
             autoComplete="username"
             placeholder="Your login name"
             aria-invalid={Boolean(errors.username)}
-            {...register("username")}
+            {...register("username", {
+              onChange: (e) => {
+                if (e.target.value.includes(" ")) {
+                  toast.error("Username cannot contain spaces");
+                  e.target.value = e.target.value.replace(/ /g, "");
+                }
+              },
+            })}
           />
           {errors.username && (
             <p className="text-xs text-destructive">
@@ -83,7 +90,14 @@ export function LoginPage() {
             autoComplete="current-password"
             placeholder="Your password"
             aria-invalid={Boolean(errors.password)}
-            {...register("password")}
+            {...register("password", {
+              onChange: (e) => {
+                if (e.target.value.includes(" ")) {
+                  toast.error("Password cannot contain spaces");
+                  e.target.value = e.target.value.replace(/ /g, "");
+                }
+              },
+            })}
           />
           {errors.password && (
             <p className="text-xs text-destructive">
