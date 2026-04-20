@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/data-table/data-table";
@@ -176,19 +176,16 @@ export function PlatformTenantsPage() {
     queryFn: async () => {
       const { data } = await api.get<
         ApiSuccess<TenantRow[], { page: number; limit: number; total: number }>
-      >(
-        "/api/platform/tenants",
-        {
-          params: {
-            page: pagination.pageIndex + 1,
-            pageSize: pagination.pageSize,
-            ...(search.trim() ? { search: search.trim() } : {}),
-            ...(status ? { status } : {}),
-            sortBy: apiSortBy,
-            sortDir: apiSortDir,
-          },
+      >("/api/platform/tenants", {
+        params: {
+          page: pagination.pageIndex + 1,
+          pageSize: pagination.pageSize,
+          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(status ? { status } : {}),
+          sortBy: apiSortBy,
+          sortDir: apiSortDir,
         },
-      );
+      });
       return {
         tenants: data.data,
         total: data.meta?.total ?? 0,
@@ -640,9 +637,6 @@ export function PlatformTenantsPage() {
       </AlertDialog>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Companies list</CardTitle>
-        </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="w-full sm:max-w-sm flex flex-col gap-2">

@@ -13,7 +13,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Eye,
   Pencil,
   Plus,
   ShieldAlert,
@@ -198,7 +197,8 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     .split(",")
     .map((v) => v.trim())
     .filter(Boolean);
-  const teamUsersMode = searchParams.get("teamUsersMode") === "none" ? "none" : "all_or_custom";
+  const teamUsersMode =
+    searchParams.get("teamUsersMode") === "none" ? "none" : "all_or_custom";
   const rawQueueParam = searchParams.get("queue");
   const queue: TaskQueue = normalizeTaskQueue(rawQueueParam);
   const myTab: MyTasksTab =
@@ -238,10 +238,16 @@ export function TasksPage() {
   const qc = useQueryClient();
   const me = useMe();
   const perms = me.data?.permissions;
-  const canListTasks = taskModuleCanList(perms);
-  const canCreateTask = taskModuleCanCreate(perms);
-  const canUpdateTask = taskModuleCanUpdate(perms);
-  const canDeleteTask = taskModuleCanDelete(perms);
+  const isSuperAdminCompanyMode = Boolean(
+    me.data?.user.tenantId == null &&
+    String(me.data?.user.roleCode ?? "").toUpperCase() === "SUPER_ADMIN" &&
+    me.data?.selectedTenantId,
+  );
+
+  const canListTasks = isSuperAdminCompanyMode || taskModuleCanList(perms);
+  const canCreateTask = isSuperAdminCompanyMode || taskModuleCanCreate(perms);
+  const canUpdateTask = isSuperAdminCompanyMode || taskModuleCanUpdate(perms);
+  const canDeleteTask = isSuperAdminCompanyMode || taskModuleCanDelete(perms);
   const [searchParams, setSearchParams] = useSearchParams();
   const skipSearchInputSync = useRef(false);
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -328,7 +334,10 @@ export function TasksPage() {
     enabled: canListTasks && queue === "team",
     queryFn: async () => {
       const { data } = await api.get<
-        ApiSuccess<TeamMemberOption[], { page: number; limit: number; total: number }>
+        ApiSuccess<
+          TeamMemberOption[],
+          { page: number; limit: number; total: number }
+        >
       >("/api/team/members", {
         params: {
           page: 1,
@@ -398,9 +407,9 @@ export function TasksPage() {
     ],
     enabled: canListTasks,
     queryFn: async () => {
-      const { data } = await api.get<ApiSuccess<TaskRow[], { page: number; limit: number; total: number }>>(
-        "/api/tasks",
-        {
+      const { data } = await api.get<
+        ApiSuccess<TaskRow[], { page: number; limit: number; total: number }>
+      >("/api/tasks", {
         params: {
           page: pagination.pageIndex + 1,
           pageSize: pagination.pageSize,
@@ -420,8 +429,7 @@ export function TasksPage() {
           sortBy: apiSortBy,
           sortDir: apiSortDir,
         },
-        },
-      );
+      });
       return {
         tasks: data.data,
         total: data.meta?.total ?? 0,
@@ -465,17 +473,30 @@ export function TasksPage() {
     [],
   );
 
-  const columns = useMemo<ColumnDef<TaskRow>[]>(
-    () => [
+  const columns = useMemo<ColumnDef<TaskRow>[]>(() => {
+    const cols: ColumnDef<TaskRow>[] = [
       {
         accessorKey: "title",
         id: "title",
         header: "Title",
-        cell: ({ row }) => (
-          <span className="font-medium text-foreground">
-            {row.original.title}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const title = row.original.title;
+          return canListTasks ? (
+            <button
+              type="button"
+              className="cursor-pointer text-left font-medium text-foreground hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/tasks/${row.original.id}`);
+              }}
+              aria-label={`Open task: ${title}`}
+            >
+              {title}
+            </button>
+          ) : (
+            <span className="font-medium text-foreground">{title}</span>
+          );
+        },
       },
       {
         id: "status",
@@ -537,9 +558,7 @@ export function TasksPage() {
           }
           if (isRecurringTask) {
             return (
-              <span className="text-muted-foreground">
-                Recurring task
-              </span>
+              <span className="text-muted-foreground">Recurring task</span>
             );
           }
           return <span className="text-muted-foreground">Task</span>;
@@ -575,7 +594,11 @@ export function TasksPage() {
           </span>
         ),
       },
-      {
+    ];
+
+    // "My team task" is a read-only list (no row-level actions).
+    if (queue !== "team") {
+      cols.push({
         id: "actions",
         header: "Actions",
         enableSorting: false,
@@ -586,27 +609,7 @@ export function TasksPage() {
             role="group"
             aria-label="Task actions"
           >
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8"
-                    aria-label="View task"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/tasks/${row.original.id}`);
-                    }}
-                  />
-                }
-              >
-                <Eye className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>View</TooltipContent>
-            </Tooltip>
-            {canUpdateTask && queue !== "team" ? (
+            {canUpdateTask ? (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -630,7 +633,7 @@ export function TasksPage() {
                 <TooltipContent>Edit</TooltipContent>
               </Tooltip>
             ) : null}
-            {canDeleteTask && queue !== "team" ? (
+            {canDeleteTask ? (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -659,10 +662,18 @@ export function TasksPage() {
             ) : null}
           </div>
         ),
-      },
-    ],
-    [navigate, canUpdateTask, canDeleteTask, deleteTask.isPending, queue],
-  );
+      });
+    }
+
+    return cols;
+  }, [
+    navigate,
+    canListTasks,
+    canUpdateTask,
+    canDeleteTask,
+    deleteTask.isPending,
+    queue,
+  ]);
 
   const onChangeSort = useCallback(
     (updater: SortingState | ((prev: SortingState) => SortingState)) => {
@@ -737,7 +748,7 @@ export function TasksPage() {
             ? "No tasks created by you."
             : myTab === "supporting"
               ? "No tasks where you are the supporter."
-                    : "No tasks where you are assigned as reviewer."
+              : "No tasks where you are assigned as reviewer."
         : "No tasks match your filters.";
   const selectedTeamUsers = teamMembers.filter((u) =>
     effectiveSelectedTeamUserIds.includes(u.id),
@@ -1094,9 +1105,9 @@ export function TasksPage() {
                       ? "Loading users..."
                       : teamUsersMode === "none"
                         ? "No user selected"
-                      : selectedTeamUsers.length
-                        ? `${selectedTeamUsers.length} user${selectedTeamUsers.length > 1 ? "s" : ""} selected`
-                        : "All users selected"}
+                        : selectedTeamUsers.length
+                          ? `${selectedTeamUsers.length} user${selectedTeamUsers.length > 1 ? "s" : ""} selected`
+                          : "All users selected"}
                   </span>
                   <ChevronRight
                     className={cn(
@@ -1120,7 +1131,10 @@ export function TasksPage() {
                           (prev) => {
                             const p = new URLSearchParams(prev);
                             p.delete("teamUserId");
-                            if (!isAllTeamUsersSelected && allTeamUserIds.length) {
+                            if (
+                              !isAllTeamUsersSelected &&
+                              allTeamUserIds.length
+                            ) {
                               p.set("teamUserIds", allTeamUserIds.join(","));
                               p.delete("teamUsersMode");
                             } else {
@@ -1137,7 +1151,9 @@ export function TasksPage() {
                     <span>All users selected</span>
                   </label>
                   {teamMembers.map((u) => {
-                    const selected = effectiveSelectedTeamUserIds.includes(u.id);
+                    const selected = effectiveSelectedTeamUserIds.includes(
+                      u.id,
+                    );
                     return (
                       <label
                         key={u.id}
@@ -1201,87 +1217,87 @@ export function TasksPage() {
         </div>
       </Card>
       <Card className="overflow-hidden p-0">
-          <DataTable
-            table={table}
-            columnCount={columns.length}
-            sort={tableSorting}
-            onChangeSort={onChangeSort}
-            isLoading={query.isLoading}
-            emptyMessage={listEmptyMessage}
-            getRowProps={getTaskRowProps}
-          />
+        <DataTable
+          table={table}
+          columnCount={columns.length}
+          sort={tableSorting}
+          onChangeSort={onChangeSort}
+          isLoading={query.isLoading}
+          emptyMessage={listEmptyMessage}
+          getRowProps={getTaskRowProps}
+        />
 
-          <div className="flex flex-col gap-4 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span>
-                {total === 0
-                  ? "0 tasks"
-                  : `Showing ${fromIdx}–${toIdx} of ${total}`}
-              </span>
-              <span className="hidden sm:inline">·</span>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="page-size" className="text-muted-foreground">
-                  Rows per page
-                </Label>
-                <Select
-                  value={String(pagination.pageSize)}
-                  onValueChange={(v) => {
-                    const n = Number(v) as (typeof PAGE_SIZES)[number];
-                    setSearchParams(
-                      (prev) => {
-                        const p = new URLSearchParams(prev);
-                        if (n === DEFAULT_PAGE_SIZE) p.delete("pageSize");
-                        else p.set("pageSize", String(n));
-                        p.delete("page");
-                        return p;
-                      },
-                      { replace: true },
-                    );
-                  }}
-                  itemToStringLabel={(v) => v}
-                >
-                  <SelectTrigger id="page-size" className="h-8 w-18">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAGE_SIZES.map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+        <div className="flex flex-col gap-4 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>
+              {total === 0
+                ? "0 tasks"
+                : `Showing ${fromIdx}–${toIdx} of ${total}`}
+            </span>
+            <span className="hidden sm:inline">·</span>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={goPrev}
-                disabled={pagination.pageIndex <= 0 || query.isLoading}
+              <Label htmlFor="page-size" className="text-muted-foreground">
+                Rows per page
+              </Label>
+              <Select
+                value={String(pagination.pageSize)}
+                onValueChange={(v) => {
+                  const n = Number(v) as (typeof PAGE_SIZES)[number];
+                  setSearchParams(
+                    (prev) => {
+                      const p = new URLSearchParams(prev);
+                      if (n === DEFAULT_PAGE_SIZE) p.delete("pageSize");
+                      else p.set("pageSize", String(n));
+                      p.delete("page");
+                      return p;
+                    },
+                    { replace: true },
+                  );
+                }}
+                itemToStringLabel={(v) => v}
               >
-                <ChevronLeft className="size-4" />
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {pagination.pageIndex + 1} / {pageCount}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={goNext}
-                disabled={
-                  pagination.pageIndex >= pageCount - 1 || query.isLoading
-                }
-              >
-                Next
-                <ChevronRight className="size-4" />
-              </Button>
+                <SelectTrigger id="page-size" className="h-8 w-18">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZES.map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </Card>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={goPrev}
+              disabled={pagination.pageIndex <= 0 || query.isLoading}
+            >
+              <ChevronLeft className="size-4" />
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {pagination.pageIndex + 1} / {pageCount}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={goNext}
+              disabled={
+                pagination.pageIndex >= pageCount - 1 || query.isLoading
+              }
+            >
+              Next
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
