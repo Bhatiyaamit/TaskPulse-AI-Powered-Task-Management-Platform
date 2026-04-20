@@ -311,7 +311,7 @@ export function TeamPage() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["team-members"], exact: false });
-      toast.success("User updated");
+      toast.success("User status updated");
     },
     onError: (e) => {
       const msg = isAxiosError(e)

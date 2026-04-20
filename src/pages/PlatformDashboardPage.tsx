@@ -16,13 +16,12 @@ import {
 } from "@/components/ui/select";
 import { usePlatformTenantsOptions } from "@/hooks/useTenantContext";
 import {
-  Bar,
-  BarChart,
   Cell,
+  Legend,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
-  XAxis,
-  YAxis,
 } from "recharts";
 import { statusChartColor } from "@/lib/chartColors";
 
@@ -65,10 +64,24 @@ export function PlatformDashboardPage() {
     },
   });
 
-  const barData = useMemo(() => {
+  const chartDataAll = useMemo(() => {
     const series = taskSummaryQuery.data?.series ?? [];
     return series.map((p) => ({ name: p.status, value: p.value }));
   }, [taskSummaryQuery.data]);
+  const chartData = useMemo(
+    () => chartDataAll.filter((d) => (d.value ?? 0) > 0),
+    [chartDataAll],
+  );
+  const chartTotal = useMemo(
+    () => chartData.reduce((sum, d) => sum + (d.value || 0), 0),
+    [chartData],
+  );
+  const companyLabelForValue = (value: string) => {
+    if (value === "__all__") return "All companies";
+    return (
+      (tenantOptionsQuery.data ?? []).find((t) => t.id === value)?.name ?? value
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -155,7 +168,11 @@ export function PlatformDashboardPage() {
               <CardTitle className="text-base uppercase tracking-wide text-primary">
                 Tasks by status
               </CardTitle>
-              <Select value={companyId} onValueChange={setCompanyId}>
+              <Select
+                value={companyId}
+                onValueChange={setCompanyId}
+                itemToStringLabel={companyLabelForValue}
+              >
                 <SelectTrigger className="w-56">
                   <SelectValue placeholder="All companies" />
                 </SelectTrigger>
@@ -170,36 +187,52 @@ export function PlatformDashboardPage() {
               </Select>
             </CardHeader>
             <CardContent className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barData} margin={{ left: 8, right: 8 }}>
-                  <XAxis
-                    dataKey="name"
-                    tickLine={false}
-                    axisLine={false}
-                    interval={0}
-                    angle={-20}
-                    textAnchor="end"
-                    height={52}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    allowDecimals={false}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                    formatter={(v: any) => [v, "Tasks"]}
-                  />
-                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                    {barData.map((d, i) => (
-                      <Cell
-                        key={`${d.name}-${i}`}
-                        fill={statusChartColor(d.name, i)}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {chartData.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  No task data yet.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip
+                      formatter={(value: unknown, name: unknown) => {
+                        const n =
+                          typeof value === "number" ? value : Number(value);
+                        const pct =
+                          chartTotal > 0 && Number.isFinite(n)
+                            ? Math.round((n / chartTotal) * 100)
+                            : 0;
+                        return [`${n} (${pct}%)`, String(name)];
+                      }}
+                    />
+                    <Legend
+                      layout="horizontal"
+                      verticalAlign="bottom"
+                      align="center"
+                      wrapperStyle={{ fontSize: 11, lineHeight: "14px" }}
+                    />
+                    <Pie
+                      data={chartData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="44%"
+                      innerRadius={58}
+                      outerRadius={88}
+                      paddingAngle={2}
+                      stroke="hsl(var(--background))"
+                      strokeWidth={2}
+                    >
+                      {chartData.map((d, i) => (
+                        <Cell
+                          key={`${d.name}-${i}`}
+                          fill={statusChartColor(d.name, i)}
+                        />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
               {taskSummaryQuery.isLoading ? (
                 <div className="mt-2 text-xs text-muted-foreground">
                   Loading chart…

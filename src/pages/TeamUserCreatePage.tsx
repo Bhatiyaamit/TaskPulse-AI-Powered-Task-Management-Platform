@@ -82,6 +82,24 @@ function roleCodeFromName(name: string) {
   return `${base || "ROLE"}_${suffix}`;
 }
 
+function humanizeCreateUserValidationMessage(field: string, message: string) {
+  const f = String(field || "").toLowerCase();
+  const m = String(message || "").toLowerCase();
+  if (f === "username") {
+    if (m.includes("at least 3")) {
+      return "Username must be at least 3 characters.";
+    }
+    if (m.includes("letters") || m.includes("numbers") || m.includes("hyphens")) {
+      return "Username can use letters, numbers, dots, underscores, and hyphens only.";
+    }
+    return "Please enter a valid username.";
+  }
+  if (f === "name") return "Please enter full name.";
+  if (f === "password") return "Temporary password must be at least 8 characters.";
+  if (f === "phone") return "Please enter a valid phone number.";
+  return message || "Please check the form fields.";
+}
+
 export function TeamUserCreatePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -294,13 +312,45 @@ export function TeamUserCreatePage() {
       navigate("/team");
     },
     onError: (e) => {
-      const msg = isAxiosError(e)
-        ? (e.response?.data?.error?.message ??
-          e.response?.data?.message ??
-          e.message)
-        : e instanceof Error
-          ? e.message
-          : "Could not create user";
+      if (isAxiosError(e)) {
+        const body = e.response?.data as
+          | {
+              message?: string;
+              error?: {
+                message?: string;
+                details?: {
+                  formErrors?: string[];
+                  fieldErrors?: Record<string, string[]>;
+                };
+              };
+            }
+          | undefined;
+        const details = body?.error?.details;
+        const fieldMsg = details?.fieldErrors
+          ? Array.from(
+              new Set(
+                Object.entries(details.fieldErrors)
+                  .flatMap(([field, msgs]) =>
+                    (msgs ?? []).map((m) =>
+                      humanizeCreateUserValidationMessage(field, m),
+                    ),
+                  )
+                  .filter(Boolean),
+              ),
+            ).join(" ")
+          : "";
+        const formMsg = (details?.formErrors ?? []).filter(Boolean).join(" ");
+        const msg =
+          fieldMsg ||
+          formMsg ||
+          body?.error?.message ||
+          body?.message ||
+          e.message ||
+          "Could not create user";
+        toast.error(String(msg));
+        return;
+      }
+      const msg = e instanceof Error ? e.message : "Could not create user";
       toast.error(String(msg));
     },
   });

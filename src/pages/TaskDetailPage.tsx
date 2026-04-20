@@ -272,7 +272,7 @@ export function TaskDetailPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["task", id] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
-      toast.success("Task updated");
+      toast.success("Task status updated");
     },
     onError: (e) => {
       toast.error(

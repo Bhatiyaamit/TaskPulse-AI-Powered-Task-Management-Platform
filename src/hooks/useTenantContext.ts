@@ -26,6 +26,11 @@ export function usePlatformTenantsOptions(enabled: boolean) {
 
 export function useTenantContext() {
   const qc = useQueryClient();
+  const refreshAllCompanyData = async () => {
+    // Company switch should refresh all tenant-scoped module data.
+    await qc.invalidateQueries();
+    await qc.refetchQueries({ type: "active" });
+  };
 
   const setTenant = useMutation({
     mutationFn: async (tenantId: string) => {
@@ -35,7 +40,7 @@ export function useTenantContext() {
       return data.data.tenant;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["me"], exact: false });
+      await refreshAllCompanyData();
     },
   });
 
@@ -44,7 +49,7 @@ export function useTenantContext() {
       await api.delete("/api/platform/tenant-context");
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["me"], exact: false });
+      await refreshAllCompanyData();
     },
   });
 

@@ -73,6 +73,8 @@ type TaskRow = {
   updatedAt: string;
   status: { code: string; label: string };
   createdFrom: string;
+  createdBy: { id: string; name: string; username: string } | null;
+  assignedTo: { id: string; name: string; username: string } | null;
   isRecurring?: boolean | null;
   recurrenceSourceTaskId?: string | null;
   meetingId: string | null;
@@ -124,9 +126,10 @@ function isSortId(id: string): id is SortId {
 function formatDay(iso: string | null) {
   if (!iso) return "—";
   try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-      new Date(iso),
-    );
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso));
   } catch {
     return "—";
   }
@@ -238,6 +241,10 @@ export function TasksPage() {
   const qc = useQueryClient();
   const me = useMe();
   const perms = me.data?.permissions;
+  const tenantContextKey =
+    me.data?.selectedTenantId ??
+    me.data?.user.tenantId ??
+    "__no-tenant-context__";
   const isSuperAdminCompanyMode = Boolean(
     me.data?.user.tenantId == null &&
     String(me.data?.user.roleCode ?? "").toUpperCase() === "SUPER_ADMIN" &&
@@ -280,6 +287,22 @@ export function TasksPage() {
   const [teamUsersOpen, setTeamUsersOpen] = useState(false);
   const teamUsersDropdownRef = useRef<HTMLDivElement | null>(null);
   const search = useDebouncedValue(searchInput, 350);
+  const prevTenantContextKeyRef = useRef<string>(tenantContextKey);
+
+  useEffect(() => {
+    const prev = prevTenantContextKeyRef.current;
+    if (prev === tenantContextKey) return;
+    prevTenantContextKeyRef.current = tenantContextKey;
+    // Company switch should not keep stale task/team filters from previous tenant.
+    setSearchParams(
+      (prevParams) => {
+        const p = new URLSearchParams(prevParams);
+        clearListStateParams(p);
+        return p;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams, tenantContextKey]);
 
   useEffect(() => {
     if (!teamUsersOpen) return;
@@ -320,7 +343,7 @@ export function TasksPage() {
   }, [search, setSearchParams]);
 
   const { data: statuses } = useQuery({
-    queryKey: ["task-statuses"],
+    queryKey: ["task-statuses", tenantContextKey],
     enabled: canListTasks,
     queryFn: async () => {
       const { data } = await api.get<
@@ -330,7 +353,7 @@ export function TasksPage() {
     },
   });
   const teamMembersQuery = useQuery({
-    queryKey: ["team-members", "task-team-options"],
+    queryKey: ["team-members", "task-team-options", tenantContextKey],
     enabled: canListTasks && queue === "team",
     queryFn: async () => {
       const { data } = await api.get<
@@ -351,12 +374,19 @@ export function TasksPage() {
   });
   const teamMembers = teamMembersQuery.data ?? [];
   const allTeamUserIds = teamMembers.map((u) => u.id);
+  const allTeamUserIdSet = new Set(allTeamUserIds);
+  const validTeamUserIds = teamUserIds.filter((id) => allTeamUserIdSet.has(id));
   const effectiveSelectedTeamUserIds =
     teamUsersMode === "none"
       ? []
-      : teamUserIds.length > 0
-        ? teamUserIds
+      : validTeamUserIds.length > 0
+        ? validTeamUserIds
         : allTeamUserIds;
+  const isExplicitAllTeamUsersFilter =
+    teamUsersMode !== "none" &&
+    validTeamUserIds.length > 0 &&
+    allTeamUserIds.length > 0 &&
+    validTeamUserIds.length === allTeamUserIds.length;
   const isAllTeamUsersSelected =
     allTeamUserIds.length > 0 &&
     effectiveSelectedTeamUserIds.length === allTeamUserIds.length;
@@ -392,6 +422,7 @@ export function TasksPage() {
   const query = useQuery({
     queryKey: [
       "tasks",
+      tenantContextKey,
       queue,
       queue === "my_tasks" ? myTab : null,
       pagination.pageIndex,
@@ -399,7 +430,7 @@ export function TasksPage() {
       statusId,
       dueFrom,
       dueTo,
-      teamUserIds.join(","),
+      validTeamUserIds.join(","),
       teamUsersMode,
       search,
       apiSortBy,
@@ -422,8 +453,8 @@ export function TasksPage() {
           ...(dueTo ? { dueTo: toEndOfDayIso(dueTo) } : {}),
           ...(teamUsersMode === "none"
             ? { assignedToIds: "__none__" }
-            : teamUserIds.length
-              ? { assignedToIds: teamUserIds.join(",") }
+            : validTeamUserIds.length && !isExplicitAllTeamUsersFilter
+              ? { assignedToIds: validTeamUserIds.join(",") }
               : {}),
           ...(search ? { search } : {}),
           sortBy: apiSortBy,
@@ -563,6 +594,26 @@ export function TasksPage() {
           }
           return <span className="text-muted-foreground">Task</span>;
         },
+      },
+      {
+        id: "createdBy",
+        accessorFn: (r) => r.createdBy?.name ?? "",
+        header: "Created by",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.createdBy?.name ?? "—"}
+          </span>
+        ),
+      },
+      {
+        id: "assignedTo",
+        accessorFn: (r) => r.assignedTo?.name ?? "",
+        header: "Assigned to",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.assignedTo?.name ?? "—"}
+          </span>
+        ),
       },
       {
         accessorKey: "dueDate",
@@ -1135,7 +1186,8 @@ export function TasksPage() {
                               !isAllTeamUsersSelected &&
                               allTeamUserIds.length
                             ) {
-                              p.set("teamUserIds", allTeamUserIds.join(","));
+                              // "All users selected" should behave like no assignee filter.
+                              p.delete("teamUserIds");
                               p.delete("teamUsersMode");
                             } else {
                               p.delete("teamUserIds");

@@ -69,6 +69,7 @@ type TaskEditFormValues = {
   escalationMinutesBeforeDue: string;
   startDate: string;
   dueDate: string;
+  estimatedHours: string;
   isRecurring: boolean;
   recurrencePattern: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   checklistItems: { text: string; mandatory: boolean }[];
@@ -114,6 +115,7 @@ export function TaskEditPage() {
         escalationMinutesBeforeDue: "",
         startDate: "",
         dueDate: "",
+        estimatedHours: "",
         isRecurring: false,
         recurrencePattern: "DAILY",
         checklistItems: [{ text: "", mandatory: true }],
@@ -177,6 +179,7 @@ export function TaskEditPage() {
       escalationMinutesBeforeDue: "",
       startDate: "",
       dueDate: "",
+      estimatedHours: "",
       isRecurring: false,
       recurrencePattern: "DAILY",
       checklistItems: [{ text: "", mandatory: true }],
@@ -212,6 +215,10 @@ export function TaskEditPage() {
       startDate: isoToDatetimeLocal(task.startDate),
       dueDate: isoToDatetimeLocal(task.dueDate),
       escalationMinutesBeforeDue,
+      estimatedHours:
+        task.estimatedMinutes != null
+          ? String(Number((task.estimatedMinutes / 60).toFixed(2)))
+          : "",
       isRecurring: Boolean(task.isRecurring),
       recurrencePattern: task.recurrencePattern ?? "DAILY",
       checklistItems: [{ text: "", mandatory: true }],
@@ -313,6 +320,24 @@ export function TaskEditPage() {
       setFormError("Add at least one checklist item for recurring task.");
       return;
     }
+    const estimatedHoursRaw = values.estimatedHours.trim();
+    let estimatedMinutes: number | null = null;
+    if (estimatedHoursRaw !== "") {
+      const hours = Number(estimatedHoursRaw);
+      if (!Number.isFinite(hours) || hours <= 0) {
+        setFormError("Estimated time must be a positive number of hours.");
+        return;
+      }
+      if (hours > 999) {
+        setFormError("Estimated time is too large.");
+        return;
+      }
+      estimatedMinutes = Math.round(hours * 60);
+      if (estimatedMinutes <= 0) {
+        setFormError("Estimated time must be at least 1 minute.");
+        return;
+      }
+    }
     update.mutate({
       title: values.title.trim(),
       description: values.description.trim() || null,
@@ -325,6 +350,7 @@ export function TaskEditPage() {
       escalationAt: escalationAtIso,
       startDate: startIso,
       dueDate: dueIso,
+      estimatedMinutes,
       isRecurring: values.isRecurring,
       recurrencePattern: values.isRecurring ? values.recurrencePattern : null,
       checklistItems: cleanedChecklistItems,
@@ -575,7 +601,36 @@ export function TaskEditPage() {
                 ) : null}
               </div>
             </div>
-            <div className="space-y-2 sm:max-w-xs">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="estimatedHours">Estimated time (hours)</Label>
+                <Input
+                  id="estimatedHours"
+                  type="number"
+                  inputMode="decimal"
+                  min={0.1}
+                  step="any"
+                  placeholder="e.g. 1.5"
+                  {...register("estimatedHours", {
+                    validate: (value) => {
+                      const v = String(value ?? "").trim();
+                      if (!v) return true;
+                      const n = Number(v);
+                      if (!Number.isFinite(n) || n <= 0) {
+                        return "Enter a positive number in hours.";
+                      }
+                      if (n > 999) return "Estimated time is too large.";
+                      return true;
+                    },
+                  })}
+                />
+                {errors.estimatedHours?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.estimatedHours.message}
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
               <Label htmlFor="escalationMinutesBeforeDue">
                 Escalation (minutes before Due)
               </Label>
@@ -589,6 +644,7 @@ export function TaskEditPage() {
                 {...register("escalationMinutesBeforeDue")}
                 placeholder="e.g. 20"
               />
+              </div>
             </div>
             <div className="pt-2">
               <Label className="inline-flex items-center gap-2">

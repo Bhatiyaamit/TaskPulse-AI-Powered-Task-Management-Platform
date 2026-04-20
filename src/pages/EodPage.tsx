@@ -114,9 +114,13 @@ export function EodPage() {
   const [workedOnOpen, setWorkedOnOpen] = useState(false);
   const me = useMe();
   const canEod = taskModuleCanList(me.data?.permissions);
+  const tenantContextKey =
+    me.data?.selectedTenantId ??
+    me.data?.user.tenantId ??
+    "__no-tenant-context__";
 
   const q = useQuery({
-    queryKey: ["eod", "today"],
+    queryKey: ["eod", "today", tenantContextKey],
     enabled: canEod,
     queryFn: async () => {
       const { data } = await api.get<

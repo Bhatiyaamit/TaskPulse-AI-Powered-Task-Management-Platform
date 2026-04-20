@@ -222,14 +222,14 @@ export function PlatformTenantsPage() {
         queryKey: ["platform-dashboard"],
         exact: false,
       });
-      toast.success("Tenant updated");
+      toast.success("Company status updated");
     },
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
           e.response?.data?.message ??
           e.message)
-        : "Could not update tenant";
+        : "Could not update company";
       toast.error(String(msg));
     },
   });
@@ -244,14 +244,14 @@ export function PlatformTenantsPage() {
         queryKey: ["platform-dashboard"],
         exact: false,
       });
-      toast.success("Tenant deleted");
+      toast.success("Company deleted");
     },
     onError: (e) => {
       const msg = isAxiosError(e)
         ? (e.response?.data?.error?.message ??
           e.response?.data?.message ??
           e.message)
-        : "Could not delete tenant";
+        : "Could not delete company";
       toast.error(String(msg));
     },
   });
@@ -370,7 +370,7 @@ export function PlatformTenantsPage() {
                         variant="ghost"
                         size="icon"
                         className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        aria-label="Delete tenant"
+                        aria-label="Delete company"
                         disabled={setStatus.isPending || deleteTenant.isPending}
                         onClick={() =>
                           setConfirm({
@@ -443,8 +443,8 @@ export function PlatformTenantsPage() {
                       className="size-8"
                       aria-label={
                         t.status === "INACTIVE"
-                          ? "Activate tenant"
-                          : "Deactivate tenant"
+                          ? "Activate company"
+                          : "Deactivate company"
                       }
                       disabled={setStatus.isPending || deleteTenant.isPending}
                       onClick={() =>
@@ -477,7 +477,7 @@ export function PlatformTenantsPage() {
                       variant="ghost"
                       size="icon"
                       className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      aria-label="Delete tenant"
+                      aria-label="Delete company"
                       disabled={setStatus.isPending || deleteTenant.isPending}
                       onClick={() =>
                         setConfirm({
@@ -585,10 +585,10 @@ export function PlatformTenantsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {confirm?.kind === "delete"
-                ? "Delete tenant?"
+                ? "Delete company?"
                 : confirm?.kind === "activate"
-                  ? "Activate tenant?"
-                  : "Deactivate tenant?"}
+                  ? "Activate company?"
+                  : "Deactivate company?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirm?.kind === "delete" ? (
@@ -717,14 +717,14 @@ export function PlatformTenantsPage() {
               sort={tableSorting}
               onChangeSort={onChangeSort}
               isLoading={tenantsQuery.isLoading}
-              emptyMessage="No tenants match your filters."
+              emptyMessage="No companies match your filters."
             />
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground">
               {total === 0
-                ? "0 tenants"
+                ? "0 companies"
                 : `Showing ${pagination.pageIndex * pagination.pageSize + 1}–${Math.min(
                     (pagination.pageIndex + 1) * pagination.pageSize,
                     total,

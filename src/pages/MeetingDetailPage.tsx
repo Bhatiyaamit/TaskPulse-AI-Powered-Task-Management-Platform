@@ -51,6 +51,7 @@ type MeetingTaskRow = {
   dueDate: string | null;
   updatedAt: string;
   status: { code: string; label: string };
+  createdBy: { id: string; name: string; username: string } | null;
   assignedTo: { id: string; name: string; username: string } | null;
   reviewer: { id: string; name: string; username: string } | null;
 };
@@ -365,6 +366,19 @@ export function MeetingDetailPage() {
           <span className="text-muted-foreground">
             {row.original.assignedTo?.name ||
               row.original.assignedTo?.username ||
+              "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "createdBy",
+        id: "createdBy",
+        header: "Created by",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.createdBy?.name ||
+              row.original.createdBy?.username ||
               "—"}
           </span>
         ),

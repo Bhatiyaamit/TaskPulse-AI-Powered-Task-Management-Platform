@@ -213,7 +213,7 @@ export function AppLayout() {
               <Nav
                 to="/platform/tenants"
                 icon={<Building2 className="h-4 w-4" />}
-                label="Tenants"
+                label="Companies"
               />
             </>
           )}
