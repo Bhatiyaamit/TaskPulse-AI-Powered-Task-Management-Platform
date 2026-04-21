@@ -29,6 +29,7 @@ import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -45,7 +46,7 @@ import {
   taskStatusBadgeClass,
 } from "@/lib/badges";
 
-type DashboardRange = "7d" | "30d" | "90d" | "all";
+type DashboardRange = "today" | "week" | "month" | "all" | "custom";
 type DashboardChartType = "kpi" | "donut" | "bar" | "table";
 type DashboardWidgetSize = "small" | "medium" | "large" | "full";
 type DashboardWidgetType = "KPI" | "CHART" | "TABLE";
@@ -73,6 +74,8 @@ type DashboardWidgetLayout = {
 
 type DashboardFilters = {
   range: DashboardRange;
+  customStart?: string | null;
+  customEnd?: string | null;
 };
 
 type DashboardWidgetData = {
@@ -110,10 +113,11 @@ type TaskRow = {
 };
 
 const RANGE_LABELS: Record<DashboardRange, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
+  today: "Today",
+  week: "This week",
+  month: "This month",
   all: "All time",
+  custom: "Custom",
 };
 
 const ALLOWED_WIDGET_KEYS = new Set<string>([
@@ -132,7 +136,7 @@ function widgetSizeClass(size: DashboardWidgetSize) {
     case "medium":
       return "md:col-span-1 xl:col-span-2";
     case "large":
-      return "md:col-span-2 xl:col-span-2";
+      return "md:col-span-2 xl:col-span-3";
     case "full":
       return "md:col-span-2 xl:col-span-4";
   }
@@ -200,14 +204,28 @@ function colorForRow(widgetKey: string, row: ChartRow, index: number) {
     : chartColor(index);
 }
 
+function startOfMonthInputValue(now = new Date()) {
+  return new Date(now.getFullYear(), now.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+}
+
+function todayInputValue(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+
 function DashboardChart({ widget }: { widget: DashboardWidgetData }) {
   const rows = normalizeChartRows(widget.data).filter((row) => row.value > 0);
-  if (!rows.length) return <EmptyWidgetText>No chart data yet.</EmptyWidgetText>;
+  if (!rows.length)
+    return <EmptyWidgetText>No chart data yet.</EmptyWidgetText>;
 
   if (widget.chartType === "bar") {
     return (
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} margin={{ top: 8, right: 16, left: -12, bottom: 0 }}>
+        <BarChart
+          data={rows}
+          margin={{ top: 8, right: 16, left: -12, bottom: 0 }}
+        >
           <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
           <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={12} />
           <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -233,7 +251,9 @@ function DashboardChart({ widget }: { widget: DashboardWidgetData }) {
           formatter={(value: unknown, name: unknown) => {
             const n = typeof value === "number" ? value : Number(value);
             const pct =
-              total > 0 && Number.isFinite(n) ? Math.round((n / total) * 100) : 0;
+              total > 0 && Number.isFinite(n)
+                ? Math.round((n / total) * 100)
+                : 0;
             return [`${n} (${pct}%)`, String(name)];
           }}
           contentStyle={chartTooltipStyle()}
@@ -419,15 +439,14 @@ export function DashboardPage() {
   const [customize, setCustomize] = useState(false);
   const [draftLayout, setDraftLayout] = useState<DashboardWidgetLayout[]>([]);
   const [draftFilters, setDraftFilters] = useState<DashboardFilters>({
-    range: "30d",
+    range: "month",
   });
 
   const dashboardQuery = useQuery({
     queryKey: ["dynamic-dashboard"],
     queryFn: async () => {
-      const { data } = await api.get<ApiSuccess<DashboardResponse>>(
-        "/api/dashboard",
-      );
+      const { data } =
+        await api.get<ApiSuccess<DashboardResponse>>("/api/dashboard");
       return data.data;
     },
   });
@@ -500,7 +519,9 @@ export function DashboardPage() {
       .filter((layout) => layout.visible)
       .map((layout) => {
         const serverWidget = widgetDataByKey.get(layout.widgetKey);
-        const catalogItem = catalog.find((item) => item.key === layout.widgetKey);
+        const catalogItem = catalog.find(
+          (item) => item.key === layout.widgetKey,
+        );
         if (!serverWidget || !catalogItem) return null;
         return {
           ...serverWidget,
@@ -516,7 +537,9 @@ export function DashboardPage() {
   const savedState = useMemo(() => {
     if (!data) return "";
     return JSON.stringify({
-      layout: data.layout.filter((item) => ALLOWED_WIDGET_KEYS.has(item.widgetKey)),
+      layout: data.layout.filter((item) =>
+        ALLOWED_WIDGET_KEYS.has(item.widgetKey),
+      ),
       filters: data.filters,
     });
   }, [data]);
@@ -538,7 +561,9 @@ export function DashboardPage() {
   }
 
   if (dashboardQuery.isLoading) {
-    return <div className="text-sm text-muted-foreground">Loading dashboard...</div>;
+    return (
+      <div className="text-sm text-muted-foreground">Loading dashboard...</div>
+    );
   }
 
   if (dashboardQuery.isError || !data) {
@@ -569,19 +594,59 @@ export function DashboardPage() {
           <Select
             value={draftFilters.range}
             onValueChange={(value) =>
-              setDraftFilters({ range: value as DashboardRange })
+              setDraftFilters((prev) => {
+                const range = value as DashboardRange;
+                if (range === "custom") {
+                  return {
+                    range,
+                    customStart: prev.customStart ?? startOfMonthInputValue(),
+                    customEnd: prev.customEnd ?? todayInputValue(),
+                  };
+                }
+                return { range };
+              })
             }
           >
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Range" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7d">Last 7 days</SelectItem>
-              <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="90d">Last 90 days</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This week</SelectItem>
+              <SelectItem value="month">This month</SelectItem>
               <SelectItem value="all">All time</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
             </SelectContent>
           </Select>
+          {draftFilters.range === "custom" ? (
+            <div className="flex items-center gap-2">
+              <Input
+                id="dashboard-custom-start"
+                type="date"
+                value={draftFilters.customStart ?? ""}
+                onChange={(e) =>
+                  setDraftFilters((prev) => ({
+                    ...prev,
+                    customStart: e.target.value,
+                  }))
+                }
+                className="w-36"
+              />
+              <span className="text-muted-foreground">-</span>
+              <Input
+                id="dashboard-custom-end"
+                type="date"
+                value={draftFilters.customEnd ?? ""}
+                onChange={(e) =>
+                  setDraftFilters((prev) => ({
+                    ...prev,
+                    customEnd: e.target.value,
+                  }))
+                }
+                className="w-36"
+              />
+            </div>
+          ) : null}
           <Button
             type="button"
             variant={customize ? "secondary" : "outline"}
@@ -642,7 +707,9 @@ export function DashboardPage() {
                             visible: !layout.visible,
                           })
                         }
-                        aria-label={layout.visible ? "Hide widget" : "Show widget"}
+                        aria-label={
+                          layout.visible ? "Hide widget" : "Show widget"
+                        }
                       >
                         {layout.visible ? (
                           <Eye className="size-4" />
@@ -750,7 +817,8 @@ export function DashboardPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
               <p className="text-xs text-muted-foreground">
                 Saved layout is shared by web and mobile clients through the
-                same dashboard API. Mobile can render these widgets in one column.
+                same dashboard API. Mobile can render these widgets in one
+                column.
               </p>
               <Button
                 type="button"
