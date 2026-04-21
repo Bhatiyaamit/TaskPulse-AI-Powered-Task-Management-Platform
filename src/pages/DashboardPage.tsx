@@ -8,8 +8,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -48,7 +46,7 @@ import {
 } from "@/lib/badges";
 
 type DashboardRange = "7d" | "30d" | "90d" | "all";
-type DashboardChartType = "kpi" | "donut" | "bar" | "line" | "table";
+type DashboardChartType = "kpi" | "donut" | "bar" | "table";
 type DashboardWidgetSize = "small" | "medium" | "large" | "full";
 type DashboardWidgetType = "KPI" | "CHART" | "TABLE";
 
@@ -100,12 +98,6 @@ type ChartRow = {
   value: number;
 };
 
-type TrendRow = {
-  label: string;
-  created: number;
-  completed: number;
-};
-
 type TaskRow = {
   id: string;
   title: string;
@@ -123,6 +115,15 @@ const RANGE_LABELS: Record<DashboardRange, string> = {
   "90d": "Last 90 days",
   all: "All time",
 };
+
+const ALLOWED_WIDGET_KEYS = new Set<string>([
+  "total_tasks",
+  "overdue_tasks",
+  "completed_today",
+  "pending_review",
+  "tasks_by_status",
+  "tasks_by_priority",
+]);
 
 function widgetSizeClass(size: DashboardWidgetSize) {
   switch (size) {
@@ -170,25 +171,6 @@ function normalizeChartRows(data: unknown): ChartRow[] {
     .filter((row): row is ChartRow => row != null);
 }
 
-function normalizeTrendRows(data: unknown): TrendRow[] {
-  if (!Array.isArray(data)) return [];
-  return data
-    .map((row) => {
-      if (!row || typeof row !== "object") return null;
-      const r = row as {
-        label?: unknown;
-        created?: unknown;
-        completed?: unknown;
-      };
-      return {
-        label: String(r.label ?? ""),
-        created: Number(r.created ?? 0),
-        completed: Number(r.completed ?? 0),
-      };
-    })
-    .filter((row): row is TrendRow => row != null && row.label !== "");
-}
-
 function normalizeTaskRows(data: unknown): TaskRow[] {
   if (!Array.isArray(data)) return [];
   return data
@@ -219,36 +201,6 @@ function colorForRow(widgetKey: string, row: ChartRow, index: number) {
 }
 
 function DashboardChart({ widget }: { widget: DashboardWidgetData }) {
-  if (widget.chartType === "line") {
-    const rows = normalizeTrendRows(widget.data);
-    if (!rows.length) return <EmptyWidgetText>No trend data yet.</EmptyWidgetText>;
-    return (
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={rows} margin={{ top: 8, right: 16, left: -12, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-          <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={18} />
-          <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-          <Tooltip contentStyle={chartTooltipStyle()} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Line
-            type="monotone"
-            dataKey="created"
-            stroke={chartColor(0)}
-            strokeWidth={2}
-            dot={false}
-          />
-          <Line
-            type="monotone"
-            dataKey="completed"
-            stroke={chartColor(1)}
-            strokeWidth={2}
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    );
-  }
-
   const rows = normalizeChartRows(widget.data).filter((row) => row.value > 0);
   if (!rows.length) return <EmptyWidgetText>No chart data yet.</EmptyWidgetText>;
 
@@ -482,7 +434,11 @@ export function DashboardPage() {
 
   useEffect(() => {
     if (!dashboardQuery.data) return;
-    setDraftLayout(dashboardQuery.data.layout);
+    setDraftLayout(
+      dashboardQuery.data.layout.filter((item) =>
+        ALLOWED_WIDGET_KEYS.has(item.widgetKey),
+      ),
+    );
     setDraftFilters(dashboardQuery.data.filters);
   }, [dashboardQuery.data]);
 
@@ -521,9 +477,17 @@ export function DashboardPage() {
   });
 
   const data = dashboardQuery.data;
-  const catalog = useMemo(() => data?.catalog ?? [], [data?.catalog]);
+  const catalog = useMemo(
+    () =>
+      (data?.catalog ?? []).filter((item) => ALLOWED_WIDGET_KEYS.has(item.key)),
+    [data?.catalog],
+  );
   const widgetDataByKey = useMemo(() => {
-    return new Map((data?.widgets ?? []).map((widget) => [widget.widgetKey, widget]));
+    return new Map(
+      (data?.widgets ?? [])
+        .filter((widget) => ALLOWED_WIDGET_KEYS.has(widget.widgetKey))
+        .map((widget) => [widget.widgetKey, widget]),
+    );
   }, [data?.widgets]);
 
   const sortedDraftLayout = useMemo(
@@ -551,7 +515,10 @@ export function DashboardPage() {
 
   const savedState = useMemo(() => {
     if (!data) return "";
-    return JSON.stringify({ layout: data.layout, filters: data.filters });
+    return JSON.stringify({
+      layout: data.layout.filter((item) => ALLOWED_WIDGET_KEYS.has(item.widgetKey)),
+      filters: data.filters,
+    });
   }, [data]);
   const draftState = useMemo(
     () => JSON.stringify({ layout: sortedDraftLayout, filters: draftFilters }),
@@ -647,6 +614,7 @@ export function DashboardPage() {
               {sortedDraftLayout.map((layout, index) => {
                 const item = catalog.find((w) => w.key === layout.widgetKey);
                 if (!item) return null;
+                const showChartControl = item.type !== "KPI";
                 return (
                   <div
                     key={layout.widgetKey}
@@ -684,7 +652,12 @@ export function DashboardPage() {
                       </button>
                     </div>
 
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div
+                      className={cn(
+                        "mt-3 grid gap-2",
+                        showChartControl ? "sm:grid-cols-2" : "sm:grid-cols-1",
+                      )}
+                    >
                       <div className="space-y-1">
                         <Label>Size</Label>
                         <Select
@@ -707,29 +680,31 @@ export function DashboardPage() {
                         </Select>
                       </div>
 
-                      <div className="space-y-1">
-                        <Label>Chart</Label>
-                        <Select
-                          value={layout.chartType}
-                          disabled={item.supportedChartTypes.length <= 1}
-                          onValueChange={(value) =>
-                            patchLayout(layout.widgetKey, {
-                              chartType: value as DashboardChartType,
-                            })
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {item.supportedChartTypes.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type.charAt(0).toUpperCase() + type.slice(1)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {showChartControl ? (
+                        <div className="space-y-1">
+                          <Label>Chart</Label>
+                          <Select
+                            value={layout.chartType}
+                            disabled={item.supportedChartTypes.length <= 1}
+                            onValueChange={(value) =>
+                              patchLayout(layout.widgetKey, {
+                                chartType: value as DashboardChartType,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {item.supportedChartTypes.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="mt-3 flex items-center justify-between gap-2">
