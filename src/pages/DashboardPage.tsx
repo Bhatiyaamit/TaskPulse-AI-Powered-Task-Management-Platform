@@ -842,27 +842,31 @@ export function DashboardPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {visibleWidgets.length ? (
-          visibleWidgets.map((widget) => (
-            <DashboardWidgetCard key={widget.widgetKey} widget={widget} />
-          ))
-        ) : (
-          <Card className="md:col-span-2 xl:col-span-4">
-            <CardHeader>
-              <CardTitle>No widgets selected</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Turn on at least one widget in Customize mode.
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {!customize ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {visibleWidgets.length ? (
+              visibleWidgets.map((widget) => (
+                <DashboardWidgetCard key={widget.widgetKey} widget={widget} />
+              ))
+            ) : (
+              <Card className="md:col-span-2 xl:col-span-4">
+                <CardHeader>
+                  <CardTitle>No widgets selected</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  Turn on at least one widget in Customize mode.
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
-      <div className="text-xs text-muted-foreground">
-        Current range: {RANGE_LABELS[data.filters.range]}. Use Customize to
-        control which widgets appear for this account.
-      </div>
+          <div className="text-xs text-muted-foreground">
+            Current range: {RANGE_LABELS[data.filters.range]}. Use Customize to
+            control which widgets appear for this account.
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

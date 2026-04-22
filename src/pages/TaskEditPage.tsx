@@ -31,6 +31,7 @@ import {
 } from "@/components/layout/CenteredFormPage";
 
 const UNASSIGNED = "__none__";
+const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 
 type UserOption = {
   id: string;
@@ -43,6 +44,7 @@ type TaskPayload = {
   id: string;
   title: string;
   description: string | null;
+  priority: string;
   steps: string | null;
   startDate: string | null;
   dueDate: string | null;
@@ -60,6 +62,7 @@ type TaskPayload = {
 type TaskEditFormValues = {
   title: string;
   description: string;
+  priority: (typeof TASK_PRIORITIES)[number];
   steps: string;
   statusId: string;
   assignedToId: string;
@@ -106,6 +109,7 @@ export function TaskEditPage() {
       defaultValues: {
         title: "",
         description: "",
+        priority: "MEDIUM",
         steps: "",
         statusId: "",
         assignedToId: UNASSIGNED,
@@ -170,6 +174,7 @@ export function TaskEditPage() {
     reset({
       title: "",
       description: "",
+      priority: "MEDIUM",
       steps: "",
       statusId: "",
       assignedToId: UNASSIGNED,
@@ -203,9 +208,16 @@ export function TaskEditPage() {
             ),
           )
         : "";
+    const normalizedPriority = String(task.priority ?? "MEDIUM").toUpperCase();
+    const priority = TASK_PRIORITIES.includes(
+      normalizedPriority as (typeof TASK_PRIORITIES)[number],
+    )
+      ? (normalizedPriority as (typeof TASK_PRIORITIES)[number])
+      : "MEDIUM";
     reset({
       title: task.title,
       description: task.description ?? "",
+      priority,
       steps: task.steps ?? "",
       statusId: task.status.id,
       assignedToId: task.assignedTo?.id ?? UNASSIGNED,
@@ -342,6 +354,7 @@ export function TaskEditPage() {
       title: values.title.trim(),
       description: values.description.trim() || null,
       steps: values.steps.trim() || null,
+      priority: values.priority,
       statusId: values.statusId,
       assignedToId: toNull(values.assignedToId),
       reviewerId: toNull(values.reviewerId),
@@ -455,6 +468,32 @@ export function TaskEditPage() {
                 id="description"
                 {...register("description")}
                 placeholder="Context, acceptance criteria, links…"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Priority</Label>
+              <Controller
+                control={control}
+                name="priority"
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) =>
+                      field.onChange(v as (typeof TASK_PRIORITIES)[number])
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TASK_PRIORITIES.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p.charAt(0) + p.slice(1).toLowerCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               />
             </div>
             <div className="space-y-2">

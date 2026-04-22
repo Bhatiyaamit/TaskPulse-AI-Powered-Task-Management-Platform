@@ -25,6 +25,7 @@ import {
 } from "@/components/layout/CenteredFormPage";
 
 const UNASSIGNED = "__none__";
+const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 
 type UserOption = {
   id: string;
@@ -36,6 +37,7 @@ type UserOption = {
 type TaskCreateFormValues = {
   title: string;
   description: string;
+  priority: (typeof TASK_PRIORITIES)[number];
   steps: string;
   statusId: string;
   assignedToId: string;
@@ -73,6 +75,7 @@ export function TaskCreatePage() {
       defaultValues: {
         title: "",
         description: "",
+        priority: "MEDIUM",
         steps: "",
         statusId: "",
         assignedToId: UNASSIGNED,
@@ -232,6 +235,7 @@ export function TaskCreatePage() {
       title: values.title.trim(),
       description: values.description.trim() || null,
       steps: values.steps.trim() || null,
+      priority: values.priority,
       statusId: values.statusId,
       assignedToId: toNull(values.assignedToId),
       reviewerId: toNull(values.reviewerId),
@@ -330,6 +334,32 @@ export function TaskCreatePage() {
                 id="description"
                 {...register("description")}
                 placeholder="Context, acceptance criteria, links…"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Priority</Label>
+              <Controller
+                control={control}
+                name="priority"
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) =>
+                      field.onChange(v as (typeof TASK_PRIORITIES)[number])
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TASK_PRIORITIES.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p.charAt(0) + p.slice(1).toLowerCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               />
             </div>
             <div className="space-y-2">
