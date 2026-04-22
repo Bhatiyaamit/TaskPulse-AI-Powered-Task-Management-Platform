@@ -49,7 +49,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { overdueBadgeClass, taskStatusBadgeClass } from "@/lib/badges";
+import {
+  overdueBadgeClass,
+  taskPriorityBadgeClass,
+  taskStatusBadgeClass,
+} from "@/lib/badges";
 import { useMe } from "@/hooks/useAuth";
 import {
   P,
@@ -69,6 +73,7 @@ import {
 type TaskRow = {
   id: string;
   title: string;
+  priority?: string | null;
   dueDate: string | null;
   updatedAt: string;
   status: { code: string; label: string };
@@ -538,6 +543,15 @@ export function TasksPage() {
             {row.original.status.label}
           </span>
         ),
+      },
+      {
+        id: "priority",
+        accessorFn: (r) => String(r.priority ?? "MEDIUM").toUpperCase(),
+        header: "Priority",
+        cell: ({ row }) => {
+          const priority = String(row.original.priority ?? "MEDIUM").toUpperCase();
+          return <span className={taskPriorityBadgeClass(priority)}>{priority}</span>;
+        },
       },
       {
         id: "overdue",

@@ -36,7 +36,7 @@ import {
   taskModuleCanUpdate,
 } from "@/lib/permissions";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { taskStatusBadgeClass } from "@/lib/badges";
+import { taskPriorityBadgeClass, taskStatusBadgeClass } from "@/lib/badges";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -73,6 +73,7 @@ type TaskDetail = {
   id: string;
   title: string;
   description: string | null;
+  priority: string;
   steps: string | null;
   startDate: string | null;
   dueDate: string | null;
@@ -112,6 +113,8 @@ type ChecklistItem = {
   checkedById: string | null;
   checkedBy?: UserBrief | null;
 };
+
+const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 
 function formatWhen(iso: string) {
   try {
@@ -474,6 +477,9 @@ export function TaskDetailPage() {
                 <div className="flex flex-wrap gap-2 text-sm">
                   <span className={taskStatusBadgeClass(task.status.code)}>
                     {task.status.label}
+                  </span>
+                  <span className={taskPriorityBadgeClass(task.priority)}>
+                    {task.priority}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5">
                     <Clock className="size-3.5 opacity-70" />
@@ -916,6 +922,26 @@ export function TaskDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Update priority</Label>
+                  <Select
+                    value={String(task.priority ?? "MEDIUM").toUpperCase()}
+                    onValueChange={(v) => patchTask.mutate({ priority: v })}
+                    disabled={patchTask.isPending}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TASK_PRIORITIES.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p.charAt(0) + p.slice(1).toLowerCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Separator />
                 <div className="space-y-2">
                   <Label>Update status</Label>
                   <Select
