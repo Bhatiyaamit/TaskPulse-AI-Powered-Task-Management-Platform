@@ -42,6 +42,19 @@ type DepartmentOption = { id: string; name: string; code: string | null };
 type MatrixCell = { module: string; action: string };
 type TenantRoleDetail = RoleNameComboboxRole;
 
+const RESERVED_ROLE_NAMES = [
+  "company admin",
+  "company_admin",
+  "companyadmin",
+  "admin",
+];
+
+function isReservedRoleName(name: string) {
+  return RESERVED_ROLE_NAMES.includes(
+    name.trim().toLowerCase().replace(/\s+/g, " "),
+  );
+}
+
 const schema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   employeeCode: z.string().trim().optional(),
@@ -49,7 +62,13 @@ const schema = z.object({
   birthDate: z.string().optional(),
   managerId: z.string().default("__none__"),
   departmentId: z.string().default("__none__"),
-  roleName: z.string().trim().min(1, "Role name is required"),
+  roleName: z
+    .string()
+    .trim()
+    .min(1, "Role name is required")
+    .refine((v) => !isReservedRoleName(v), {
+      message: '"Company Admin" is a reserved name and cannot be used.',
+    }),
   isReviewer: z.boolean().default(false).catch(false),
 });
 type FormValues = z.input<typeof schema>;
@@ -111,17 +130,18 @@ export function TeamUserEditPage() {
   });
 
   const rolesQuery = useQuery({
-    queryKey: ["tenant-roles", "all"],
+    queryKey: ["tenant-roles", "assignment"],
     enabled: canUpdateUsers,
-     // && canManageRoleOnUser,
     queryFn: async () => {
       const { data } = await api.get<ApiSuccess<{ roles: TenantRoleDetail[] }>>(
         "/api/tenant/roles",
-        { params: { for: "all" } },
+        { params: { for: "assignment" } },
       );
       return data.data.roles;
     },
   });
+
+  const isSelf = Boolean(me.data?.user?.id && id && me.data.user.id === id);
 
   const managersQuery = useQuery({
     queryKey: ["team-managers-options"],
@@ -143,9 +163,9 @@ export function TeamUserEditPage() {
     queryKey: ["org-departments", "options"],
     enabled: canUpdateUsers && Boolean(id),
     queryFn: async () => {
-      const { data } = await api.get<ApiSuccess<{ departments: DepartmentOption[] }>>(
-        "/api/org/departments",
-      );
+      const { data } = await api.get<
+        ApiSuccess<{ departments: DepartmentOption[] }>
+      >("/api/org/departments");
       return data.data.departments;
     },
   });
@@ -220,7 +240,7 @@ export function TeamUserEditPage() {
     setRoleSelected(
       new Set(r.matrixSelections.map((c) => cellKey(c.module, c.action))),
     );
-  }, [ rolesQuery.data, userQuery.data, setValue]);
+  }, [rolesQuery.data, userQuery.data, setValue]);
 
   useEffect(() => {
     if (!departmentsQuery.isSuccess) return;
@@ -296,9 +316,7 @@ export function TeamUserEditPage() {
       }
 
       const formDeptId = null;
-      const currentRoleDetail = rolesList.find(
-        (x) => x.id === userRow.role.id,
-      );
+      const currentRoleDetail = rolesList.find((x) => x.id === userRow.role.id);
 
       let roleId: string;
       if (
@@ -325,15 +343,14 @@ export function TeamUserEditPage() {
             const [module, action] = k.split(":");
             return { module, action };
           });
-          const { data: roleRes } = await api.post<ApiSuccess<{ role: { id: string } }>>(
-            "/api/tenant/roles",
-            {
-              code: roleCodeFromName(v.roleName),
-              name: v.roleName.trim(),
-              departmentId: formDeptId,
-              permissions,
-            },
-          );
+          const { data: roleRes } = await api.post<
+            ApiSuccess<{ role: { id: string } }>
+          >("/api/tenant/roles", {
+            code: roleCodeFromName(v.roleName),
+            name: v.roleName.trim(),
+            departmentId: formDeptId,
+            permissions,
+          });
           roleId = roleRes.data.role.id;
         }
       }
@@ -631,7 +648,7 @@ export function TeamUserEditPage() {
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
-                  disabled={ !canUpdateUsers}
+                  disabled={!canUpdateUsers || isSelf}
                   placeholder="e.g. Manager"
                   roles={roleOptionsForCombobox}
                   onPickRole={(r) => {
@@ -650,11 +667,15 @@ export function TeamUserEditPage() {
                 />
               )}
             />
-            { canUpdateUsers ? (
+            {isSelf ? (
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                ⚠ You cannot change your own role.
+              </p>
+            ) : canUpdateUsers ? (
               <p className="text-xs text-muted-foreground">
                 Pick a role to copy its setup, or type a new name. An existing
-                role is reused when name, scope, and permissions match; otherwise
-                a new role is created.
+                role is reused when name, scope, and permissions match;
+                otherwise a new role is created.
               </p>
             ) : null}
             {/* {!canManageRoleOnUser ? (
@@ -705,9 +726,7 @@ export function TeamUserEditPage() {
                                 checked={roleSelected.has(k)}
                                 onChange={() => toggleRoleCell(m, a)}
                                 disabled={
-                                  
-                                  !canUpdateUsers ||
-                                  !supported
+                                  !canUpdateUsers || isSelf || !supported
                                 }
                               />
                               <span className="text-xs text-muted-foreground">
@@ -723,7 +742,7 @@ export function TeamUserEditPage() {
                             type="checkbox"
                             checked={isModuleAllChecked(m)}
                             onChange={(e) => setModuleAll(m, e.target.checked)}
-                            disabled={ !canUpdateUsers}
+                            disabled={!canUpdateUsers || isSelf}
                           />
                           <span className="text-xs text-muted-foreground">
                             All
@@ -747,10 +766,9 @@ export function TeamUserEditPage() {
             disabled={
               update.isPending ||
               !canUpdateUsers ||
-          
               !phoneOk ||
-              ( 
-                (rolesQuery.isLoading || rolesQuery.isError))
+              rolesQuery.isLoading ||
+              rolesQuery.isError
             }
           >
             {update.isPending ? "Saving…" : "Save changes"}

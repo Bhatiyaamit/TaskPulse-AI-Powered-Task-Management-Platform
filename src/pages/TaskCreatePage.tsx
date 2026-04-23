@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
+import { isAxiosError } from "axios";
+import { toast } from "sonner";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
@@ -50,6 +52,8 @@ type TaskCreateFormValues = {
   estimatedHours: string;
   isRecurring: boolean;
   recurrencePattern: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  recurrenceInterval: string;
+  recurrenceEndsAt: string;
   checklistItems: { text: string; mandatory: boolean }[];
 };
 
@@ -70,32 +74,40 @@ export function TaskCreatePage() {
     setValue,
     watch,
     formState: { errors },
-  } =
-    useForm<TaskCreateFormValues>({
-      defaultValues: {
-        title: "",
-        description: "",
-        priority: "MEDIUM",
-        steps: "",
-        statusId: "",
-        assignedToId: UNASSIGNED,
-        reviewerId: UNASSIGNED,
-        supporterId: UNASSIGNED,
-        escalationToId: UNASSIGNED,
-        escalationMinutesBeforeDue: "",
-        startDate: "",
-        dueDate: "",
-        estimatedHours: "",
-        isRecurring: false,
-        recurrencePattern: "DAILY",
-        checklistItems: [{ text: "", mandatory: true }],
-      },
-    });
+  } = useForm<TaskCreateFormValues>({
+    defaultValues: {
+      title: "",
+      description: "",
+      priority: "MEDIUM",
+      steps: "",
+      statusId: "",
+      assignedToId: UNASSIGNED,
+      reviewerId: UNASSIGNED,
+      supporterId: UNASSIGNED,
+      escalationToId: UNASSIGNED,
+      escalationMinutesBeforeDue: "",
+      startDate: "",
+      dueDate: "",
+      estimatedHours: "",
+      isRecurring: false,
+      recurrencePattern: "DAILY",
+      recurrenceInterval: "1",
+      recurrenceEndsAt: "",
+      checklistItems: [{ text: "", mandatory: true }],
+    },
+  });
   const statusId = watch("statusId");
   const startDateValue = watch("startDate");
   const isRecurring = watch("isRecurring");
+  const recurrencePattern = watch("recurrencePattern");
+  const recurrenceInterval = watch("recurrenceInterval");
+  const recurrenceEndsAt = watch("recurrenceEndsAt");
   const checklistItemsValue = watch("checklistItems");
-  const { fields: checklistFields, append, remove } = useFieldArray({
+  const {
+    fields: checklistFields,
+    append,
+    remove,
+  } = useFieldArray({
     control,
     name: "checklistItems",
   });
@@ -134,26 +146,72 @@ export function TaskCreatePage() {
     return u?.name || u?.username || v;
   }
 
+  // Compute estimated series size for live preview
+  function estimateSeriesCount(): number | null {
+    if (!isRecurring || !startDateValue || !recurrenceEndsAt) return null;
+    const start = new Date(startDateValue);
+    const until = new Date(recurrenceEndsAt);
+    if (isNaN(start.getTime()) || isNaN(until.getTime()) || until <= start)
+      return null;
+    const interval = Math.max(1, parseInt(recurrenceInterval) || 1);
+    let count = 0;
+    let cur = new Date(start);
+    const MAX = 366;
+    while (cur <= until && count < MAX) {
+      count++;
+      const d = new Date(cur);
+      switch (recurrencePattern) {
+        case "DAILY":
+          d.setDate(d.getDate() + interval);
+          break;
+        case "WEEKLY":
+          d.setDate(d.getDate() + interval * 7);
+          break;
+        case "MONTHLY":
+          d.setMonth(d.getMonth() + interval);
+          break;
+        case "YEARLY":
+          d.setFullYear(d.getFullYear() + interval);
+          break;
+      }
+      cur = d;
+    }
+    return count;
+  }
+
   const create = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
-      const { data } = await api.post<ApiSuccess<{ task: { id: string } }>>(
-        "/api/tasks",
-        payload,
-      );
-      return data.data.task;
+      const { data } = await api.post<
+        ApiSuccess<{
+          task?: { id: string };
+          tasks?: { id: string }[];
+          createdCount?: number;
+        }>
+      >("/api/tasks", payload);
+      return data.data;
     },
     onError: (err: unknown) => {
-      const ax = err as { response?: { data?: { message?: string } } };
-      setFormError(ax.response?.data?.message ?? "Could not create task.");
+      const msg = isAxiosError(err)
+        ? (err.response?.data?.message ?? err.message)
+        : "Could not create task.";
+      setFormError(String(msg));
+      toast.error(String(msg));
     },
-    onSuccess: async (_task) => {
-      // Ensure every task list variant (filters/sorts/queues) is refreshed before leaving.
+    onSuccess: async (result) => {
       await qc.invalidateQueries({ queryKey: ["tasks"], exact: false });
       await qc.refetchQueries({
         queryKey: ["tasks"],
         exact: false,
         type: "active",
       });
+      if (result.createdCount && result.createdCount > 1) {
+        setFormError(null);
+        toast.success(
+          `Created ${result.createdCount} tasks in recurring series.`,
+        );
+      } else {
+        toast.success("Task created");
+      }
       const next =
         returnTo?.trim() ||
         (meetingId?.trim()
@@ -177,7 +235,9 @@ export function TaskCreatePage() {
     const startIso = values.startDate
       ? new Date(values.startDate).toISOString()
       : null;
-    const dueIso = values.dueDate ? new Date(values.dueDate).toISOString() : null;
+    const dueIso = values.dueDate
+      ? new Date(values.dueDate).toISOString()
+      : null;
     if (startIso && dueIso) {
       const startMs = new Date(startIso).getTime();
       const dueMs = new Date(dueIso).getTime();
@@ -207,6 +267,30 @@ export function TaskCreatePage() {
         mandatory: Boolean(item.mandatory),
       }))
       .filter((item) => item.text);
+    if (values.isRecurring) {
+      if (!values.startDate) {
+        setFormError("Start date is required for a recurring series.");
+        return;
+      }
+      if (!values.dueDate) {
+        setFormError("Due date is required for a recurring series.");
+        return;
+      }
+      if (!values.recurrenceEndsAt) {
+        setFormError('"Repeat until" date is required for a recurring series.');
+        return;
+      }
+      const endsAt = new Date(values.recurrenceEndsAt);
+      if (endsAt <= new Date(values.startDate)) {
+        setFormError('"Repeat until" must be after the start date.');
+        return;
+      }
+      const est = estimateSeriesCount();
+      if (est !== null && est < 1) {
+        setFormError("No occurrences found in the selected date range.");
+        return;
+      }
+    }
     if (values.isRecurring && cleanedChecklistItems.length === 0) {
       setFormError("Add at least one checklist item for recurring task.");
       return;
@@ -249,6 +333,13 @@ export function TaskCreatePage() {
       checklistItems: cleanedChecklistItems,
       isRecurring: values.isRecurring,
       recurrencePattern: values.isRecurring ? values.recurrencePattern : null,
+      recurrenceInterval: values.isRecurring
+        ? parseInt(values.recurrenceInterval) || 1
+        : null,
+      recurrenceEndsAt:
+        values.isRecurring && values.recurrenceEndsAt
+          ? new Date(values.recurrenceEndsAt).toISOString()
+          : null,
     });
   }
 
@@ -321,7 +412,6 @@ export function TaskCreatePage() {
                 Title
               </Label>
               <Input
-              
                 id="title"
                 {...register("title")}
                 placeholder="Short summary of the work"
@@ -493,7 +583,8 @@ export function TaskCreatePage() {
                       if (!start || !value) return true;
                       const startMs = new Date(start).getTime();
                       const dueMs = new Date(value).getTime();
-                      if (Number.isNaN(startMs) || Number.isNaN(dueMs)) return true;
+                      if (Number.isNaN(startMs) || Number.isNaN(dueMs))
+                        return true;
                       return (
                         dueMs >= startMs ||
                         "Due date/time cannot be earlier than Start date/time."
@@ -538,19 +629,19 @@ export function TaskCreatePage() {
                 ) : null}
               </div>
               <div className="space-y-2">
-              <Label htmlFor="escalationMinutesBeforeDue">
-                Escalation (minutes before Due)
-              </Label>
-              <Input
-                id="escalationMinutesBeforeDue"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                type="number"
-                min={0}
-                step={1}
-                {...register("escalationMinutesBeforeDue")}
-                placeholder="e.g. 20"
-              />
+                <Label htmlFor="escalationMinutesBeforeDue">
+                  Escalation (minutes before Due)
+                </Label>
+                <Input
+                  id="escalationMinutesBeforeDue"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  type="number"
+                  min={0}
+                  step={1}
+                  {...register("escalationMinutesBeforeDue")}
+                  placeholder="e.g. 20"
+                />
               </div>
             </div>
             <div className="pt-2">
@@ -569,14 +660,17 @@ export function TaskCreatePage() {
                 <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">
                   Recurrence & Checklist
                 </h4>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
-                    <Label>Recurring pattern</Label>
+                    <Label>Repeat pattern</Label>
                     <Controller
                       control={control}
                       name="recurrencePattern"
                       render={({ field }) => (
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
                           <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
@@ -590,61 +684,93 @@ export function TaskCreatePage() {
                       )}
                     />
                   </div>
-                  <div className="space-y-3 sm:col-span-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <Label>Checklist line items</Label>
-                        <p className="text-xs text-muted-foreground">
-                          Add items users can check or uncheck on each recurring task.
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => append({ text: "", mandatory: false })}
+                  <div className="space-y-2">
+                    <Label htmlFor="recurrenceInterval">Repeat every (N)</Label>
+                    <Input
+                      id="recurrenceInterval"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={365}
+                      step={1}
+                      {...register("recurrenceInterval")}
+                      placeholder="1"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="recurrenceEndsAt">Repeat until</Label>
+                    <Input
+                      id="recurrenceEndsAt"
+                      type="datetime-local"
+                      {...register("recurrenceEndsAt")}
+                    />
+                  </div>
+                </div>
+                {(() => {
+                  const est = estimateSeriesCount();
+                  if (est === null) return null;
+                  return (
+                    <p className="text-xs font-medium text-primary">
+                      ≈ {est} task{est !== 1 ? "s" : ""} will be created
+                    </p>
+                  );
+                })()}
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Label>Checklist line items</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Add items users can check or uncheck on each recurring
+                        task.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => append({ text: "", mandatory: false })}
+                    >
+                      Add item
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {checklistFields.map((field, index) => (
+                      <div
+                        key={field.id}
+                        className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
                       >
-                        Add item
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      {checklistFields.map((field, index) => (
-                        <div
-                          key={field.id}
-                          className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
-                        >
-                          <Input
-                            {...register(`checklistItems.${index}.text`)}
-                            placeholder="Line item text"
+                        <Input
+                          {...register(`checklistItems.${index}.text`)}
+                          placeholder="Line item text"
+                        />
+                        <Label className="inline-flex items-center gap-2 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            {...register(`checklistItems.${index}.mandatory`)}
                           />
-                          <Label className="inline-flex items-center gap-2 whitespace-nowrap">
-                            <input
-                              type="checkbox"
-                              {...register(`checklistItems.${index}.mandatory`)}
-                            />
-                            <span
-                              className="text-destructive"
-                              aria-label="Mandatory checklist item"
-                              title="Mandatory"
-                            >
-                              *
-                            </span>
-                          </Label>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => remove(index)}
-                            disabled={
-                              checklistFields.length === 1 &&
-                              !checklistItemsValue?.[0]?.text?.trim()
-                            }
+                          <span
+                            className="text-destructive"
+                            aria-label="Mandatory checklist item"
+                            title="Mandatory"
                           >
-                            Remove
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
+                            *
+                          </span>
+                        </Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => remove(index)}
+                          disabled={
+                            checklistFields.length === 1 &&
+                            !checklistItemsValue?.[0]?.text?.trim()
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </section>

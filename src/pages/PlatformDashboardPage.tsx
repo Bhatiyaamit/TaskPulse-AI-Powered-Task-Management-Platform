@@ -152,7 +152,7 @@ export function PlatformDashboardPage() {
             <Card className={topLeftSpotlightCardClass}>
               <CardHeader>
                 <CardTitle className="text-sm uppercase tracking-wide text-primary">
-                  Total tenant users
+                  Total Company Users
                 </CardTitle>
               </CardHeader>
               <CardContent

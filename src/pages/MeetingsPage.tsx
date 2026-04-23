@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import { Ban, Eye, Pencil, Play, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { Ban, Pencil, Play, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { isAxiosError } from "axios";
+import { toast } from "sonner";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
@@ -192,6 +194,13 @@ export function MeetingsPage() {
         exact: false,
       });
       await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
+      toast.success("Meeting deleted");
+    },
+    onError: (e) => {
+      const msg = isAxiosError(e)
+        ? (e.response?.data?.message ?? e.message)
+        : "Could not delete meeting";
+      toast.error(String(msg));
     },
   });
 
@@ -207,6 +216,13 @@ export function MeetingsPage() {
       });
       await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
       await qc.invalidateQueries({ queryKey: ["meeting"], exact: false });
+      toast.success("Meeting cancelled");
+    },
+    onError: (e) => {
+      const msg = isAxiosError(e)
+        ? (e.response?.data?.message ?? e.message)
+        : "Could not cancel meeting";
+      toast.error(String(msg));
     },
   });
   const startMeeting = useMutation({
@@ -220,7 +236,14 @@ export function MeetingsPage() {
       });
       await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
       await qc.invalidateQueries({ queryKey: ["meeting"], exact: false });
+      toast.success("Meeting started");
       navigate(`/meetings/${meetingId}`);
+    },
+    onError: (e) => {
+      const msg = isAxiosError(e)
+        ? (e.response?.data?.message ?? e.message)
+        : "Could not start meeting";
+      toast.error(String(msg));
     },
   });
 
@@ -307,24 +330,6 @@ export function MeetingsPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center gap-0.5">
-            <Link to={`/meetings/${row.original.id}`}>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      aria-label="View meeting"
-                    />
-                  }
-                >
-                  <Eye className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>View</TooltipContent>
-              </Tooltip>
-            </Link>
             {canUpdateMeetings &&
             row.original.computedStatus === "SCHEDULED" ? (
               <button

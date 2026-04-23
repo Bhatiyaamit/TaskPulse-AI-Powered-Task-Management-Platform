@@ -3,7 +3,7 @@ import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import { Eye, Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { isAxiosError } from "axios";
 import { toast } from "sonner";
 import { api } from "@/api/client";
@@ -180,7 +180,10 @@ export function DepartmentsPage() {
       await api.delete(`/api/org/departments/${departmentId}`);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["org-departments"], exact: false });
+      await qc.invalidateQueries({
+        queryKey: ["org-departments"],
+        exact: false,
+      });
       await qc.invalidateQueries({
         queryKey: ["org-departments-paginated"],
         exact: false,
@@ -210,14 +213,15 @@ export function DepartmentsPage() {
         id: "name",
         header: "Department",
         cell: ({ row }) => (
-          <span
+          <Link
+            to={`/team?departmentId=${encodeURIComponent(row.original.id)}`}
             className={cn(
-              "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+              "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium hover:opacity-80 transition-opacity",
               badgeColorClass(row.original.id),
             )}
           >
             {row.original.name}
-          </span>
+          </Link>
         ),
       },
       {
@@ -259,25 +263,6 @@ export function DepartmentsPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center gap-0.5">
-            {canViewTeamByDept ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Link
-                      to={`/team?departmentId=${encodeURIComponent(row.original.id)}`}
-                      className={cn(
-                        buttonVariants({ variant: "outline", size: "sm" }),
-                        "h-8 w-8 p-0",
-                      )}
-                      aria-label={`View team members in ${row.original.name}`}
-                    >
-                      <Eye className="size-4" />
-                    </Link>
-                  }
-                />
-                <TooltipContent>View team in this department</TooltipContent>
-              </Tooltip>
-            ) : null}
             {canUpdateDept ? (
               <Tooltip>
                 <TooltipTrigger
@@ -325,11 +310,7 @@ export function DepartmentsPage() {
         ),
       },
     ],
-    [
-      canViewTeamByDept,
-      canUpdateDept,
-      canDeleteDept,
-    ],
+    [canViewTeamByDept, canUpdateDept, canDeleteDept],
   );
 
   const table = useReactTable({
@@ -366,9 +347,7 @@ export function DepartmentsPage() {
   );
 
   if (me.isPending) {
-    return (
-      <div className="p-6 text-sm text-muted-foreground">Loading…</div>
-    );
+    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   }
   if (me.data && !canAccess) {
     return <Navigate to="/" replace />;
@@ -442,7 +421,8 @@ export function DepartmentsPage() {
                 <span className="font-medium text-foreground">
                   Departments → Read
                 </span>{" "}
-                (<code className="rounded bg-muted px-1 py-0.5 text-xs">
+                (
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
                   {P.DEPARTMENTS_READ}
                 </code>
                 ), or update/delete departments. You can still add a department
@@ -530,7 +510,10 @@ export function DepartmentsPage() {
                     }}
                     itemToStringLabel={(vv) => vv}
                   >
-                    <SelectTrigger id="department-page-size" className="h-8 w-18">
+                    <SelectTrigger
+                      id="department-page-size"
+                      className="h-8 w-18"
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

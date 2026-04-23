@@ -12,7 +12,14 @@ import {
 } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ExternalLink, Eye, Pencil, Play, Plus } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  Eye,
+  Pencil,
+  Play,
+  Plus,
+} from "lucide-react";
 import {
   overdueBadgeClass,
   taskPriorityBadgeClass,
@@ -74,7 +81,11 @@ type MeetingDetailResponse = {
   datetime: string;
   createdBy: { id: string; name: string; username: string };
   attendees: { user: { id: string; name: string; username: string } }[];
-  outcomes: { id: string; outcomeText: string; task: { id: string; title: string } | null }[];
+  outcomes: {
+    id: string;
+    outcomeText: string;
+    task: { id: string; title: string } | null;
+  }[];
   // Embedded tasks + statuses from the single API call
   tasks: MeetingTaskRow[];
   tasksMeta: { page: number; pageSize: number; total: number };
@@ -190,20 +201,19 @@ export function MeetingDetailPage() {
             ? "dueDate"
             : parsed.sortBy
           : undefined;
-      const { data } = await api.get<ApiSuccess<{ meeting: MeetingDetailResponse }>>(
-        `/api/meetings/${id}`,
-        {
-          params: {
-            page: parsed.pagination.pageIndex + 1,
-            pageSize: parsed.pagination.pageSize,
-            ...(parsed.statusId ? { statusId: parsed.statusId } : {}),
-            ...(parsed.q ? { search: parsed.q } : {}),
-            ...(apiSortBy && parsed.sortDir
-              ? { sortBy: apiSortBy, sortDir: parsed.sortDir }
-              : {}),
-          },
+      const { data } = await api.get<
+        ApiSuccess<{ meeting: MeetingDetailResponse }>
+      >(`/api/meetings/${id}`, {
+        params: {
+          page: parsed.pagination.pageIndex + 1,
+          pageSize: parsed.pagination.pageSize,
+          ...(parsed.statusId ? { statusId: parsed.statusId } : {}),
+          ...(parsed.q ? { search: parsed.q } : {}),
+          ...(apiSortBy && parsed.sortDir
+            ? { sortBy: apiSortBy, sortDir: parsed.sortDir }
+            : {}),
         },
-      );
+      });
       return data.data.meeting;
     },
   });
@@ -216,7 +226,10 @@ export function MeetingDetailPage() {
     mutationFn: async () => api.post(`/api/meetings/${id}/start`),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["meeting", id] });
-      await qc.invalidateQueries({ queryKey: ["meetings-paginated"], exact: false });
+      await qc.invalidateQueries({
+        queryKey: ["meetings-paginated"],
+        exact: false,
+      });
       await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
       toast.success("Meeting started — you can now add tasks.");
     },
@@ -239,6 +252,7 @@ export function MeetingDetailPage() {
         exact: false,
       });
       await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
+      toast.success("Meeting marked as completed");
     },
     onError: (e) => {
       const message = isAxiosError(e)
@@ -256,6 +270,13 @@ export function MeetingDetailPage() {
         queryKey: ["meetings-paginated"],
         exact: false,
       });
+      toast.success("MOM saved");
+    },
+    onError: (e) => {
+      const message = isAxiosError(e)
+        ? String(e.response?.data?.message ?? e.message)
+        : "Could not save MOM";
+      toast.error(message);
     },
   });
 
@@ -339,8 +360,12 @@ export function MeetingDetailPage() {
         accessorFn: (r) => String(r.priority ?? "MEDIUM").toUpperCase(),
         header: "Priority",
         cell: ({ row }) => {
-          const priority = String(row.original.priority ?? "MEDIUM").toUpperCase();
-          return <span className={taskPriorityBadgeClass(priority)}>{priority}</span>;
+          const priority = String(
+            row.original.priority ?? "MEDIUM",
+          ).toUpperCase();
+          return (
+            <span className={taskPriorityBadgeClass(priority)}>{priority}</span>
+          );
         },
       },
       {
@@ -632,7 +657,9 @@ export function MeetingDetailPage() {
               disabled={markCompleted.isPending || !hasMomNotes}
               onClick={async () => {
                 if (!hasMomNotes) {
-                  toast.warning("Please add MOM before marking meeting as completed.");
+                  toast.warning(
+                    "Please add MOM before marking meeting as completed.",
+                  );
                   return;
                 }
                 if ((momNotesDraft ?? "") !== (meeting.momNotes ?? "")) {
@@ -647,7 +674,7 @@ export function MeetingDetailPage() {
           ) : null}
 
           {/* COMPLETED / CANCELLED: nothing */}
-          {(isCompleted || isCancelled) ? null : null}
+          {isCompleted || isCancelled ? null : null}
         </div>
       </div>
 
@@ -759,8 +786,8 @@ export function MeetingDetailPage() {
                 Start the meeting to unlock task creation
               </p>
               <p className="text-sm text-muted-foreground">
-                Click <strong>Start meeting</strong> once — you can add and manage
-                tasks for this meeting at any time after that.
+                Click <strong>Start meeting</strong> once — you can add and
+                manage tasks for this meeting at any time after that.
               </p>
             </div>
             {canUpdateMeeting ? (
@@ -908,9 +935,7 @@ export function MeetingDetailPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={
-                    pagination.pageIndex <= 0 || isMeetingLoading
-                  }
+                  disabled={pagination.pageIndex <= 0 || isMeetingLoading}
                   onClick={goPrev}
                 >
                   Previous
@@ -922,8 +947,7 @@ export function MeetingDetailPage() {
                   type="button"
                   variant="outline"
                   disabled={
-                    pagination.pageIndex >= pageCount - 1 ||
-                    isMeetingLoading
+                    pagination.pageIndex >= pageCount - 1 || isMeetingLoading
                   }
                   onClick={goNext}
                 >

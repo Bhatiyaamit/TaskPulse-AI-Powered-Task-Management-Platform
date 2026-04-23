@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { isAxiosError } from "axios";
+import { toast } from "sonner";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
@@ -63,10 +65,17 @@ export function MeetingCreatePage() {
     }) => api.post("/api/meetings", payload),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["meetings"] });
+      toast.success("Meeting created");
       const mid = (res.data as ApiSuccess<{ meeting: { id: string } }>).data
         .meeting?.id;
       if (mid) navigate(`/meetings/${mid}`);
       else navigate("/meetings");
+    },
+    onError: (e) => {
+      const msg = isAxiosError(e)
+        ? (e.response?.data?.message ?? e.message)
+        : "Could not create meeting";
+      toast.error(String(msg));
     },
   });
 
