@@ -16,6 +16,7 @@ import {
   departmentModuleCanAccessDepartmentsNav,
   taskModuleCanCreate,
   taskModuleCanList,
+  userModuleCanList,
 } from "@/lib/permissions";
 import {
   LayoutDashboard,
@@ -118,7 +119,7 @@ export function AppLayout() {
   const tenant = data.user.tenantId != null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       {isSwitchingCompany ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/40 backdrop-blur transition-opacity duration-200 animate-in fade-in">
           <div className="flex items-center gap-3 rounded-xl border border-border bg-background/80 px-4 py-3 shadow-lg">
@@ -129,7 +130,7 @@ export function AppLayout() {
           </div>
         </div>
       ) : null}
-      <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-sidebar/70 p-4 backdrop-blur supports-backdrop-filter:bg-sidebar/60">
+      <aside className="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar/70 p-4 backdrop-blur supports-backdrop-filter:bg-sidebar/60">
         <div className="mb-6 flex items-center gap-2 px-2">
           <img
             src={"/logo.png"}
@@ -167,11 +168,13 @@ export function AppLayout() {
                   label="Meetings"
                 />
               )}
-              <Nav
-                to="/team"
-                icon={<Users className="h-4 w-4" />}
-                label="Team"
-              />
+              {(userModuleCanList(p) || p.includes(P.USERS_CREATE)) && (
+                <Nav
+                  to="/team"
+                  icon={<Users className="h-4 w-4" />}
+                  label="Team"
+                />
+              )}
               {departmentModuleCanAccessDepartmentsNav(p) && (
                 <Nav
                   to="/departments"
@@ -320,7 +323,7 @@ export function AppLayout() {
           </div>
         ) : null}
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <motion.header
           className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-background/40 px-4 backdrop-blur supports-backdrop-filter:bg-background/30 sm:px-6"
           initial={{ opacity: 0, y: -6 }}

@@ -29,6 +29,7 @@ import {
   CenteredFormPage,
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
+import { SearchableTaskSelect } from "@/components/SearchableTaskSelect";
 
 const UNASSIGNED = "__none__";
 
@@ -55,6 +56,7 @@ type TaskPayload = {
   escalationTo: UserOption | null;
   isRecurring?: boolean | null;
   recurrencePattern?: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | null;
+  parentTaskId?: string | null;
 };
 
 type TaskEditFormValues = {
@@ -73,6 +75,7 @@ type TaskEditFormValues = {
   isRecurring: boolean;
   recurrencePattern: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   checklistItems: { text: string; mandatory: boolean }[];
+  parentTaskId: string;
 };
 
 function isoToDatetimeLocal(iso: string | null): string {
@@ -119,6 +122,7 @@ export function TaskEditPage() {
         isRecurring: false,
         recurrencePattern: "DAILY",
         checklistItems: [{ text: "", mandatory: true }],
+        parentTaskId: "",
       },
     });
   const { fields: checklistFields, append, remove, replace } = useFieldArray({
@@ -145,6 +149,17 @@ export function TaskEditPage() {
         "/api/tasks/assignable-users",
       );
       return data.data.users;
+    },
+  });
+
+  const { data: parentCandidates } = useQuery({
+    queryKey: ["tasks-for-parent-selector", id],
+    enabled: canEditTask && Boolean(id),
+    queryFn: async () => {
+      const { data } = await api.get<
+        ApiSuccess<{ tasks: { id: string; title: string }[] }>
+      >(`/api/tasks/for-parent-selector?excludeId=${id}`);
+      return data.data.tasks;
     },
   });
 
@@ -183,6 +198,7 @@ export function TaskEditPage() {
       isRecurring: false,
       recurrencePattern: "DAILY",
       checklistItems: [{ text: "", mandatory: true }],
+      parentTaskId: "",
     });
     replace([{ text: "", mandatory: true }]);
   }, [id]);
@@ -222,6 +238,7 @@ export function TaskEditPage() {
       isRecurring: Boolean(task.isRecurring),
       recurrencePattern: task.recurrencePattern ?? "DAILY",
       checklistItems: [{ text: "", mandatory: true }],
+      parentTaskId: task.parentTaskId ?? "",
     });
   }, [task]);
 
@@ -354,6 +371,7 @@ export function TaskEditPage() {
       isRecurring: values.isRecurring,
       recurrencePattern: values.isRecurring ? values.recurrencePattern : null,
       checklistItems: cleanedChecklistItems,
+      parentTaskId: values.parentTaskId.trim() || null,
     });
   }
 
@@ -467,6 +485,24 @@ export function TaskEditPage() {
                     value={field.value}
                     onChange={field.onChange}
                     placeholder="Write the steps… Use bullets/numbering, bold, italics."
+                  />
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="parentTaskId">Parent task</Label>
+              <p className="text-xs text-muted-foreground">
+                Link this task as a sub-task of an existing task.
+              </p>
+              <Controller
+                control={control}
+                name="parentTaskId"
+                render={({ field }) => (
+                  <SearchableTaskSelect
+                    tasks={parentCandidates ?? []}
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="No parent task (optional)"
                   />
                 )}
               />

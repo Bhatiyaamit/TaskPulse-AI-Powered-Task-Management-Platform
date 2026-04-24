@@ -217,8 +217,6 @@ export const DEPARTMENT_SETTINGS_ACCESS_KEYS = [
 
 export const DEPARTMENT_PAGINATED_LIST_KEYS = [
   P.DEPARTMENTS_READ,
-  P.DEPARTMENTS_UPDATE,
-  P.DEPARTMENTS_DELETE,
 ] as const;
 
 export const DEPARTMENT_SIMPLE_LIST_KEYS = [
@@ -238,7 +236,7 @@ export function departmentModuleCanAccessDepartmentsNav(
   permissions: readonly string[] | undefined,
 ): boolean {
   const s = permSet(permissions);
-  return DEPARTMENT_SETTINGS_ACCESS_KEYS.some((k) => s.has(k));
+  return s.has(P.DEPARTMENTS_READ) || s.has(P.DEPARTMENTS_CREATE);
 }
 
 export function departmentModuleCanList(

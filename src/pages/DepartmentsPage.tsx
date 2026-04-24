@@ -12,7 +12,6 @@ import {
   departmentModuleCanAccessDepartmentsNav,
   departmentModuleCanCreate,
   departmentModuleCanDelete,
-  departmentModuleCanFetchDepartmentPageList,
   departmentModuleCanList,
   departmentModuleCanUpdate,
   userModuleCanList,
@@ -98,8 +97,8 @@ export function DepartmentsPage() {
   const me = useMe();
   const perms = me.data?.permissions;
   const canAccess = departmentModuleCanAccessDepartmentsNav(perms);
-  const canFetchList = departmentModuleCanFetchDepartmentPageList(perms);
   const canListDepts = departmentModuleCanList(perms);
+  const canFetchList = canListDepts;
   const canCreateDept = departmentModuleCanCreate(perms);
   const canUpdateDept = departmentModuleCanUpdate(perms);
   const canDeleteDept = departmentModuleCanDelete(perms);
@@ -375,7 +374,7 @@ export function DepartmentsPage() {
   }
 
   const showCreateOnlyHint =
-    Boolean(me.data) && canAccess && !canFetchList && canCreateDept;
+    Boolean(me.data) && canAccess && !canListDepts && canCreateDept;
 
   return (
     <div className="space-y-6">

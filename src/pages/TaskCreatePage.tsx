@@ -23,6 +23,7 @@ import {
   CenteredFormPage,
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
+import { SearchableTaskSelect } from "@/components/SearchableTaskSelect";
 
 const UNASSIGNED = "__none__";
 
@@ -49,6 +50,7 @@ type TaskCreateFormValues = {
   isRecurring: boolean;
   recurrencePattern: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   checklistItems: { text: string; mandatory: boolean }[];
+  parentTaskId: string;
 };
 
 export function TaskCreatePage() {
@@ -86,6 +88,7 @@ export function TaskCreatePage() {
         isRecurring: false,
         recurrencePattern: "DAILY",
         checklistItems: [{ text: "", mandatory: true }],
+        parentTaskId: "",
       },
     });
   const statusId = watch("statusId");
@@ -116,6 +119,17 @@ export function TaskCreatePage() {
         "/api/tasks/assignable-users",
       );
       return data.data.users;
+    },
+  });
+
+  const { data: parentCandidates } = useQuery({
+    queryKey: ["tasks-for-parent-selector"],
+    enabled: canCreateTask,
+    queryFn: async () => {
+      const { data } = await api.get<
+        ApiSuccess<{ tasks: { id: string; title: string }[] }>
+      >("/api/tasks/for-parent-selector");
+      return data.data.tasks;
     },
   });
 
@@ -245,6 +259,7 @@ export function TaskCreatePage() {
       checklistItems: cleanedChecklistItems,
       isRecurring: values.isRecurring,
       recurrencePattern: values.isRecurring ? values.recurrencePattern : null,
+      parentTaskId: values.parentTaskId.trim() || null,
     });
   }
 
@@ -342,6 +357,24 @@ export function TaskCreatePage() {
                     value={field.value}
                     onChange={field.onChange}
                     placeholder="Write the steps…"
+                  />
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="parentTaskId">Parent task</Label>
+              <p className="text-xs text-muted-foreground">
+                Link this task as a sub-task of an existing task.
+              </p>
+              <Controller
+                control={control}
+                name="parentTaskId"
+                render={({ field }) => (
+                  <SearchableTaskSelect
+                    tasks={parentCandidates ?? []}
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="No parent task (optional)"
                   />
                 )}
               />

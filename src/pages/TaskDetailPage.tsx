@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   Clock,
   GitBranch,
+  GitMerge,
+  ListTree,
   MessageSquare,
   Paperclip,
   Shield,
@@ -100,6 +102,18 @@ type TaskDetail = {
     datetime: string;
     momNotes: string | null;
   } | null;
+  parent?: {
+    id: string;
+    title: string;
+    status: { label: string; code: string };
+  } | null;
+  children?: {
+    id: string;
+    title: string;
+    status: { id: string; label: string; code: string };
+    assignedTo: UserBrief | null;
+    dueDate: string | null;
+  }[];
 };
 
 type ChecklistItem = {
@@ -624,6 +638,104 @@ export function TaskDetailPage() {
               </CardContent>
             </Card>
           </motion.section>
+
+          {/* 3a. Parent task */}
+          {task.parent && (
+            <motion.section
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.07 }}
+            >
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base font-semibold uppercase tracking-wide text-primary">
+                    <GitMerge className="size-4" />
+                    Parent task
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Link
+                    to={`/tasks/${task.parent.id}`}
+                    className="group flex items-center gap-3 rounded-lg border border-border px-4 py-3 transition-colors hover:bg-muted/50"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium group-hover:text-primary">
+                        {task.parent.title}
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        taskStatusBadgeClass(task.parent.status.code),
+                        "shrink-0",
+                      )}
+                    >
+                      {task.parent.status.label}
+                    </span>
+                  </Link>
+                </CardContent>
+              </Card>
+            </motion.section>
+          )}
+
+          {/* 3b. Child tasks (sub-tasks) */}
+          {task.children && task.children.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.08 }}
+            >
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base font-semibold uppercase tracking-wide text-primary">
+                    <ListTree className="size-4" />
+                    Sub-tasks
+                    <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
+                      {task.children.length}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {task.children.map((child) => (
+                      <li key={child.id}>
+                        <Link
+                          to={`/tasks/${child.id}`}
+                          className="group flex items-center gap-3 rounded-lg border border-border px-4 py-3 transition-colors hover:bg-muted/50"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium group-hover:text-primary">
+                              {child.title}
+                            </p>
+                            {child.assignedTo && (
+                              <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                <User className="size-3" />
+                                {child.assignedTo.name || child.assignedTo.username}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            <span
+                              className={cn(
+                                taskStatusBadgeClass(child.status.code),
+                              )}
+                            >
+                              {child.status.label}
+                            </span>
+                            {child.dueDate && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Calendar className="size-3" />
+                                {formatDateTime(child.dueDate)}
+                              </span>
+                            )}
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </motion.section>
+          )}
 
           {/* 4. Activity */}
           <motion.section
