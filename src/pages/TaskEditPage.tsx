@@ -8,6 +8,8 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
+import { isAxiosError } from "axios";
+import { toast } from "sonner";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
@@ -104,28 +106,32 @@ export function TaskEditPage() {
     reset,
     watch,
     formState: { errors },
-  } =
-    useForm<TaskEditFormValues>({
-      defaultValues: {
-        title: "",
-        description: "",
-        priority: "MEDIUM",
-        steps: "",
-        statusId: "",
-        assignedToId: UNASSIGNED,
-        reviewerId: UNASSIGNED,
-        supporterId: UNASSIGNED,
-        escalationToId: UNASSIGNED,
-        escalationMinutesBeforeDue: "",
-        startDate: "",
-        dueDate: "",
-        estimatedHours: "",
-        isRecurring: false,
-        recurrencePattern: "DAILY",
-        checklistItems: [{ text: "", mandatory: true }],
-      },
-    });
-  const { fields: checklistFields, append, remove, replace } = useFieldArray({
+  } = useForm<TaskEditFormValues>({
+    defaultValues: {
+      title: "",
+      description: "",
+      priority: "MEDIUM",
+      steps: "",
+      statusId: "",
+      assignedToId: UNASSIGNED,
+      reviewerId: UNASSIGNED,
+      supporterId: UNASSIGNED,
+      escalationToId: UNASSIGNED,
+      escalationMinutesBeforeDue: "",
+      startDate: "",
+      dueDate: "",
+      estimatedHours: "",
+      isRecurring: false,
+      recurrencePattern: "DAILY",
+      checklistItems: [{ text: "", mandatory: true }],
+    },
+  });
+  const {
+    fields: checklistFields,
+    append,
+    remove,
+    replace,
+  } = useFieldArray({
     control,
     name: "checklistItems",
   });
@@ -163,7 +169,9 @@ export function TaskEditPage() {
     enabled: Boolean(id) && !mePending && canEditTask,
     queryFn: async () => {
       const { data } = await api.get<
-        ApiSuccess<{ items: { id: string; text: string; mandatory: boolean }[] }>
+        ApiSuccess<{
+          items: { id: string; text: string; mandatory: boolean }[];
+        }>
       >(`/api/tasks/${id}/checklist`);
       return data.data.items;
     },
@@ -263,14 +271,19 @@ export function TaskEditPage() {
       );
       if ("checklistItems" in payload) {
         await api.put(`/api/tasks/${id}/checklist`, {
-          items: Array.isArray(payload.checklistItems) ? payload.checklistItems : [],
+          items: Array.isArray(payload.checklistItems)
+            ? payload.checklistItems
+            : [],
         });
       }
       return data.data.task;
     },
     onError: (err: unknown) => {
-      const ax = err as { response?: { data?: { message?: string } } };
-      setFormError(ax.response?.data?.message ?? "Could not save task.");
+      const msg = isAxiosError(err)
+        ? (err.response?.data?.message ?? err.message)
+        : "Could not save task.";
+      setFormError(String(msg));
+      toast.error(String(msg));
     },
     onSuccess: async (t) => {
       await qc.invalidateQueries({ queryKey: ["tasks"], exact: false });
@@ -280,6 +293,7 @@ export function TaskEditPage() {
         type: "active",
       });
       await qc.invalidateQueries({ queryKey: ["task", t.id] });
+      toast.success("Task updated");
       navigate(returnTo?.trim() || "/tasks");
     },
   });
@@ -296,7 +310,9 @@ export function TaskEditPage() {
     const startIso = values.startDate
       ? new Date(values.startDate).toISOString()
       : null;
-    const dueIso = values.dueDate ? new Date(values.dueDate).toISOString() : null;
+    const dueIso = values.dueDate
+      ? new Date(values.dueDate).toISOString()
+      : null;
     if (startIso && dueIso) {
       const startMs = new Date(startIso).getTime();
       const dueMs = new Date(dueIso).getTime();
@@ -625,7 +641,8 @@ export function TaskEditPage() {
                       if (!start || !value) return true;
                       const startMs = new Date(start).getTime();
                       const dueMs = new Date(value).getTime();
-                      if (Number.isNaN(startMs) || Number.isNaN(dueMs)) return true;
+                      if (Number.isNaN(startMs) || Number.isNaN(dueMs))
+                        return true;
                       return (
                         dueMs >= startMs ||
                         "Due date/time cannot be earlier than Start date/time."
@@ -670,19 +687,19 @@ export function TaskEditPage() {
                 ) : null}
               </div>
               <div className="space-y-2">
-              <Label htmlFor="escalationMinutesBeforeDue">
-                Escalation (minutes before Due)
-              </Label>
-              <Input
-                id="escalationMinutesBeforeDue"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                type="number"
-                min={0}
-                step={1}
-                {...register("escalationMinutesBeforeDue")}
-                placeholder="e.g. 20"
-              />
+                <Label htmlFor="escalationMinutesBeforeDue">
+                  Escalation (minutes before Due)
+                </Label>
+                <Input
+                  id="escalationMinutesBeforeDue"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  type="number"
+                  min={0}
+                  step={1}
+                  {...register("escalationMinutesBeforeDue")}
+                  placeholder="e.g. 20"
+                />
               </div>
             </div>
             <div className="pt-2">
@@ -708,7 +725,10 @@ export function TaskEditPage() {
                       control={control}
                       name="recurrencePattern"
                       render={({ field }) => (
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
                           <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
@@ -727,7 +747,8 @@ export function TaskEditPage() {
                       <div>
                         <Label>Checklist line items</Label>
                         <p className="text-xs text-muted-foreground">
-                          Edit the items users can check or uncheck on each recurring task.
+                          Edit the items users can check or uncheck on each
+                          recurring task.
                         </p>
                       </div>
                       <Button

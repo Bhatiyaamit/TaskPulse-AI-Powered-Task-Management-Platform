@@ -11,7 +11,6 @@ import { useMe } from "@/hooks/useAuth";
 import { canCreateUsers } from "@/lib/userCreationRoles";
 import { P } from "@/lib/permissions";
 import {
-  Eye,
   Pencil,
   Plus,
   ShieldAlert,
@@ -348,12 +347,17 @@ export function TeamPage() {
         id: "name",
         header: "Name",
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="truncate font-medium">{row.original.name}</div>
+          <Link
+            to={`/team/${row.original.id}`}
+            className="block min-w-0 hover:underline underline-offset-4"
+          >
+            <div className="truncate font-medium text-foreground">
+              {row.original.name}
+            </div>
             <div className="truncate text-xs text-muted-foreground">
               {row.original.username}
             </div>
-          </div>
+          </Link>
         ),
       },
       {
@@ -414,25 +418,6 @@ export function TeamPage() {
             row.original.role?.code?.toUpperCase() === "COMPANY_ADMIN";
           return (
             <div className="flex items-center gap-0.5">
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Link to={`/team/${row.original.id}`}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        aria-label="View user details"
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                    </Link>
-                  }
-                ></TooltipTrigger>
-                <TooltipContent>View</TooltipContent>
-              </Tooltip>
-
               {canEditUsers ? (
                 <>
                   <Tooltip>

@@ -24,6 +24,7 @@ import {
   Save,
   Settings2,
 } from "lucide-react";
+import { FormBackButton } from "@/components/layout/CenteredFormPage";
 import { toast } from "sonner";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
@@ -475,7 +476,9 @@ export function DashboardPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["dynamic-dashboard"] });
       await qc.invalidateQueries({ queryKey: ["dashboard"] });
-      toast.success("Dashboard saved");
+      toast.success(
+        customize ? "Dashboard layout updated" : "Dashboard filter applied",
+      );
     },
     onError: () => toast.error("Could not save dashboard"),
   });
@@ -582,14 +585,20 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
-            Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Customizable task analytics for web and mobile views.
-          </p>
-        </div>
+        {customize ? (
+          <FormBackButton onClick={() => setCustomize(false)}>
+            Back to dashboard
+          </FormBackButton>
+        ) : (
+          <div className="space-y-1">
+            <h1 className="font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
+              Dashboard
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Customizable task analytics for web and mobile views.
+            </p>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <Select
             value={draftFilters.range}
@@ -647,23 +656,51 @@ export function DashboardPage() {
               />
             </div>
           ) : null}
-          <Button
-            type="button"
-            variant={customize ? "secondary" : "outline"}
-            onClick={() => setCustomize((v) => !v)}
-          >
-            <Settings2 className="size-4" />
-            Customize
-          </Button>
-          <Button
-            type="button"
-            disabled={!isDirty || saveDashboard.isPending}
-            isLoading={saveDashboard.isPending}
-            onClick={() => saveDashboard.mutate()}
-          >
-            <Save className="size-4" />
-            Save
-          </Button>
+          {customize ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCustomize(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={saveDashboard.isPending}
+                isLoading={saveDashboard.isPending}
+                onClick={async () => {
+                  await saveDashboard.mutateAsync();
+                  setCustomize(false);
+                }}
+              >
+                <Save className="size-4" />
+                Save
+              </Button>
+            </>
+          ) : (
+            <>
+              {isDirty ? (
+                <Button
+                  type="button"
+                  disabled={saveDashboard.isPending}
+                  isLoading={saveDashboard.isPending}
+                  onClick={() => saveDashboard.mutate()}
+                >
+                  <Save className="size-4" />
+                  Save
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCustomize(true)}
+              >
+                <Settings2 className="size-4" />
+                Customize
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

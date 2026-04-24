@@ -164,7 +164,7 @@ export function UserMenu({ me }: { me: Me }) {
               className="cursor-pointer gap-2"
             >
               <KeyRound className="size-4" />
-              Reset password
+              Change password
             </DropdownMenuItem>
           </DropdownMenuGroup>
 
