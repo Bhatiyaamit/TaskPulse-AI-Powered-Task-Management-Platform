@@ -20,6 +20,7 @@ import {
   MessageSquare,
   Paperclip,
   Shield,
+  Repeat,
   User,
   X,
 } from "lucide-react";
@@ -111,6 +112,7 @@ type TaskDetail = {
     assignedTo: UserBrief | null;
     dueDate: string | null;
   }[];
+  recurrenceGroupId?: string | null;
 };
 
 type ChecklistItem = {
@@ -251,6 +253,22 @@ export function TaskDetailPage() {
   const hasMandatoryChecklistGap = checklistItems.some(
     (item) => item.mandatory && !item.isChecked,
   );
+
+  const seriesQuery = useQuery({
+    queryKey: ["task-series", task?.recurrenceGroupId],
+    enabled: Boolean(task?.recurrenceGroupId),
+    queryFn: async () => {
+      const { data } = await api.get(
+        `/api/tasks/series/${task!.recurrenceGroupId}`,
+      );
+      return data.data.tasks as { id: string; startDate: string }[];
+    },
+  });
+
+  const seriesIndex = seriesQuery.data
+    ? seriesQuery.data.findIndex((t) => t.id === task?.id) + 1
+    : 0;
+  const seriesTotal = seriesQuery.data?.length ?? 0;
 
   const doneStatusId = useMemo(
     () => statuses.find((s) => s.code === "DONE")?.id,
@@ -470,6 +488,25 @@ export function TaskDetailPage() {
           </span>
         )}
       </div>
+
+      {task.recurrenceGroupId && (
+        <div className="flex items-center justify-between rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-teal-900 dark:border-teal-900/50 dark:bg-teal-900/20 dark:text-teal-200">
+          <div className="flex items-center gap-2 font-medium">
+            <Repeat className="size-4" />
+            <span>
+              Part of recurring series • Pattern:{" "}
+              {task.recurrencePattern || "Custom"} • Task{" "}
+              {seriesIndex > 0 ? `${seriesIndex} of ${seriesTotal}` : "..."}
+            </span>
+          </div>
+          <Link
+            to={`/tasks/series/${task.recurrenceGroupId}`}
+            className="flex items-center gap-1 text-sm font-semibold text-teal-700 hover:text-teal-900 hover:underline dark:text-teal-400 dark:hover:text-teal-200"
+          >
+            View all tasks in this series &rarr;
+          </Link>
+        </div>
+      )}
 
       <div className="grid gap-8 lg:grid-cols-[1fr_minmax(280px,340px)] lg:items-start">
         <div className="space-y-8">

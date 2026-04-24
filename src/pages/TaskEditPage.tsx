@@ -14,6 +14,7 @@ import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { taskModuleCanUpdate } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,6 +62,7 @@ type TaskPayload = {
   isRecurring?: boolean | null;
   recurrencePattern?: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | null;
   parentTaskId?: string | null;
+  recurrenceGroupId?: string | null;
 };
 
 type TaskEditFormValues = {
@@ -289,10 +291,24 @@ export function TaskEditPage() {
 
   const update = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
-      const { data } = await api.patch<ApiSuccess<{ task: { id: string } }>>(
-        `/api/tasks/${id}`,
-        payload,
-      );
+      const scopeParam = sp.get("scope");
+      const isSeriesPatch =
+        Boolean(task?.recurrenceGroupId) && scopeParam && scopeParam !== "this";
+      const endpoint = isSeriesPatch
+        ? `/api/tasks/series/${task!.recurrenceGroupId}`
+        : `/api/tasks/${id}`;
+
+      const { checklistItems, ...taskFields } = payload;
+
+      const requestPayload = isSeriesPatch
+        ? {
+            fromTaskId: id,
+            scope: scopeParam,
+            changes: taskFields,
+          }
+        : taskFields;
+
+      await api.patch<ApiSuccess<any>>(endpoint, requestPayload);
       if ("checklistItems" in payload) {
         await api.put(`/api/tasks/${id}/checklist`, {
           items: Array.isArray(payload.checklistItems)
@@ -300,23 +316,24 @@ export function TaskEditPage() {
             : [],
         });
       }
-      return data.data.task;
+      return id;
     },
     onError: (err: unknown) => {
+      console.log(err);
       const msg = isAxiosError(err)
         ? (err.response?.data?.message ?? err.message)
         : "Could not save task.";
       setFormError(String(msg));
       toast.error(String(msg));
     },
-    onSuccess: async (t) => {
+    onSuccess: async (returnedId) => {
       await qc.invalidateQueries({ queryKey: ["tasks"], exact: false });
       await qc.refetchQueries({
         queryKey: ["tasks"],
         exact: false,
         type: "active",
       });
-      await qc.invalidateQueries({ queryKey: ["task", t.id] });
+      await qc.invalidateQueries({ queryKey: ["task", returnedId] });
       toast.success("Task updated");
       navigate(returnTo?.trim() || "/tasks");
     },
@@ -765,9 +782,21 @@ export function TaskEditPage() {
               </div>
             </div>
             <div className="pt-2">
-              <Label className="inline-flex items-center gap-2">
-                <input type="checkbox" {...register("isRecurring")} />
-                Recurring task
+              <Label
+                className={cn(
+                  "inline-flex items-center gap-2",
+                  Boolean(task?.recurrenceGroupId) &&
+                    "opacity-50 cursor-not-allowed",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  {...register("isRecurring")}
+                  disabled={Boolean(task?.recurrenceGroupId)}
+                />
+                Recurring task{" "}
+                {Boolean(task?.recurrenceGroupId) &&
+                  "(Cannot un-recur an existing series)"}
               </Label>
             </div>
           </section>
@@ -790,6 +819,7 @@ export function TaskEditPage() {
                         <Select
                           value={field.value}
                           onValueChange={field.onChange}
+                          disabled={Boolean(task?.recurrenceGroupId)}
                         >
                           <SelectTrigger className="w-full">
                             <SelectValue />

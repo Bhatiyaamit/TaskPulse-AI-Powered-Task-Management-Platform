@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Pencil,
+  Repeat,
   Plus,
   ShieldAlert,
   Trash2,
@@ -85,6 +86,7 @@ type TaskRow = {
   recurrenceSourceTaskId?: string | null;
   meetingId: string | null;
   reviewer: { id: string; name: string; username: string } | null;
+  recurrenceGroupId?: string | null;
 };
 type TeamMemberOption = {
   id: string;
@@ -113,6 +115,7 @@ const LIST_STATE_QUERY_KEYS = [
   "teamUserId",
   "teamUserIds",
   "teamUsersMode",
+  "recurrenceGroupId",
 ] as const;
 
 const SORT_IDS = [
@@ -219,6 +222,7 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
             undefined,
         )
       : "assigned";
+  const recurrenceGroupId = searchParams.get("recurrenceGroupId") || "";
   const pagination: PaginationState = {
     pageIndex: page - 1,
     pageSize,
@@ -237,11 +241,47 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     teamUserIds,
     teamUsersMode,
     myTab,
+    recurrenceGroupId,
   };
 }
 
 function clearListStateParams(p: URLSearchParams) {
   for (const key of LIST_STATE_QUERY_KEYS) p.delete(key);
+}
+
+function TaskSeriesBadge({
+  taskId,
+  recurrenceGroupId,
+}: {
+  taskId: string;
+  recurrenceGroupId: string;
+}) {
+  const seriesQuery = useQuery({
+    queryKey: ["task-series", recurrenceGroupId],
+    queryFn: async () => {
+      const { data } = await api.get(`/api/tasks/series/${recurrenceGroupId}`);
+      return data.data.tasks as { id: string; startDate: string }[];
+    },
+    staleTime: 60000,
+  });
+
+  if (!seriesQuery.data) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-1.5 py-0.5 text-[0.65rem] font-semibold text-teal-800 dark:bg-teal-900/40 dark:text-teal-300 ml-2 align-middle">
+        <Repeat className="size-2.5" /> RECURRING
+      </span>
+    );
+  }
+
+  const seriesIndex = seriesQuery.data.findIndex((t) => t.id === taskId) + 1;
+  const seriesTotal = seriesQuery.data.length;
+
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-1.5 py-0.5 text-[0.65rem] font-semibold text-teal-800 dark:bg-teal-900/40 dark:text-teal-300 ml-2 align-middle">
+      <Repeat className="size-2.5" /> RECURRING{" "}
+      {seriesIndex > 0 ? `(${seriesIndex} of ${seriesTotal})` : ""}
+    </span>
+  );
 }
 
 export function TasksPage() {
@@ -268,7 +308,17 @@ export function TasksPage() {
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     title: string;
+    recurrenceGroupId?: string | null;
   } | null>(null);
+  const [deleteScope, setDeleteScope] = useState<"this" | "future" | "all">(
+    "this",
+  );
+
+  const [editTarget, setEditTarget] = useState<{
+    id: string;
+    recurrenceGroupId?: string | null;
+  } | null>(null);
+  const [editScope, setEditScope] = useState<"this" | "future" | "all">("this");
 
   const listParams = useMemo(
     () => parseTasksUrlParams(searchParams),
@@ -288,6 +338,7 @@ export function TasksPage() {
     teamUserIds,
     teamUsersMode,
     myTab,
+    recurrenceGroupId,
   } = listParams;
 
   const [searchInput, setSearchInput] = useState(
@@ -401,15 +452,30 @@ export function TasksPage() {
     effectiveSelectedTeamUserIds.length === allTeamUserIds.length;
 
   const deleteTask = useMutation({
-    mutationFn: async (taskId: string) => {
-      await api.delete(`/api/tasks/${taskId}`);
+    mutationFn: async (params: {
+      taskId: string;
+      recurrenceGroupId?: string | null;
+      scope?: "this" | "future" | "all";
+    }) => {
+      if (params.recurrenceGroupId && params.scope && params.scope !== "this") {
+        await api.delete(`/api/tasks/series/${params.recurrenceGroupId}`, {
+          data: { scope: params.scope, fromTaskId: params.taskId },
+        });
+      } else {
+        await api.delete(`/api/tasks/${params.taskId}`);
+      }
     },
-    onSuccess: async (_data, taskId) => {
+    onSuccess: async (_data, params) => {
       qc.setQueriesData<TasksApiResponse>(
         { queryKey: ["tasks"], exact: false },
         (old) => {
           if (!old?.tasks) return old;
-          const nextTasks = old.tasks.filter((t) => t.id !== taskId);
+          const nextTasks =
+            params.scope && params.scope !== "this"
+              ? old.tasks.filter(
+                  (t) => t.recurrenceGroupId !== params.recurrenceGroupId,
+                )
+              : old.tasks.filter((t) => t.id !== params.taskId);
           const removed = old.tasks.length - nextTasks.length;
           return {
             ...old,
@@ -419,9 +485,10 @@ export function TasksPage() {
         },
       );
       await qc.invalidateQueries({ queryKey: ["tasks"] });
-      await qc.invalidateQueries({ queryKey: ["task", taskId] });
+      await qc.invalidateQueries({ queryKey: ["task", params.taskId] });
       toast.success("Task deleted");
       setDeleteTarget(null);
+      setDeleteScope("this");
     },
     onError: () => {
       toast.error("Could not delete task.");
@@ -443,6 +510,7 @@ export function TasksPage() {
       validTeamUserIds.join(","),
       teamUsersMode,
       search,
+      recurrenceGroupId,
       apiSortBy,
       apiSortDir,
     ],
@@ -468,6 +536,7 @@ export function TasksPage() {
               ? { assignedToIds: validTeamUserIds.join(",") }
               : {}),
           ...(search ? { search } : {}),
+          ...(recurrenceGroupId ? { recurrenceGroupId } : {}),
           sortBy: apiSortBy,
           sortDir: apiSortDir,
         },
@@ -523,6 +592,13 @@ export function TasksPage() {
         header: "Title",
         cell: ({ row }) => {
           const title = row.original.title;
+          const badge = row.original.recurrenceGroupId ? (
+            <TaskSeriesBadge
+              taskId={row.original.id}
+              recurrenceGroupId={row.original.recurrenceGroupId}
+            />
+          ) : null;
+
           return canListTasks ? (
             <button
               type="button"
@@ -534,9 +610,13 @@ export function TasksPage() {
               aria-label={`Open task: ${title}`}
             >
               {title}
+              {badge}
             </button>
           ) : (
-            <span className="font-medium text-foreground">{title}</span>
+            <span className="font-medium text-foreground">
+              {title}
+              {badge}
+            </span>
           );
         },
       },
@@ -555,8 +635,12 @@ export function TasksPage() {
         accessorFn: (r) => String(r.priority ?? "MEDIUM").toUpperCase(),
         header: "Priority",
         cell: ({ row }) => {
-          const priority = String(row.original.priority ?? "MEDIUM").toUpperCase();
-          return <span className={taskPriorityBadgeClass(priority)}>{priority}</span>;
+          const priority = String(
+            row.original.priority ?? "MEDIUM",
+          ).toUpperCase();
+          return (
+            <span className={taskPriorityBadgeClass(priority)}>{priority}</span>
+          );
         },
       },
       {
@@ -694,7 +778,15 @@ export function TasksPage() {
                       disabled={deleteTask.isPending}
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/tasks/${row.original.id}/edit`);
+                        if (row.original.recurrenceGroupId) {
+                          setEditScope("this");
+                          setEditTarget({
+                            id: row.original.id,
+                            recurrenceGroupId: row.original.recurrenceGroupId,
+                          });
+                        } else {
+                          navigate(`/tasks/${row.original.id}/edit`);
+                        }
                       }}
                     />
                   }
@@ -716,9 +808,11 @@ export function TasksPage() {
                       aria-label="Delete task"
                       onClick={(e) => {
                         e.stopPropagation();
+                        setDeleteScope("this");
                         setDeleteTarget({
                           id: row.original.id,
                           title: row.original.title,
+                          recurrenceGroupId: row.original.recurrenceGroupId,
                         });
                       }}
                       isLoading={deleteTask.isPending}
@@ -969,9 +1063,45 @@ export function TasksPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this task?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget
-                ? `“${deleteTarget.title}” will be permanently removed. You can’t undo this.`
-                : null}
+              {deleteTarget?.recurrenceGroupId ? (
+                <div className="space-y-3 mt-4">
+                  <p className="text-sm font-medium">
+                    You are deleting a recurring task. What do you want to
+                    delete?
+                  </p>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-md">
+                      <input
+                        type="radio"
+                        name="deleteScope"
+                        checked={deleteScope === "this"}
+                        onChange={() => setDeleteScope("this")}
+                      />
+                      This task only
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-md">
+                      <input
+                        type="radio"
+                        name="deleteScope"
+                        checked={deleteScope === "future"}
+                        onChange={() => setDeleteScope("future")}
+                      />
+                      This and future tasks
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-md">
+                      <input
+                        type="radio"
+                        name="deleteScope"
+                        checked={deleteScope === "all"}
+                        onChange={() => setDeleteScope("all")}
+                      />
+                      All tasks in this series
+                    </label>
+                  </div>
+                </div>
+              ) : deleteTarget ? (
+                `“${deleteTarget.title}” will be permanently removed. You can’t undo this.`
+              ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -980,11 +1110,80 @@ export function TasksPage() {
               variant="destructive"
               disabled={deleteTask.isPending}
               onClick={() => {
-                if (deleteTarget) deleteTask.mutate(deleteTarget.id);
+                if (deleteTarget)
+                  deleteTask.mutate({
+                    taskId: deleteTarget.id,
+                    recurrenceGroupId: deleteTarget.recurrenceGroupId,
+                    scope: deleteScope,
+                  });
               }}
             >
               Delete
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={editTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit Recurring Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="space-y-3 mt-4 text-left text-foreground">
+                <p className="text-sm font-medium">
+                  You are editing a recurring task. What do you want to edit?
+                </p>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-md">
+                    <input
+                      type="radio"
+                      name="editScope"
+                      checked={editScope === "this"}
+                      onChange={() => setEditScope("this")}
+                    />
+                    This task only
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-md">
+                    <input
+                      type="radio"
+                      name="editScope"
+                      checked={editScope === "future"}
+                      onChange={() => setEditScope("future")}
+                    />
+                    This and future tasks
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-md">
+                    <input
+                      type="radio"
+                      name="editScope"
+                      checked={editScope === "all"}
+                      onChange={() => setEditScope("all")}
+                    />
+                    All tasks in this series
+                  </label>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              onClick={() => {
+                if (editTarget) {
+                  navigate(
+                    `/tasks/${editTarget.id}/edit${editScope !== "this" ? `?scope=${editScope}` : ""}`,
+                  );
+                  setEditTarget(null);
+                }
+              }}
+            >
+              Continue
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1065,6 +1264,34 @@ export function TasksPage() {
           </div>
         </Card>
       ) : null}
+
+      {recurrenceGroupId && rows.length > 0 && (
+        <div className="flex items-center justify-between rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-teal-900 dark:border-teal-900/50 dark:bg-teal-900/20 dark:text-teal-200">
+          <div className="flex items-center gap-2 font-medium">
+            <Repeat className="size-4" />
+            <span>
+              Showing recurring series: "{rows[0].title}" ({total} tasks)
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-teal-700 hover:text-teal-900 hover:bg-teal-100 dark:text-teal-400 dark:hover:text-teal-200 dark:hover:bg-teal-900/50"
+            onClick={() => {
+              setSearchParams(
+                (prev) => {
+                  const p = new URLSearchParams(prev);
+                  p.delete("recurrenceGroupId");
+                  return p;
+                },
+                { replace: true },
+              );
+            }}
+          >
+            Clear filter &times;
+          </Button>
+        </div>
+      )}
 
       <Card className="relative z-30 overflow-visible p-4">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">

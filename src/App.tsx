@@ -9,6 +9,7 @@ import { TasksPage } from "@/pages/TasksPage";
 import { TaskDetailPage } from "@/pages/TaskDetailPage";
 import { TaskCreatePage } from "@/pages/TaskCreatePage";
 import { TaskEditPage } from "@/pages/TaskEditPage";
+import { TaskSeriesPage } from "@/pages/TaskSeriesPage";
 import { MeetingsPage } from "@/pages/MeetingsPage";
 import { MeetingDetailPage } from "@/pages/MeetingDetailPage";
 import { MeetingCreatePage } from "@/pages/MeetingCreatePage";
@@ -55,6 +56,10 @@ function AppShell() {
             <Route path="/tasks/new" element={<TaskCreatePage />} />
             <Route path="/tasks/:id/edit" element={<TaskEditPage />} />
             <Route path="/tasks/:id" element={<TaskDetailPage />} />
+            <Route
+              path="/tasks/series/:recurrenceGroupId"
+              element={<TaskSeriesPage />}
+            />
             <Route path="/meetings" element={<MeetingsPage />} />
             <Route path="/meetings/new" element={<MeetingCreatePage />} />
             <Route path="/meetings/:id/edit" element={<MeetingEditPage />} />
