@@ -12,7 +12,14 @@ import {
 } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ExternalLink, Eye, Pencil, Plus } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  Eye,
+  Pencil,
+  Play,
+  Plus,
+} from "lucide-react";
 import {
   overdueBadgeClass,
   taskPriorityBadgeClass,
@@ -48,6 +55,7 @@ import { toast } from "sonner";
 type MeetingTaskRow = {
   id: string;
   title: string;
+  priority?: string | null;
   dueDate: string | null;
   updatedAt: string;
   status: { code: string; label: string };
@@ -56,11 +64,32 @@ type MeetingTaskRow = {
   reviewer: { id: string; name: string; username: string } | null;
 };
 
-type TasksApiResponse = {
+type TaskStatus = { id: string; code: string; label: string };
+
+type MeetingDetailResponse = {
+  id: string;
+  title: string;
+  agenda: string | null;
+  momNotes: string | null;
+  meetingType: "ONLINE" | "OFFLINE";
+  meetingLink: string | null;
+  meetingLocation: string | null;
+  preparationNotes: string | null;
+  priority: string;
+  durationMinutes: number | null;
+  computedStatus: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  datetime: string;
+  createdBy: { id: string; name: string; username: string };
+  attendees: { user: { id: string; name: string; username: string } }[];
+  outcomes: {
+    id: string;
+    outcomeText: string;
+    task: { id: string; title: string } | null;
+  }[];
+  // Embedded tasks + statuses from the single API call
   tasks: MeetingTaskRow[];
-  total: number;
-  page: number;
-  pageSize: number;
+  tasksMeta: { page: number; pageSize: number; total: number };
+  taskStatuses: TaskStatus[];
 };
 
 const PAGE_SIZES = [10, 20, 50] as const;
@@ -161,51 +190,9 @@ export function MeetingDetailPage() {
   const canUpdateTask = taskModuleCanUpdate(perms);
   const [momNotesDraft, setMomNotesDraft] = useState("");
 
-  const { data } = useQuery({
-    queryKey: ["meeting", id],
-    queryFn: async () => {
-      const { data } = await api.get<ApiSuccess<{ meeting: unknown }>>(
-        `/api/meetings/${id}`,
-      );
-      return data.data.meeting as {
-        id: string;
-        title: string;
-        agenda: string | null;
-        momNotes: string | null;
-        meetingType: "ONLINE" | "OFFLINE";
-        meetingLink: string | null;
-        meetingLocation: string | null;
-        preparationNotes: string | null;
-        priority: string;
-        durationMinutes: number | null;
-        computedStatus?:
-          | "SCHEDULED"
-          | "IN_PROGRESS"
-          | "COMPLETED"
-          | "CANCELLED";
-        datetime: string;
-        createdBy: { id: string; name: string; username: string };
-        attendees: { user: { id: string; name: string; username: string } }[];
-        outcomes: {
-          id: string;
-          outcomeText: string;
-          task: { id: string; title: string } | null;
-        }[];
-      };
-    },
-  });
-
-  useEffect(() => {
-    setMomNotesDraft(data?.momNotes ?? "");
-  }, [data?.momNotes]);
-
-  const meetingTasksQuery = useQuery({
-    enabled:
-      Boolean(id) &&
-      (data?.computedStatus === "COMPLETED" ||
-        data?.computedStatus === "IN_PROGRESS") &&
-      canListMeetingTasks,
-    queryKey: ["meeting-tasks", id, searchParams.toString()],
+  const { data, isLoading: isMeetingLoading } = useQuery({
+    queryKey: ["meeting", id, searchParams.toString()],
+    enabled: Boolean(id),
     queryFn: async () => {
       const parsed = parseMeetingTasksUrlParams(searchParams);
       const apiSortBy =
@@ -215,11 +202,9 @@ export function MeetingDetailPage() {
             : parsed.sortBy
           : undefined;
       const { data } = await api.get<
-        ApiSuccess<MeetingTaskRow[], { page: number; limit: number; total: number }>
-      >("/api/tasks", {
+        ApiSuccess<{ meeting: MeetingDetailResponse }>
+      >(`/api/meetings/${id}`, {
         params: {
-          queue: "team",
-          meetingId: String(id),
           page: parsed.pagination.pageIndex + 1,
           pageSize: parsed.pagination.pageSize,
           ...(parsed.statusId ? { statusId: parsed.statusId } : {}),
@@ -229,12 +214,30 @@ export function MeetingDetailPage() {
             : {}),
         },
       });
-      return {
-        tasks: data.data,
-        total: data.meta?.total ?? 0,
-        page: data.meta?.page ?? parsed.pagination.pageIndex + 1,
-        pageSize: data.meta?.limit ?? parsed.pagination.pageSize,
-      } satisfies TasksApiResponse;
+      return data.data.meeting;
+    },
+  });
+
+  useEffect(() => {
+    setMomNotesDraft(data?.momNotes ?? "");
+  }, [data?.momNotes]);
+
+  const startMeeting = useMutation({
+    mutationFn: async () => api.post(`/api/meetings/${id}/start`),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["meeting", id] });
+      await qc.invalidateQueries({
+        queryKey: ["meetings-paginated"],
+        exact: false,
+      });
+      await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
+      toast.success("Meeting started — you can now add tasks.");
+    },
+    onError: (e) => {
+      const message = isAxiosError(e)
+        ? String(e.response?.data?.message ?? e.message)
+        : "Could not start meeting";
+      toast.error(message);
     },
   });
 
@@ -249,6 +252,7 @@ export function MeetingDetailPage() {
         exact: false,
       });
       await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
+      toast.success("Meeting marked as completed");
     },
     onError: (e) => {
       const message = isAxiosError(e)
@@ -266,6 +270,13 @@ export function MeetingDetailPage() {
         queryKey: ["meetings-paginated"],
         exact: false,
       });
+      toast.success("MOM saved");
+    },
+    onError: (e) => {
+      const message = isAxiosError(e)
+        ? String(e.response?.data?.message ?? e.message)
+        : "Could not save MOM";
+      toast.error(message);
     },
   });
 
@@ -282,8 +293,8 @@ export function MeetingDetailPage() {
   const pagination = parsed.pagination;
   const tableSorting = parsed.sorting;
 
-  const rows = meetingTasksQuery.data?.tasks ?? [];
-  const total = meetingTasksQuery.data?.total ?? 0;
+  const rows = data?.tasks ?? [];
+  const total = data?.tasksMeta?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / pagination.pageSize));
 
   const skipSearchInputSync = useRef(false);
@@ -314,20 +325,7 @@ export function MeetingDetailPage() {
     );
   }, [search, setSearchParams]);
 
-  const { data: statuses } = useQuery({
-    queryKey: ["task-statuses"],
-    enabled:
-      Boolean(id) &&
-      (data?.computedStatus === "COMPLETED" ||
-        data?.computedStatus === "IN_PROGRESS") &&
-      canListMeetingTasks,
-    queryFn: async () => {
-      const { data } = await api.get<
-        ApiSuccess<{ statuses: { id: string; code: string; label: string }[] }>
-      >("/api/tasks/statuses");
-      return data.data.statuses;
-    },
-  });
+  const statuses = data?.taskStatuses ?? [];
 
   function statusFilterLabel(v: string) {
     if (v === "__all__") return "All statuses";
@@ -356,6 +354,19 @@ export function MeetingDetailPage() {
             {row.original.status.label}
           </span>
         ),
+      },
+      {
+        id: "priority",
+        accessorFn: (r) => String(r.priority ?? "MEDIUM").toUpperCase(),
+        header: "Priority",
+        cell: ({ row }) => {
+          const priority = String(
+            row.original.priority ?? "MEDIUM",
+          ).toUpperCase();
+          return (
+            <span className={taskPriorityBadgeClass(priority)}>{priority}</span>
+          );
+        },
       },
       {
         accessorKey: "assignedTo",
@@ -588,17 +599,13 @@ export function MeetingDetailPage() {
   });
 
   if (!meeting) return <div className="text-muted-foreground">Loading…</div>;
-  const canMarkCompleted =
-    canUpdateMeeting &&
-    meeting.computedStatus !== "COMPLETED" &&
-    meeting.computedStatus !== "CANCELLED";
   const hasMomNotes = Boolean((momNotesDraft ?? "").trim());
-  const canEditMeeting =
-    canUpdateMeeting && meeting.computedStatus === "SCHEDULED";
+  const isScheduled = meeting.computedStatus === "SCHEDULED";
+  const isInProgress = meeting.computedStatus === "IN_PROGRESS";
   const isCompleted = meeting.computedStatus === "COMPLETED";
-  const canCreateTasksFromMeeting =
-    meeting.computedStatus === "IN_PROGRESS" ||
-    meeting.computedStatus === "COMPLETED";
+  const isCancelled = meeting.computedStatus === "CANCELLED";
+  // Tasks are unlocked permanently once play is clicked (meeting started).
+  const canCreateTasksFromMeeting = isInProgress || isCompleted;
 
   return (
     <div className="space-y-3">
@@ -620,41 +627,54 @@ export function MeetingDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isCompleted ? null : (
+          {/* SCHEDULED: Edit + Start meeting */}
+          {isScheduled && canUpdateMeeting ? (
             <>
-              {canEditMeeting ? (
-                <Link to={`/meetings/${meeting.id}/edit`}>
-                  <Button variant="outline">
-                    <Pencil className="size-3" />
-                    Edit
-                  </Button>
-                </Link>
-              ) : (
-                <Button variant="outline" disabled>
+              <Link to={`/meetings/${meeting.id}/edit`}>
+                <Button variant="outline">
                   <Pencil className="size-3" />
                   Edit
                 </Button>
-              )}
+              </Link>
               <Button
                 type="button"
-                variant="default"
-                isLoading={markCompleted.isPending}
-                disabled={!canMarkCompleted || markCompleted.isPending || !hasMomNotes}
-                onClick={() => {
-                  if (!hasMomNotes) {
-                    toast.warning(
-                      "Please add MOM before marking meeting as completed.",
-                    );
-                    return;
-                  }
-                  markCompleted.mutate();
-                }}
+                isLoading={startMeeting.isPending}
+                disabled={startMeeting.isPending}
+                onClick={() => startMeeting.mutate()}
               >
-                <CheckCircle2 className="size-4" />
-                <span>Mark as completed</span>
+                <Play className="size-4" />
+                Start meeting
               </Button>
             </>
-          )}
+          ) : null}
+
+          {/* IN_PROGRESS: Mark as completed only */}
+          {isInProgress && canUpdateMeeting ? (
+            <Button
+              type="button"
+              variant="default"
+              isLoading={markCompleted.isPending}
+              disabled={markCompleted.isPending || !hasMomNotes}
+              onClick={async () => {
+                if (!hasMomNotes) {
+                  toast.warning(
+                    "Please add MOM before marking meeting as completed.",
+                  );
+                  return;
+                }
+                if ((momNotesDraft ?? "") !== (meeting.momNotes ?? "")) {
+                  await saveMomNotes.mutateAsync(momNotesDraft);
+                }
+                markCompleted.mutate();
+              }}
+            >
+              <CheckCircle2 className="size-4" />
+              Mark as completed
+            </Button>
+          ) : null}
+
+          {/* COMPLETED / CANCELLED: nothing */}
+          {isCompleted || isCancelled ? null : null}
         </div>
       </div>
 
@@ -756,6 +776,36 @@ export function MeetingDetailPage() {
         </Card>
       </div>
 
+      {/* SCHEDULED: show lock hint with Start meeting CTA */}
+      {isScheduled && !isCancelled ? (
+        <Card className="border-amber-400/40 bg-amber-400/5">
+          <CardContent className="flex flex-wrap items-center gap-4 py-5">
+            <Play className="size-7 shrink-0 text-amber-500" />
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="font-semibold text-foreground">
+                Start the meeting to unlock task creation
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Click <strong>Start meeting</strong> once — you can add and
+                manage tasks for this meeting at any time after that.
+              </p>
+            </div>
+            {canUpdateMeeting ? (
+              <Button
+                type="button"
+                className="shrink-0 gap-2"
+                isLoading={startMeeting.isPending}
+                disabled={startMeeting.isPending}
+                onClick={() => startMeeting.mutate()}
+              >
+                <Play className="size-4" />
+                Start meeting
+              </Button>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
       {canCreateTasksFromMeeting && canListMeetingTasks ? (
         <Card>
           <CardHeader>
@@ -825,7 +875,7 @@ export function MeetingDetailPage() {
                 columnCount={columns.length}
                 sort={tableSorting}
                 onChangeSort={onChangeSort}
-                isLoading={meetingTasksQuery.isLoading}
+                isLoading={isMeetingLoading}
                 emptyMessage="No tasks for this meeting yet."
               />
             </div>
@@ -885,9 +935,7 @@ export function MeetingDetailPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={
-                    pagination.pageIndex <= 0 || meetingTasksQuery.isLoading
-                  }
+                  disabled={pagination.pageIndex <= 0 || isMeetingLoading}
                   onClick={goPrev}
                 >
                   Previous
@@ -899,8 +947,7 @@ export function MeetingDetailPage() {
                   type="button"
                   variant="outline"
                   disabled={
-                    pagination.pageIndex >= pageCount - 1 ||
-                    meetingTasksQuery.isLoading
+                    pagination.pageIndex >= pageCount - 1 || isMeetingLoading
                   }
                   onClick={goNext}
                 >

@@ -8,8 +8,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -26,11 +24,13 @@ import {
   Save,
   Settings2,
 } from "lucide-react";
+import { FormBackButton } from "@/components/layout/CenteredFormPage";
 import { toast } from "sonner";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -47,8 +47,8 @@ import {
   taskStatusBadgeClass,
 } from "@/lib/badges";
 
-type DashboardRange = "7d" | "30d" | "90d" | "all";
-type DashboardChartType = "kpi" | "donut" | "bar" | "line" | "table";
+type DashboardRange = "today" | "week" | "month" | "all" | "custom";
+type DashboardChartType = "kpi" | "donut" | "bar" | "table";
 type DashboardWidgetSize = "small" | "medium" | "large" | "full";
 type DashboardWidgetType = "KPI" | "CHART" | "TABLE";
 
@@ -75,6 +75,8 @@ type DashboardWidgetLayout = {
 
 type DashboardFilters = {
   range: DashboardRange;
+  customStart?: string | null;
+  customEnd?: string | null;
 };
 
 type DashboardWidgetData = {
@@ -100,12 +102,6 @@ type ChartRow = {
   value: number;
 };
 
-type TrendRow = {
-  label: string;
-  created: number;
-  completed: number;
-};
-
 type TaskRow = {
   id: string;
   title: string;
@@ -118,11 +114,21 @@ type TaskRow = {
 };
 
 const RANGE_LABELS: Record<DashboardRange, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
+  today: "Today",
+  week: "This week",
+  month: "This month",
   all: "All time",
+  custom: "Custom",
 };
+
+const ALLOWED_WIDGET_KEYS = new Set<string>([
+  "total_tasks",
+  "overdue_tasks",
+  "completed_today",
+  "pending_review",
+  "tasks_by_status",
+  "tasks_by_priority",
+]);
 
 function widgetSizeClass(size: DashboardWidgetSize) {
   switch (size) {
@@ -131,7 +137,7 @@ function widgetSizeClass(size: DashboardWidgetSize) {
     case "medium":
       return "md:col-span-1 xl:col-span-2";
     case "large":
-      return "md:col-span-2 xl:col-span-2";
+      return "md:col-span-2 xl:col-span-3";
     case "full":
       return "md:col-span-2 xl:col-span-4";
   }
@@ -170,25 +176,6 @@ function normalizeChartRows(data: unknown): ChartRow[] {
     .filter((row): row is ChartRow => row != null);
 }
 
-function normalizeTrendRows(data: unknown): TrendRow[] {
-  if (!Array.isArray(data)) return [];
-  return data
-    .map((row) => {
-      if (!row || typeof row !== "object") return null;
-      const r = row as {
-        label?: unknown;
-        created?: unknown;
-        completed?: unknown;
-      };
-      return {
-        label: String(r.label ?? ""),
-        created: Number(r.created ?? 0),
-        completed: Number(r.completed ?? 0),
-      };
-    })
-    .filter((row): row is TrendRow => row != null && row.label !== "");
-}
-
 function normalizeTaskRows(data: unknown): TaskRow[] {
   if (!Array.isArray(data)) return [];
   return data
@@ -218,44 +205,28 @@ function colorForRow(widgetKey: string, row: ChartRow, index: number) {
     : chartColor(index);
 }
 
-function DashboardChart({ widget }: { widget: DashboardWidgetData }) {
-  if (widget.chartType === "line") {
-    const rows = normalizeTrendRows(widget.data);
-    if (!rows.length) return <EmptyWidgetText>No trend data yet.</EmptyWidgetText>;
-    return (
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={rows} margin={{ top: 8, right: 16, left: -12, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-          <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={18} />
-          <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-          <Tooltip contentStyle={chartTooltipStyle()} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Line
-            type="monotone"
-            dataKey="created"
-            stroke={chartColor(0)}
-            strokeWidth={2}
-            dot={false}
-          />
-          <Line
-            type="monotone"
-            dataKey="completed"
-            stroke={chartColor(1)}
-            strokeWidth={2}
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    );
-  }
+function startOfMonthInputValue(now = new Date()) {
+  return new Date(now.getFullYear(), now.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+}
 
+function todayInputValue(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+
+function DashboardChart({ widget }: { widget: DashboardWidgetData }) {
   const rows = normalizeChartRows(widget.data).filter((row) => row.value > 0);
-  if (!rows.length) return <EmptyWidgetText>No chart data yet.</EmptyWidgetText>;
+  if (!rows.length)
+    return <EmptyWidgetText>No chart data yet.</EmptyWidgetText>;
 
   if (widget.chartType === "bar") {
     return (
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} margin={{ top: 8, right: 16, left: -12, bottom: 0 }}>
+        <BarChart
+          data={rows}
+          margin={{ top: 8, right: 16, left: -12, bottom: 0 }}
+        >
           <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
           <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={12} />
           <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -281,7 +252,9 @@ function DashboardChart({ widget }: { widget: DashboardWidgetData }) {
           formatter={(value: unknown, name: unknown) => {
             const n = typeof value === "number" ? value : Number(value);
             const pct =
-              total > 0 && Number.isFinite(n) ? Math.round((n / total) * 100) : 0;
+              total > 0 && Number.isFinite(n)
+                ? Math.round((n / total) * 100)
+                : 0;
             return [`${n} (${pct}%)`, String(name)];
           }}
           contentStyle={chartTooltipStyle()}
@@ -467,22 +440,25 @@ export function DashboardPage() {
   const [customize, setCustomize] = useState(false);
   const [draftLayout, setDraftLayout] = useState<DashboardWidgetLayout[]>([]);
   const [draftFilters, setDraftFilters] = useState<DashboardFilters>({
-    range: "30d",
+    range: "month",
   });
 
   const dashboardQuery = useQuery({
     queryKey: ["dynamic-dashboard"],
     queryFn: async () => {
-      const { data } = await api.get<ApiSuccess<DashboardResponse>>(
-        "/api/dashboard",
-      );
+      const { data } =
+        await api.get<ApiSuccess<DashboardResponse>>("/api/dashboard");
       return data.data;
     },
   });
 
   useEffect(() => {
     if (!dashboardQuery.data) return;
-    setDraftLayout(dashboardQuery.data.layout);
+    setDraftLayout(
+      dashboardQuery.data.layout.filter((item) =>
+        ALLOWED_WIDGET_KEYS.has(item.widgetKey),
+      ),
+    );
     setDraftFilters(dashboardQuery.data.filters);
   }, [dashboardQuery.data]);
 
@@ -500,7 +476,9 @@ export function DashboardPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["dynamic-dashboard"] });
       await qc.invalidateQueries({ queryKey: ["dashboard"] });
-      toast.success("Dashboard saved");
+      toast.success(
+        customize ? "Dashboard layout updated" : "Dashboard filter applied",
+      );
     },
     onError: () => toast.error("Could not save dashboard"),
   });
@@ -521,9 +499,17 @@ export function DashboardPage() {
   });
 
   const data = dashboardQuery.data;
-  const catalog = useMemo(() => data?.catalog ?? [], [data?.catalog]);
+  const catalog = useMemo(
+    () =>
+      (data?.catalog ?? []).filter((item) => ALLOWED_WIDGET_KEYS.has(item.key)),
+    [data?.catalog],
+  );
   const widgetDataByKey = useMemo(() => {
-    return new Map((data?.widgets ?? []).map((widget) => [widget.widgetKey, widget]));
+    return new Map(
+      (data?.widgets ?? [])
+        .filter((widget) => ALLOWED_WIDGET_KEYS.has(widget.widgetKey))
+        .map((widget) => [widget.widgetKey, widget]),
+    );
   }, [data?.widgets]);
 
   const sortedDraftLayout = useMemo(
@@ -536,7 +522,9 @@ export function DashboardPage() {
       .filter((layout) => layout.visible)
       .map((layout) => {
         const serverWidget = widgetDataByKey.get(layout.widgetKey);
-        const catalogItem = catalog.find((item) => item.key === layout.widgetKey);
+        const catalogItem = catalog.find(
+          (item) => item.key === layout.widgetKey,
+        );
         if (!serverWidget || !catalogItem) return null;
         return {
           ...serverWidget,
@@ -551,7 +539,12 @@ export function DashboardPage() {
 
   const savedState = useMemo(() => {
     if (!data) return "";
-    return JSON.stringify({ layout: data.layout, filters: data.filters });
+    return JSON.stringify({
+      layout: data.layout.filter((item) =>
+        ALLOWED_WIDGET_KEYS.has(item.widgetKey),
+      ),
+      filters: data.filters,
+    });
   }, [data]);
   const draftState = useMemo(
     () => JSON.stringify({ layout: sortedDraftLayout, filters: draftFilters }),
@@ -571,7 +564,9 @@ export function DashboardPage() {
   }
 
   if (dashboardQuery.isLoading) {
-    return <div className="text-sm text-muted-foreground">Loading dashboard...</div>;
+    return (
+      <div className="text-sm text-muted-foreground">Loading dashboard...</div>
+    );
   }
 
   if (dashboardQuery.isError || !data) {
@@ -590,48 +585,122 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
-            Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Customizable task analytics for web and mobile views.
-          </p>
-        </div>
+        {customize ? (
+          <FormBackButton onClick={() => setCustomize(false)}>
+            Back to dashboard
+          </FormBackButton>
+        ) : (
+          <div className="space-y-1">
+            <h1 className="font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
+              Dashboard
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Customizable task analytics for web and mobile views.
+            </p>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <Select
             value={draftFilters.range}
             onValueChange={(value) =>
-              setDraftFilters({ range: value as DashboardRange })
+              setDraftFilters((prev) => {
+                const range = value as DashboardRange;
+                if (range === "custom") {
+                  return {
+                    range,
+                    customStart: prev.customStart ?? startOfMonthInputValue(),
+                    customEnd: prev.customEnd ?? todayInputValue(),
+                  };
+                }
+                return { range };
+              })
             }
           >
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Range" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7d">Last 7 days</SelectItem>
-              <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="90d">Last 90 days</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This week</SelectItem>
+              <SelectItem value="month">This month</SelectItem>
               <SelectItem value="all">All time</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            type="button"
-            variant={customize ? "secondary" : "outline"}
-            onClick={() => setCustomize((v) => !v)}
-          >
-            <Settings2 className="size-4" />
-            Customize
-          </Button>
-          <Button
-            type="button"
-            disabled={!isDirty || saveDashboard.isPending}
-            isLoading={saveDashboard.isPending}
-            onClick={() => saveDashboard.mutate()}
-          >
-            <Save className="size-4" />
-            Save
-          </Button>
+          {draftFilters.range === "custom" ? (
+            <div className="flex items-center gap-2">
+              <Input
+                id="dashboard-custom-start"
+                type="date"
+                value={draftFilters.customStart ?? ""}
+                onChange={(e) =>
+                  setDraftFilters((prev) => ({
+                    ...prev,
+                    customStart: e.target.value,
+                  }))
+                }
+                className="w-36"
+              />
+              <span className="text-muted-foreground">-</span>
+              <Input
+                id="dashboard-custom-end"
+                type="date"
+                value={draftFilters.customEnd ?? ""}
+                onChange={(e) =>
+                  setDraftFilters((prev) => ({
+                    ...prev,
+                    customEnd: e.target.value,
+                  }))
+                }
+                className="w-36"
+              />
+            </div>
+          ) : null}
+          {customize ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCustomize(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={saveDashboard.isPending}
+                isLoading={saveDashboard.isPending}
+                onClick={async () => {
+                  await saveDashboard.mutateAsync();
+                  setCustomize(false);
+                }}
+              >
+                <Save className="size-4" />
+                Save
+              </Button>
+            </>
+          ) : (
+            <>
+              {isDirty ? (
+                <Button
+                  type="button"
+                  disabled={saveDashboard.isPending}
+                  isLoading={saveDashboard.isPending}
+                  onClick={() => saveDashboard.mutate()}
+                >
+                  <Save className="size-4" />
+                  Save
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCustomize(true)}
+              >
+                <Settings2 className="size-4" />
+                Customize
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -647,6 +716,7 @@ export function DashboardPage() {
               {sortedDraftLayout.map((layout, index) => {
                 const item = catalog.find((w) => w.key === layout.widgetKey);
                 if (!item) return null;
+                const showChartControl = item.type !== "KPI";
                 return (
                   <div
                     key={layout.widgetKey}
@@ -674,7 +744,9 @@ export function DashboardPage() {
                             visible: !layout.visible,
                           })
                         }
-                        aria-label={layout.visible ? "Hide widget" : "Show widget"}
+                        aria-label={
+                          layout.visible ? "Hide widget" : "Show widget"
+                        }
                       >
                         {layout.visible ? (
                           <Eye className="size-4" />
@@ -684,7 +756,12 @@ export function DashboardPage() {
                       </button>
                     </div>
 
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div
+                      className={cn(
+                        "mt-3 grid gap-2",
+                        showChartControl ? "sm:grid-cols-2" : "sm:grid-cols-1",
+                      )}
+                    >
                       <div className="space-y-1">
                         <Label>Size</Label>
                         <Select
@@ -707,29 +784,31 @@ export function DashboardPage() {
                         </Select>
                       </div>
 
-                      <div className="space-y-1">
-                        <Label>Chart</Label>
-                        <Select
-                          value={layout.chartType}
-                          disabled={item.supportedChartTypes.length <= 1}
-                          onValueChange={(value) =>
-                            patchLayout(layout.widgetKey, {
-                              chartType: value as DashboardChartType,
-                            })
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {item.supportedChartTypes.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type.charAt(0).toUpperCase() + type.slice(1)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {showChartControl ? (
+                        <div className="space-y-1">
+                          <Label>Chart</Label>
+                          <Select
+                            value={layout.chartType}
+                            disabled={item.supportedChartTypes.length <= 1}
+                            onValueChange={(value) =>
+                              patchLayout(layout.widgetKey, {
+                                chartType: value as DashboardChartType,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {item.supportedChartTypes.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="mt-3 flex items-center justify-between gap-2">
@@ -775,7 +854,8 @@ export function DashboardPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
               <p className="text-xs text-muted-foreground">
                 Saved layout is shared by web and mobile clients through the
-                same dashboard API. Mobile can render these widgets in one column.
+                same dashboard API. Mobile can render these widgets in one
+                column.
               </p>
               <Button
                 type="button"
@@ -799,27 +879,31 @@ export function DashboardPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {visibleWidgets.length ? (
-          visibleWidgets.map((widget) => (
-            <DashboardWidgetCard key={widget.widgetKey} widget={widget} />
-          ))
-        ) : (
-          <Card className="md:col-span-2 xl:col-span-4">
-            <CardHeader>
-              <CardTitle>No widgets selected</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Turn on at least one widget in Customize mode.
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {!customize ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {visibleWidgets.length ? (
+              visibleWidgets.map((widget) => (
+                <DashboardWidgetCard key={widget.widgetKey} widget={widget} />
+              ))
+            ) : (
+              <Card className="md:col-span-2 xl:col-span-4">
+                <CardHeader>
+                  <CardTitle>No widgets selected</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  Turn on at least one widget in Customize mode.
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
-      <div className="text-xs text-muted-foreground">
-        Current range: {RANGE_LABELS[data.filters.range]}. Use Customize to
-        control which widgets appear for this account.
-      </div>
+          <div className="text-xs text-muted-foreground">
+            Current range: {RANGE_LABELS[data.filters.range]}. Use Customize to
+            control which widgets appear for this account.
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

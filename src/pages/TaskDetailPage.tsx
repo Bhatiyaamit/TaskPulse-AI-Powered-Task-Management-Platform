@@ -24,11 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  api,
-  deleteTaskAttachment,
-  uploadTaskAttachment,
-} from "@/api/client";
+import { api, deleteTaskAttachment, uploadTaskAttachment } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe, useHasPermission } from "@/hooks/useAuth";
 import {
@@ -38,7 +34,7 @@ import {
   taskModuleCanUpdate,
 } from "@/lib/permissions";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { taskStatusBadgeClass } from "@/lib/badges";
+import { taskPriorityBadgeClass, taskStatusBadgeClass } from "@/lib/badges";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -75,6 +71,7 @@ type TaskDetail = {
   id: string;
   title: string;
   description: string | null;
+  priority: string;
   steps: string | null;
   startDate: string | null;
   dueDate: string | null;
@@ -126,6 +123,8 @@ type ChecklistItem = {
   checkedById: string | null;
   checkedBy?: UserBrief | null;
 };
+
+const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 
 function formatWhen(iso: string) {
   try {
@@ -338,9 +337,11 @@ export function TaskDetailPage() {
 
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [showAllAttachments, setShowAllAttachments] = useState(false);
 
   const deleteAttachmentMutation = useMutation({
-    mutationFn: (attachmentId: string) => deleteTaskAttachment(id!, attachmentId),
+    mutationFn: (attachmentId: string) =>
+      deleteTaskAttachment(id!, attachmentId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["task", id] });
       toast.success("Attachment deleted");
@@ -348,10 +349,8 @@ export function TaskDetailPage() {
     onError: () => toast.error("Could not delete attachment"),
   });
   const updateChecklistItem = useMutation({
-    mutationFn: async (payload: {
-      itemId: string;
-      isChecked?: boolean;
-    }) => api.patch(`/api/tasks/${id}/checklist/${payload.itemId}`, payload),
+    mutationFn: async (payload: { itemId: string; isChecked?: boolean }) =>
+      api.patch(`/api/tasks/${id}/checklist/${payload.itemId}`, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["task-checklist", id] });
     },
@@ -426,7 +425,9 @@ export function TaskDetailPage() {
 
   function markComplete() {
     if (hasMandatoryChecklistGap) {
-      toast.error("Complete all mandatory checklist items before marking done.");
+      toast.error(
+        "Complete all mandatory checklist items before marking done.",
+      );
       return;
     }
     if (!doneStatusId) {
@@ -488,6 +489,9 @@ export function TaskDetailPage() {
                 <div className="flex flex-wrap gap-2 text-sm">
                   <span className={taskStatusBadgeClass(task.status.code)}>
                     {task.status.label}
+                  </span>
+                  <span className={taskPriorityBadgeClass(task.priority)}>
+                    {task.priority}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5">
                     <Clock className="size-3.5 opacity-70" />
@@ -797,7 +801,9 @@ export function TaskDetailPage() {
               </CardHeader>
               <CardContent>
                 {checklistItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No checklist items.</p>
+                  <p className="text-sm text-muted-foreground">
+                    No checklist items.
+                  </p>
                 ) : (
                   <div className="space-y-3">
                     {checklistItems.map((item) => (
@@ -891,44 +897,61 @@ export function TaskDetailPage() {
                     No attachments.
                   </p>
                 ) : (
-                  <ul className="space-y-2">
-                    {task.attachments.map((att) => (
-                      <li
-                        key={att.id}
-                        className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-                          <span className="truncate">
-                            {att.fileName ?? att.fileUrl}
-                          </span>
-                        </span>
-                        <div className="ml-auto flex shrink-0 items-center gap-0">
-                          <a
-                            href={att.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary underline-offset-4 hover:underline"
+                  <div className="space-y-2">
+                    <ul className="space-y-2">
+                      {task.attachments
+                        .slice(0, showAllAttachments ? undefined : 5)
+                        .map((att) => (
+                          <li
+                            key={att.id}
+                            className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
                           >
-                            Open
-                          </a>
-                          {canUpdate ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              aria-label={`Delete ${att.fileName ?? "attachment"}`}
-                              onClick={() => deleteAttachmentMutation.mutate(att.id)}
-                              disabled={deleteAttachmentMutation.isPending}
-                            >
-                              <X className="size-4" />
-                            </Button>
-                          ) : null}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                            <span className="flex min-w-0 items-center gap-2">
+                              <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                              <span className="truncate">
+                                {att.fileName ?? att.fileUrl}
+                              </span>
+                            </span>
+                            <div className="ml-auto flex shrink-0 items-center gap-0">
+                              <a
+                                href={att.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary underline-offset-4 hover:underline"
+                              >
+                                Open
+                              </a>
+                              {canUpdate ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  aria-label={`Delete ${att.fileName ?? "attachment"}`}
+                                  onClick={() =>
+                                    deleteAttachmentMutation.mutate(att.id)
+                                  }
+                                  disabled={deleteAttachmentMutation.isPending}
+                                >
+                                  <X className="size-4" />
+                                </Button>
+                              ) : null}
+                            </div>
+                          </li>
+                        ))}
+                    </ul>
+                    {task.attachments.length > 5 && !showAllAttachments ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowAllAttachments(true)}
+                      >
+                        Load more ({task.attachments.length - 5})
+                      </Button>
+                    ) : null}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -1028,6 +1051,26 @@ export function TaskDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Update priority</Label>
+                  <Select
+                    value={String(task.priority ?? "MEDIUM").toUpperCase()}
+                    onValueChange={(v) => patchTask.mutate({ priority: v })}
+                    disabled={patchTask.isPending}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TASK_PRIORITIES.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p.charAt(0) + p.slice(1).toLowerCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Separator />
                 <div className="space-y-2">
                   <Label>Update status</Label>
                   <Select

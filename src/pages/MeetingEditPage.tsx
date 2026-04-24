@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
+import { isAxiosError } from "axios";
+import { toast } from "sonner";
 import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
@@ -123,7 +125,14 @@ export function MeetingEditPage() {
       });
       await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
       await qc.invalidateQueries({ queryKey: ["meeting", id] });
+      toast.success("Meeting updated");
       navigate(`/meetings/${id}`);
+    },
+    onError: (e) => {
+      const msg = isAxiosError(e)
+        ? (e.response?.data?.message ?? e.message)
+        : "Could not update meeting";
+      toast.error(String(msg));
     },
   });
 
@@ -136,7 +145,14 @@ export function MeetingEditPage() {
       });
       await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
       await qc.invalidateQueries({ queryKey: ["meeting", id] });
+      toast.success("Meeting marked as completed");
       navigate(`/meetings/${id}`);
+    },
+    onError: (e) => {
+      const msg = isAxiosError(e)
+        ? (e.response?.data?.message ?? e.message)
+        : "Could not mark meeting as completed";
+      toast.error(String(msg));
     },
   });
 

@@ -109,10 +109,12 @@ export function PlatformTenantCreatePage() {
           ? Array.from(
               new Set(
                 Object.entries(details.fieldErrors)
-              .flatMap(([field, msgs]) =>
-                (msgs ?? []).map((m) => humanizeValidationMessage(field, m)),
-              )
-              .filter(Boolean),
+                  .flatMap(([field, msgs]) =>
+                    (msgs ?? []).map((m) =>
+                      humanizeValidationMessage(field, m),
+                    ),
+                  )
+                  .filter(Boolean),
               ),
             ).join(" ")
           : "";
@@ -134,7 +136,7 @@ export function PlatformTenantCreatePage() {
   return (
     <CenteredFormPage
       title="Create Company"
-      description="Provision a company and create the first admin user (username + temporary password)."
+      description="Set up a new company and configure the administrator account to enable secure access."
       back={
         <FormBackLink to="/platform/tenants">
           Back to companies list

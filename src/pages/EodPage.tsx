@@ -21,6 +21,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { overdueBadgeClass, taskStatusBadgeClass } from "@/lib/badges";
 import {
@@ -119,8 +125,38 @@ export function EodPage() {
     me.data?.user.tenantId ??
     "__no-tenant-context__";
 
+  const [selectedUserId, setSelectedUserId] = useState<string>("__self__");
+
+  const orgQuery = useQuery({
+    queryKey: ["org-team-hierarchy", tenantContextKey],
+    enabled: canEod,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: any[] }>("/api/team/members", {
+        params: { pageSize: 100 },
+      });
+      return data.data;
+    },
+  });
+
+  const subordinateOptions = useMemo(() => {
+    if (!orgQuery.data || !me.data) return [];
+
+    function getDescendants(members: any[], rootId: string): any[] {
+      const children = members.filter((m) => m.managerId === rootId);
+      return children.reduce((acc, child) => {
+        return [...acc, child, ...getDescendants(members, child.id)];
+      }, [] as any[]);
+    }
+
+    const roleCode = me.data.user.roleCode;
+    if (roleCode === "SUPER_ADMIN" || roleCode === "COMPANY_ADMIN") {
+      return orgQuery.data.filter((m) => m.id !== me.data!.user.id);
+    }
+    return getDescendants(orgQuery.data, me.data.user.id);
+  }, [orgQuery.data, me.data]);
+
   const q = useQuery({
-    queryKey: ["eod", "today", tenantContextKey],
+    queryKey: ["eod", "today", tenantContextKey, selectedUserId],
     enabled: canEod,
     queryFn: async () => {
       const { data } = await api.get<
@@ -134,7 +170,12 @@ export function EodPage() {
           },
           { rangeUtc: { start: string; end: string } }
         >
-      >("/api/eod/today");
+      >("/api/eod/today", {
+        params:
+          selectedUserId === "__self__"
+            ? undefined
+            : { userId: selectedUserId },
+      });
       return {
         meta: data.meta ?? {
           rangeUtc: {
@@ -160,24 +201,30 @@ export function EodPage() {
   }, [q.data]);
 
   const summaryText = useMemo(() => {
-    if (!q.data) return "Generating your summary…";
+    if (!q.data) return "Generating summary…";
     const completed = q.data.completedToday?.length ?? 0;
     const worked = q.data.workedOnToday?.length ?? 0;
     const overdue = q.data.overdue?.length ?? 0;
     const focus = q.data.focusNext[0]?.title;
+
+    const isSelf = selectedUserId === "__self__";
+    const isTeam = selectedUserId === "__team__";
+    const sub = isSelf ? "You" : isTeam ? "Your team" : "They";
+    const haveWord = isTeam ? "has" : "have";
+
     const parts = [
-      `You completed ${completed} task${completed === 1 ? "" : "s"} today`,
+      `${sub} completed ${completed} task${completed === 1 ? "" : "s"} today`,
       `worked on ${worked} task${worked === 1 ? "" : "s"}`,
       overdue > 0
-        ? `and have ${overdue} overdue task${overdue === 1 ? "" : "s"} to address`
-        : "and have no overdue tasks",
+        ? `and ${haveWord} ${overdue} overdue task${overdue === 1 ? "" : "s"} to address`
+        : `and ${haveWord} no overdue tasks`,
     ];
     return `${parts.join(" ")}. ${
       focus
-        ? `Your next focus could be “${focus}”.`
-        : "Pick your next focus from the list below."
+        ? `${isSelf ? "Your" : isTeam ? "Your team's" : "Their"} next focus could be “${focus}”.`
+        : "Pick the next focus from the list below."
     }`;
-  }, [q.data]);
+  }, [q.data, selectedUserId]);
 
   const workedOnPreview = useMemo(
     () => (q.data?.workedOnToday ?? []).slice(0, 3),
@@ -197,17 +244,47 @@ export function EodPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
-            <ClipboardList className="size-5" />
-            {title}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Auto-generated summary from your tasks and today’s activity.
+          <div className="flex items-center gap-4">
+            <h1 className="flex items-center gap-2 font-heading text-2xl font-semibold uppercase tracking-wide text-primary">
+              <ClipboardList className="size-5" />
+              {title}
+            </h1>
+            {subordinateOptions.length > 0 && (
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger className="w-56 h-8 text-sm bg-background border-border shadow-sm">
+                  <div className="flex-1 text-left truncate">
+                    {selectedUserId === "__self__"
+                      ? "My EOD"
+                      : selectedUserId === "__team__"
+                        ? "My Team's EOD"
+                        : `${subordinateOptions.find((m) => m.id === selectedUserId)?.name ?? "Selected user"}'s EOD`}
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__self__">My EOD</SelectItem>
+                  <SelectItem value="__team__">My Team's EOD</SelectItem>
+                  {subordinateOptions.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name}'s EOD
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Auto-generated summary from{" "}
+            {selectedUserId === "__self__"
+              ? "your"
+              : selectedUserId === "__team__"
+                ? "your team's"
+                : `${subordinateOptions.find((m) => m.id === selectedUserId)?.name ?? "their"}'s`}{" "}
+            tasks and today’s activity.
           </p>
         </div>
-        <Link to="/tasks" className={cn(buttonVariants())}>
+        <Link to="/tasks" className={cn(buttonVariants(), "mt-1")}>
           Go to tasks
           <ArrowRight className="size-4" />
         </Link>
