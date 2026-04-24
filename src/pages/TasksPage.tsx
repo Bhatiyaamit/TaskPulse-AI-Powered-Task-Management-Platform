@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DataTable } from "@/components/data-table";
+import { SearchableFilterSelect } from "@/components/SearchableFilterSelect";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -198,6 +199,7 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     ? [{ id: sortByRaw, desc: sortDirRaw === "desc" }]
     : [];
   const statusId = searchParams.get("statusId") || "";
+  const priority = searchParams.get("priority") || "";
   const dueFrom = searchParams.get("dueFrom") || "";
   const dueTo = searchParams.get("dueTo") || "";
   const teamUserIds = (
@@ -233,6 +235,7 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     apiSortDir,
     queue,
     statusId,
+    priority,
     dueFrom,
     dueTo,
     teamUserIds,
@@ -329,6 +332,7 @@ export function TasksPage() {
     apiSortDir,
     queue,
     statusId,
+    priority,
     dueFrom,
     dueTo,
     teamUserIds,
@@ -500,6 +504,7 @@ export function TasksPage() {
       pagination.pageIndex,
       pagination.pageSize,
       statusId,
+      priority,
       dueFrom,
       dueTo,
       validTeamUserIds.join(","),
@@ -520,6 +525,7 @@ export function TasksPage() {
           queue,
           ...(queue === "my_tasks" ? { myTab: myTab ?? "assigned" } : {}),
           ...(statusId ? { statusId } : {}),
+          ...(priority ? { priority } : {}),
           ...(dueFrom
             ? { dueFrom: new Date(dueFrom + "T00:00:00").toISOString() }
             : {}),
@@ -913,12 +919,6 @@ export function TasksPage() {
     effectiveSelectedTeamUserIds.includes(u.id),
   );
 
-  function statusFilterLabel(v: string) {
-    if (v === "__all__") return "All statuses";
-    const s = statuses?.find((x) => x.id === v);
-    return s?.label ?? v;
-  }
-
   const goPrev = useCallback(() => {
     setSearchParams(
       (prev) => {
@@ -1306,9 +1306,15 @@ export function TasksPage() {
           </div>
           <div className="space-y-2">
             <Label>Status</Label>
-            <Select
+            <SearchableFilterSelect
+              options={(statuses ?? []).map((s) => ({
+                value: s.id,
+                label: s.label,
+              }))}
               value={statusId || "__all__"}
-              onValueChange={(v) => {
+              allValue="__all__"
+              allLabel="All statuses"
+              onChange={(v) => {
                 setSearchParams(
                   (prev) => {
                     const p = new URLSearchParams(prev);
@@ -1320,26 +1326,41 @@ export function TasksPage() {
                   { replace: true },
                 );
               }}
-              itemToStringLabel={statusFilterLabel}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All statuses</SelectItem>
-                {(statuses ?? []).map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Priority</Label>
+            <SearchableFilterSelect
+              showSearch={false}
+              options={[
+                { value: "LOW", label: "Low" },
+                { value: "MEDIUM", label: "Medium" },
+                { value: "HIGH", label: "High" },
+                { value: "URGENT", label: "Urgent" },
+              ]}
+              value={priority || "__all__"}
+              allValue="__all__"
+              allLabel="All priorities"
+              onChange={(v) => {
+                setSearchParams(
+                  (prev) => {
+                    const p = new URLSearchParams(prev);
+                    if (v === "__all__") p.delete("priority");
+                    else p.set("priority", v);
+                    p.delete("page");
+                    return p;
+                  },
+                  { replace: true },
+                );
+              }}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="due-from">Due from</Label>
             <Input
               id="due-from"
               type="date"
+              className="h-9 w-full"
               value={dueFrom}
               onChange={(e) => {
                 const v = e.target.value;
@@ -1361,6 +1382,7 @@ export function TasksPage() {
             <Input
               id="due-to"
               type="date"
+              className="h-9 w-full"
               value={dueTo}
               onChange={(e) => {
                 const v = e.target.value;

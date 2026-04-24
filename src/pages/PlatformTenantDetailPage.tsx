@@ -82,10 +82,10 @@ export function PlatformTenantDetailPage() {
             Platform-level view of a single company.
           </p>
         </div>
-        <Link to="/platform/dashboard">
+        <Link to="/platform/tenants">
           <Button variant="outline">
             <ArrowLeft className="size-4" />
-            Back to Dashboard
+            Back to Companies
           </Button>
         </Link>
       </div>
@@ -111,7 +111,7 @@ export function PlatformTenantDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent
-                className={`space-y-3 ${spotlightCardContentLayerClass}`}
+                className={`space-y-4 ${spotlightCardContentLayerClass}`}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="text-lg font-semibold">
@@ -128,24 +128,29 @@ export function PlatformTenantDetailPage() {
                   ) : null}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-md border border-border p-3">
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Company ID
-                    </div>
-                    <div className="mt-1 font-mono text-sm">
-                      {query.isLoading ? "—" : (tenant?.id ?? "—")}
-                    </div>
+                <div className="rounded-md border border-border p-3 space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    Admin User
                   </div>
-                  <div className="rounded-md border border-border p-3">
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Created
-                    </div>
-                    <div className="mt-1 text-sm">
-                      {query.isLoading || !tenant?.createdAt
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Name: </span>
+                    <span className="font-medium">
+                      {query.isLoading ? "—" : (adminUser?.name ?? "—")}
+                    </span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Username: </span>
+                    <span className="font-medium">
+                      {query.isLoading ? "—" : (adminUser?.username ?? "—")}
+                    </span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Created: </span>
+                    <span className="font-medium">
+                      {query.isLoading || !adminUser?.createdAt
                         ? "—"
-                        : formatDateTime(tenant.createdAt)}
-                    </div>
+                        : formatDateTime(adminUser.createdAt)}
+                    </span>
                   </div>
                 </div>
               </CardContent>
@@ -164,40 +169,6 @@ export function PlatformTenantDetailPage() {
                 className={`text-3xl font-bold ${spotlightCardContentLayerClass}`}
               >
                 {query.isLoading ? "—" : (tenant?._count?.users ?? 0)}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card className={topLeftSpotlightCardClass}>
-              <CardHeader>
-                <CardTitle className="font-heading text-base font-semibold uppercase tracking-wide text-primary">
-                  Admin user
-                </CardTitle>
-              </CardHeader>
-              <CardContent
-                className={`space-y-2 ${spotlightCardContentLayerClass}`}
-              >
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Name: </span>
-                  <span className="font-medium">
-                    {query.isLoading ? "—" : (adminUser?.name ?? "—")}
-                  </span>
-                </div>
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Username: </span>
-                  <span className="font-medium">
-                    {query.isLoading ? "—" : (adminUser?.username ?? "—")}
-                  </span>
-                </div>
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Created: </span>
-                  <span className="font-medium">
-                    {query.isLoading || !adminUser?.createdAt
-                      ? "—"
-                      : formatDateTime(adminUser.createdAt)}
-                  </span>
-                </div>
               </CardContent>
             </Card>
           </div>

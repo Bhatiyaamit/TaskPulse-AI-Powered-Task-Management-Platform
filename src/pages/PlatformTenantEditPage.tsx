@@ -71,14 +71,14 @@ export function PlatformTenantEditPage() {
       );
       return data.data.tenant;
     },
-    onSuccess: async (t) => {
+    onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["tenants"], exact: false });
       await qc.invalidateQueries({
         queryKey: ["platform-tenant", tenantId],
         exact: false,
       });
       toast.success("Company updated");
-      nav(`/platform/tenants/${t.id}`);
+      nav("/platform/tenants");
     },
     onError: (e) => {
       const msg = isAxiosError(e)

@@ -9,7 +9,7 @@ import { api } from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe } from "@/hooks/useAuth";
 import { canCreateUsers } from "@/lib/userCreationRoles";
-import { P } from "@/lib/permissions";
+import { P, userModuleCanList } from "@/lib/permissions";
 import {
   Pencil,
   Plus,
@@ -40,6 +40,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { DataTable } from "@/components/data-table";
+import { SearchableFilterSelect } from "@/components/SearchableFilterSelect";
 import { cn } from "@/lib/utils";
 import { userStatusBadgeClass } from "@/lib/badges";
 import {
@@ -123,7 +124,7 @@ export function TeamPage() {
   const qc = useQueryClient();
   const me = useMe();
   const perms = new Set(me.data?.permissions ?? []);
-  const canListTeam = true; // No restriction on viewing user directory
+  const canListTeam = userModuleCanList(me.data?.permissions);
   const canEditUsers = perms.has(P.USERS_UPDATE);
   const canDeleteUsers = perms.has(P.USERS_DELETE);
   const canAddUser = canCreateUsers(me.data);
@@ -716,9 +717,15 @@ export function TeamPage() {
               </div>
               <div className="w-full sm:w-56 flex flex-col gap-2">
                 <Label>Department</Label>
-                <Select
+                <SearchableFilterSelect
+                  options={departmentOptions.map((d) => ({
+                    value: d.id,
+                    label: d.name,
+                  }))}
                   value={departmentId || "__all__"}
-                  onValueChange={(v) => {
+                  allValue="__all__"
+                  allLabel="All departments"
+                  onChange={(v) => {
                     setSearchParams(
                       (prev) => {
                         const p = new URLSearchParams(prev);
@@ -730,44 +737,25 @@ export function TeamPage() {
                       { replace: true },
                     );
                   }}
-                >
-                  <SelectTrigger className="w-full">
-                    {(() => {
-                      if (!departmentId) {
-                        return (
-                          <span className="text-muted-foreground">
-                            All departments
-                          </span>
-                        );
-                      }
-                      const selected = departmentOptions.find(
-                        (d) => d.id === departmentId,
-                      );
-                      if (!selected) {
-                        return (
-                          <span className="text-muted-foreground">
-                            All departments
-                          </span>
-                        );
-                      }
-                      return <span className="truncate">{selected.name}</span>;
-                    })()}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All departments</SelectItem>
-                    {departmentOptions.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
               <div className="w-full sm:w-56 flex flex-col gap-2">
                 <Label>Role</Label>
-                <Select
+                <SearchableFilterSelect
+                  options={[
+                    ...(roleName &&
+                    !roleFilterOptions.some((r) => r.name.trim() === roleName)
+                      ? [{ value: roleName, label: roleName }]
+                      : []),
+                    ...roleFilterOptions.map((r) => ({
+                      value: r.name.trim(),
+                      label: r.name,
+                    })),
+                  ]}
                   value={roleName || "__all__"}
-                  onValueChange={(v) => {
+                  allValue="__all__"
+                  allLabel="All roles"
+                  onChange={(v) => {
                     setSearchParams(
                       (prev) => {
                         const p = new URLSearchParams(prev);
@@ -780,47 +768,20 @@ export function TeamPage() {
                       { replace: true },
                     );
                   }}
-                >
-                  <SelectTrigger className="w-full">
-                    {(() => {
-                      if (!roleName) {
-                        return (
-                          <span className="text-muted-foreground">
-                            All roles
-                          </span>
-                        );
-                      }
-                      const selected = roleFilterOptions.find(
-                        (r) => r.name.trim() === roleName,
-                      );
-                      return (
-                        <span className="truncate">
-                          {selected?.name ?? roleName}
-                        </span>
-                      );
-                    })()}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All roles</SelectItem>
-                    {roleName &&
-                    !roleFilterOptions.some(
-                      (r) => r.name.trim() === roleName,
-                    ) ? (
-                      <SelectItem value={roleName}>{roleName}</SelectItem>
-                    ) : null}
-                    {roleFilterOptions.map((r) => (
-                      <SelectItem key={r.id} value={r.name.trim()}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
               <div className="w-full sm:w-48 flex flex-col gap-2">
                 <Label>Status</Label>
-                <Select
+                <SearchableFilterSelect
+                  showSearch={false}
+                  options={[
+                    { value: "active", label: "Active" },
+                    { value: "inactive", label: "Inactive" },
+                  ]}
                   value={status || "__all__"}
-                  onValueChange={(v) => {
+                  allValue="__all__"
+                  allLabel="All statuses"
+                  onChange={(v) => {
                     setSearchParams(
                       (prev) => {
                         const p = new URLSearchParams(prev);
@@ -832,29 +793,7 @@ export function TeamPage() {
                       { replace: true },
                     );
                   }}
-                >
-                  <SelectTrigger className="w-full">
-                    {(() => {
-                      if (!status) {
-                        return (
-                          <span className="text-muted-foreground">
-                            All statuses
-                          </span>
-                        );
-                      }
-                      return (
-                        <span className="truncate">
-                          {status === "active" ? "Active" : "Inactive"}
-                        </span>
-                      );
-                    })()}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All statuses</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
+                />
               </div>
             </div>
 

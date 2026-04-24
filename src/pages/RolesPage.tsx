@@ -5,6 +5,8 @@ import { api } from "@/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { isAxiosError } from "axios";
 import { toast } from "sonner";
+import { useMe } from "@/hooks/useAuth";
+import { hierarchyModuleCanUpdate } from "@/lib/permissions";
 
 type OrgMember = {
   id: string;
@@ -19,10 +21,12 @@ function OrgNode({
   member,
   members,
   onDropUser,
+  canUpdate,
 }: {
   member: OrgMember;
   members: OrgMember[];
   onDropUser: (userId: string, managerId: string | null) => void;
+  canUpdate: boolean;
 }) {
   const children = members.filter((m) => m.managerId === member.id);
   const [dragCounter, setDragCounter] = useState(0);
@@ -30,6 +34,7 @@ function OrgNode({
 
   const isAdmin =
     member.role.code === "COMPANY_ADMIN" || member.role.code === "SUPER_ADMIN";
+  const isDraggable = canUpdate && !isAdmin;
 
   return (
     <div className="flex flex-col ml-7 relative">
@@ -40,38 +45,38 @@ function OrgNode({
 
       <div
         className={`flex items-start gap-3 py-2 px-3 -mx-3 relative z-10 rounded-lg transition-all border-2 ${
-          !isAdmin ? "cursor-grab active:cursor-grabbing" : ""
+          isDraggable ? "cursor-grab active:cursor-grabbing" : ""
         } ${
-          isDragOver
+          isDragOver && canUpdate
             ? "border-primary border-dashed bg-primary/5"
             : isAdmin
               ? "border-amber-500/20 bg-amber-500/10 dark:bg-amber-500/15 shadow-sm"
               : "border-transparent hover:bg-muted/40"
         }`}
-        draggable={!isAdmin}
-        onDragStart={(e) => {
+        draggable={isDraggable}
+        onDragStart={isDraggable ? (e) => {
           e.dataTransfer.setData(
             "application/json",
             JSON.stringify({ id: member.id }),
           );
           e.dataTransfer.effectAllowed = "move";
-        }}
-        onDragOver={(e) => {
+        } : undefined}
+        onDragOver={canUpdate ? (e) => {
           e.preventDefault();
           e.stopPropagation();
           e.dataTransfer.dropEffect = "move";
-        }}
-        onDragEnter={(e) => {
+        } : undefined}
+        onDragEnter={canUpdate ? (e) => {
           e.preventDefault();
           e.stopPropagation();
           setDragCounter((c) => c + 1);
-        }}
-        onDragLeave={(e) => {
+        } : undefined}
+        onDragLeave={canUpdate ? (e) => {
           e.preventDefault();
           e.stopPropagation();
           setDragCounter((c) => c - 1);
-        }}
-        onDrop={(e) => {
+        } : undefined}
+        onDrop={canUpdate ? (e) => {
           e.preventDefault();
           e.stopPropagation();
           setDragCounter(0);
@@ -80,14 +85,14 @@ function OrgNode({
             if (data.id === member.id) return;
             onDropUser(data.id, member.id);
           } catch (err) {}
-        }}
+        } : undefined}
       >
         <div className="flex items-center justify-center shrink-0 w-5 h-10 pointer-events-none opacity-40">
-          {!isAdmin ? (
-            <GripVertical className="w-4 h-4" />
-          ) : (
+          {isAdmin ? (
             <Lock className="w-4 h-4 text-amber-600 dark:text-amber-500 opacity-60" />
-          )}
+          ) : isDraggable ? (
+            <GripVertical className="w-4 h-4" />
+          ) : null}
         </div>
 
         <div className="flex items-center justify-center min-w-10 h-10 rounded-full bg-muted border border-border shadow-sm text-muted-foreground/80 pointer-events-none">
@@ -123,6 +128,7 @@ function OrgNode({
                 member={child}
                 members={members}
                 onDropUser={onDropUser}
+                canUpdate={canUpdate}
               />
             </div>
           ))}
@@ -134,6 +140,9 @@ function OrgNode({
 
 export function RolesPage() {
   const qc = useQueryClient();
+  const me = useMe();
+  const canUpdate = hierarchyModuleCanUpdate(me.data?.permissions);
+
   const orgQuery = useQuery({
     queryKey: ["org-team-hierarchy"],
     queryFn: async () => {
@@ -182,8 +191,9 @@ export function RolesPage() {
             Role Hierarchy
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground max-w-2xl">
-            Drag and drop team members to reassign reporting lines. Subordinates
-            will automatically move with their managers.
+            {canUpdate
+              ? "Drag and drop team members to reassign reporting lines. Subordinates will automatically move with their managers."
+              : "View the reporting structure of your organization."}
           </p>
         </div>
       </div>
@@ -219,6 +229,7 @@ export function RolesPage() {
                       member={root}
                       members={members}
                       onDropUser={handleDropUser}
+                      canUpdate={canUpdate}
                     />
                   ));
                 })()}

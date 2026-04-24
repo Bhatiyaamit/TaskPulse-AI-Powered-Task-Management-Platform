@@ -8,7 +8,7 @@ import {
 import { NotificationBell } from "@/components/NotificationBell";
 import { UserMenu } from "@/components/UserMenu";
 import { useTheme } from "@/providers/theme-provider";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   meetingModuleCanCreate,
   meetingModuleCanList,
@@ -16,6 +16,8 @@ import {
   departmentModuleCanAccessDepartmentsNav,
   taskModuleCanCreate,
   taskModuleCanList,
+  userModuleCanList,
+  hierarchyModuleCanRead,
 } from "@/lib/permissions";
 import {
   LayoutDashboard,
@@ -29,14 +31,130 @@ import {
   ClipboardList,
   X,
   ShieldHalf,
+  ChevronDown,
+  Search,
+  Check,
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+
+type CompanyOption = { id: string; name: string };
+
+function CompanySelector({
+  options,
+  value,
+  disabled,
+  onSelect,
+  onClear,
+}: {
+  options: CompanyOption[];
+  value: string | null | undefined;
+  disabled: boolean;
+  onSelect: (id: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const selectedName = options.find((o) => o.id === value)?.name;
+
+  const filtered = options.filter((o) =>
+    o.name.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  useEffect(() => {
+    if (open) setTimeout(() => searchRef.current?.focus(), 10);
+  }, [open]);
+
+  function select(id: string) {
+    onSelect(id);
+    setOpen(false);
+    setSearch("");
+  }
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        className={cn(
+          "flex h-9 w-full items-center justify-between gap-1 rounded-md border border-input bg-background/40 px-2.5 text-sm transition-colors outline-none select-none",
+          "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+          !selectedName && "text-muted-foreground/70",
+        )}
+      >
+        <span className="min-w-0 flex-1 truncate text-left">
+          {selectedName ?? "Select company…"}
+        </span>
+        <span className="flex shrink-0 items-center gap-0.5">
+          {value && (
+            <span
+              role="button"
+              aria-label="Clear selected company"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClear();
+              }}
+              className="flex size-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </span>
+          )}
+          <ChevronDown className="size-4 text-muted-foreground" />
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full left-0 z-50 mb-1 w-full overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10">
+          <div className="border-b border-border p-2">
+            <div className="relative">
+              <Search className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search companies…"
+                className="h-7 w-full rounded-md border border-input bg-background/60 py-1 pr-2.5 pl-7 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-ring focus:ring-1 focus:ring-ring/40"
+              />
+            </div>
+          </div>
+          <div className="max-h-[260px] overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <p className="py-3 text-center text-xs text-muted-foreground">No companies found.</p>
+            ) : (
+              filtered.map((o) => (
+                <div
+                  key={o.id}
+                  role="option"
+                  aria-selected={o.id === value}
+                  onClick={() => select(o.id)}
+                  className="flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                >
+                  <span className="min-w-0 flex-1 truncate">{o.name}</span>
+                  {o.id === value && <Check className="size-4 shrink-0 text-primary" />}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AppLayout() {
   const { data, isError } = useMe();
@@ -52,20 +170,6 @@ export function AppLayout() {
 
   const selectedTenantId = data?.selectedTenantId ?? null;
   const [uiTenantId, setUiTenantId] = useState<string | null>(null);
-  const selectedTenantName = useMemo(() => {
-    const effectiveId = uiTenantId ?? selectedTenantId;
-    if (!effectiveId) return null;
-    return (
-      data?.selectedTenant?.name ??
-      (tenantOptionsQuery.data ?? []).find((t) => t.id === effectiveId)?.name ??
-      "Selected company"
-    );
-  }, [
-    data?.selectedTenant?.name,
-    selectedTenantId,
-    tenantOptionsQuery.data,
-    uiTenantId,
-  ]);
 
   const isSwitchingCompany =
     tenantContext.setTenant.isPending || tenantContext.clearTenant.isPending;
@@ -118,7 +222,7 @@ export function AppLayout() {
   const tenant = data.user.tenantId != null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       {isSwitchingCompany ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/40 backdrop-blur transition-opacity duration-200 animate-in fade-in">
           <div className="flex items-center gap-3 rounded-xl border border-border bg-background/80 px-4 py-3 shadow-lg">
@@ -129,7 +233,7 @@ export function AppLayout() {
           </div>
         </div>
       ) : null}
-      <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-sidebar/70 p-4 backdrop-blur supports-backdrop-filter:bg-sidebar/60">
+      <aside className="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar/70 p-4 backdrop-blur supports-backdrop-filter:bg-sidebar/60">
         <div className="mb-6 flex items-center gap-2 px-2">
           <img
             src={"/logo.png"}
@@ -167,11 +271,13 @@ export function AppLayout() {
                   label="Meetings"
                 />
               )}
-              <Nav
-                to="/team"
-                icon={<Users className="h-4 w-4" />}
-                label="Team"
-              />
+              {(userModuleCanList(p) || p.includes(P.USERS_CREATE)) && (
+                <Nav
+                  to="/team"
+                  icon={<Users className="h-4 w-4" />}
+                  label="Team"
+                />
+              )}
               {departmentModuleCanAccessDepartmentsNav(p) && (
                 <Nav
                   to="/departments"
@@ -186,11 +292,13 @@ export function AppLayout() {
                   label="Reports"
                 />
               )}
-              <Nav
-                to="/roles"
-                icon={<ShieldHalf className="h-4 w-4" />}
-                label="Hierarchy"
-              />
+              {hierarchyModuleCanRead(p) && (
+                <Nav
+                  to="/roles"
+                  icon={<ShieldHalf className="h-4 w-4" />}
+                  label="Hierarchy"
+                />
+              )}
               <Nav
                 to="/settings"
                 icon={<Settings className="h-4 w-4" />}
@@ -257,6 +365,13 @@ export function AppLayout() {
                 icon={<BarChart3 className="h-4 w-4" />}
                 label="Reports"
               />
+              {hierarchyModuleCanRead(p) && (
+                <Nav
+                  to="/roles"
+                  icon={<ShieldHalf className="h-4 w-4" />}
+                  label="Hierarchy"
+                />
+              )}
               {/* <Nav
                 to="/settings"
                 icon={<Settings className="h-4 w-4" />}
@@ -271,56 +386,26 @@ export function AppLayout() {
             <div className="px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Company selector
             </div>
-            <Select
-              // Base UI Select becomes uncontrolled when `value` is undefined.
-              // Force a remount when cleared so it doesn't keep the previous selection.
-              key={effectiveTenantId ?? "__none__"}
-              value={effectiveTenantId ?? undefined}
-              onValueChange={(v) => {
-                setUiTenantId(v);
-                tenantContext.setTenant.mutate(v);
-              }}
+            <CompanySelector
+              options={tenantOptionsQuery.data ?? []}
+              value={effectiveTenantId}
               disabled={
                 tenantOptionsQuery.isLoading ||
                 tenantContext.setTenant.isPending
               }
-            >
-              <SelectTrigger className="h-9 w-full">
-                <SelectValue placeholder="Select company…">
-                  {selectedTenantName ?? undefined}
-                </SelectValue>
-                {selectedTenantId ? (
-                  <button
-                    type="button"
-                    className="ml-1 inline-flex size-7 items-center justify-center rounded-md hover:bg-muted"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setUiTenantId(null);
-                      tenantContext.clearTenant.mutate();
-                    }}
-                    aria-label="Clear selected company"
-                  >
-                    <X className="size-4 text-muted-foreground" />
-                  </button>
-                ) : null}
-              </SelectTrigger>
-              <SelectContent>
-                {(tenantOptionsQuery.data ?? []).map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onSelect={(v) => {
+                setUiTenantId(v);
+                tenantContext.setTenant.mutate(v);
+              }}
+              onClear={() => {
+                setUiTenantId(null);
+                tenantContext.clearTenant.mutate();
+              }}
+            />
           </div>
         ) : null}
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <motion.header
           className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-background/40 px-4 backdrop-blur supports-backdrop-filter:bg-background/30 sm:px-6"
           initial={{ opacity: 0, y: -6 }}

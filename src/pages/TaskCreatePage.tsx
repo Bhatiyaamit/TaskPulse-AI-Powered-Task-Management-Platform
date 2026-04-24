@@ -25,6 +25,7 @@ import {
   CenteredFormPage,
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
+import { SearchableTaskSelect } from "@/components/SearchableTaskSelect";
 
 const UNASSIGNED = "__none__";
 const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
@@ -55,6 +56,7 @@ type TaskCreateFormValues = {
   recurrenceInterval: string;
   recurrenceEndsAt: string;
   checklistItems: { text: string; mandatory: boolean }[];
+  parentTaskId: string;
 };
 
 export function TaskCreatePage() {
@@ -67,6 +69,12 @@ export function TaskCreatePage() {
   const canCreateTask = taskModuleCanCreate(me?.permissions);
 
   const [formError, setFormError] = useState<string | null>(null);
+  const [nowMin] = useState(() => {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   const {
     control,
     handleSubmit,
@@ -94,6 +102,7 @@ export function TaskCreatePage() {
       recurrenceInterval: "1",
       recurrenceEndsAt: "",
       checklistItems: [{ text: "", mandatory: true }],
+        parentTaskId: "",
     },
   });
   const statusId = watch("statusId");
@@ -131,6 +140,17 @@ export function TaskCreatePage() {
         "/api/tasks/assignable-users",
       );
       return data.data.users;
+    },
+  });
+
+  const { data: parentCandidates } = useQuery({
+    queryKey: ["tasks-for-parent-selector"],
+    enabled: canCreateTask,
+    queryFn: async () => {
+      const { data } = await api.get<
+        ApiSuccess<{ tasks: { id: string; title: string }[] }>
+      >("/api/tasks/for-parent-selector");
+      return data.data.tasks;
     },
   });
 
@@ -238,6 +258,15 @@ export function TaskCreatePage() {
     const dueIso = values.dueDate
       ? new Date(values.dueDate).toISOString()
       : null;
+    const nowMs = Date.now();
+    if (startIso && new Date(startIso).getTime() < nowMs - 60_000) {
+      setFormError("Start date/time cannot be in the past.");
+      return;
+    }
+    if (dueIso && new Date(dueIso).getTime() < nowMs - 60_000) {
+      setFormError("Due date/time cannot be in the past.");
+      return;
+    }
     if (startIso && dueIso) {
       const startMs = new Date(startIso).getTime();
       const dueMs = new Date(dueIso).getTime();
@@ -333,13 +362,6 @@ export function TaskCreatePage() {
       checklistItems: cleanedChecklistItems,
       isRecurring: values.isRecurring,
       recurrencePattern: values.isRecurring ? values.recurrencePattern : null,
-      recurrenceInterval: values.isRecurring
-        ? parseInt(values.recurrenceInterval) || 1
-        : null,
-      recurrenceEndsAt:
-        values.isRecurring && values.recurrenceEndsAt
-          ? new Date(values.recurrenceEndsAt).toISOString()
-          : null,
     });
   }
 
@@ -466,6 +488,24 @@ export function TaskCreatePage() {
                 )}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="parentTaskId">Parent task</Label>
+              <p className="text-xs text-muted-foreground">
+                Link this task as a sub-task of an existing task.
+              </p>
+              <Controller
+                control={control}
+                name="parentTaskId"
+                render={({ field }) => (
+                  <SearchableTaskSelect
+                    tasks={parentCandidates ?? []}
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="No parent task (optional)"
+                  />
+                )}
+              />
+            </div>
           </section>
 
           <Separator />
@@ -568,23 +608,44 @@ export function TaskCreatePage() {
                 <Input
                   id="start"
                   type="datetime-local"
-                  {...register("startDate")}
+                  min={nowMin}
+                  {...register("startDate", {
+                    validate: (value) => {
+                      if (!value) return true;
+                      const picked = new Date(value).getTime();
+                      const now = new Date().getTime();
+                      if (Number.isNaN(picked)) return true;
+                      return (
+                        picked >= now - 60_000 ||
+                        "Start date/time cannot be in the past."
+                      );
+                    },
+                  })}
                 />
+                {errors.startDate?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.startDate.message}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="due">Due</Label>
                 <Input
                   id="due"
                   type="datetime-local"
-                  min={startDateValue || undefined}
+                  min={startDateValue || nowMin}
                   {...register("dueDate", {
                     validate: (value) => {
-                      const start = startDateValue;
-                      if (!start || !value) return true;
-                      const startMs = new Date(start).getTime();
+                      if (!value) return true;
                       const dueMs = new Date(value).getTime();
-                      if (Number.isNaN(startMs) || Number.isNaN(dueMs))
-                        return true;
+                      if (Number.isNaN(dueMs)) return true;
+                      const now = new Date().getTime();
+                      if (dueMs < now - 60_000)
+                        return "Due date/time cannot be in the past.";
+                      const start = startDateValue;
+                      if (!start) return true;
+                      const startMs = new Date(start).getTime();
+                      if (Number.isNaN(startMs)) return true;
                       return (
                         dueMs >= startMs ||
                         "Due date/time cannot be earlier than Start date/time."

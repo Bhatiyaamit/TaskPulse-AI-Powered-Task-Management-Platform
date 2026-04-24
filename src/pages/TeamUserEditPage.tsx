@@ -79,6 +79,7 @@ function cellKey(m: string, a: string) {
 
 const SUPPORTED_ACTIONS_BY_MODULE: Record<string, ReadonlySet<string>> = {
   REPORTS: new Set(["READ"]),
+  HIERARCHY: new Set(["READ", "UPDATE"]),
 };
 
 function getSupportedActions(module: string): readonly string[] {

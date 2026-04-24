@@ -39,6 +39,9 @@ export const P = {
   MEETINGS_CREATE: "MEETINGS.CREATE",
   MEETINGS_UPDATE: "MEETINGS.UPDATE",
   MEETINGS_DELETE: "MEETINGS.DELETE",
+
+  HIERARCHY_READ: "HIERARCHY.READ",
+  HIERARCHY_UPDATE: "HIERARCHY.UPDATE",
 } as const;
 
 // --- Task module: same rules as backend `constants/permissions.ts` (for UI gating) ---
@@ -217,8 +220,6 @@ export const DEPARTMENT_SETTINGS_ACCESS_KEYS = [
 
 export const DEPARTMENT_PAGINATED_LIST_KEYS = [
   P.DEPARTMENTS_READ,
-  P.DEPARTMENTS_UPDATE,
-  P.DEPARTMENTS_DELETE,
 ] as const;
 
 export const DEPARTMENT_SIMPLE_LIST_KEYS = [
@@ -238,7 +239,7 @@ export function departmentModuleCanAccessDepartmentsNav(
   permissions: readonly string[] | undefined,
 ): boolean {
   const s = permSet(permissions);
-  return DEPARTMENT_SETTINGS_ACCESS_KEYS.some((k) => s.has(k));
+  return s.has(P.DEPARTMENTS_READ) || s.has(P.DEPARTMENTS_CREATE);
 }
 
 export function departmentModuleCanList(
@@ -278,6 +279,7 @@ export const PERMISSION_MATRIX_MODULES = [
   "DEPARTMENTS",
   "REPORTS",
   "MEETINGS",
+  "HIERARCHY",
 ] as const;
 
 export const PERMISSION_MATRIX_ACTIONS = [
@@ -286,6 +288,20 @@ export const PERMISSION_MATRIX_ACTIONS = [
   "UPDATE",
   "DELETE",
 ] as const;
+
+// --- Hierarchy module ---
+
+export function hierarchyModuleCanRead(
+  permissions: readonly string[] | undefined,
+): boolean {
+  return permSet(permissions).has(P.HIERARCHY_READ);
+}
+
+export function hierarchyModuleCanUpdate(
+  permissions: readonly string[] | undefined,
+): boolean {
+  return permSet(permissions).has(P.HIERARCHY_UPDATE);
+}
 
 /** Bootstrap company-admin role may manage roles without ROLES.* matrix keys. */
 export function userIsTenantPrimaryAdmin(

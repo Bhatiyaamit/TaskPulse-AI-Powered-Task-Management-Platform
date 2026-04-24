@@ -32,6 +32,7 @@ import {
   CenteredFormPage,
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
+import { SearchableTaskSelect } from "@/components/SearchableTaskSelect";
 
 const UNASSIGNED = "__none__";
 const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
@@ -60,6 +61,7 @@ type TaskPayload = {
   escalationTo: UserOption | null;
   isRecurring?: boolean | null;
   recurrencePattern?: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | null;
+  parentTaskId?: string | null;
   recurrenceGroupId?: string | null;
 };
 
@@ -80,6 +82,7 @@ type TaskEditFormValues = {
   isRecurring: boolean;
   recurrencePattern: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   checklistItems: { text: string; mandatory: boolean }[];
+  parentTaskId: string;
 };
 
 function isoToDatetimeLocal(iso: string | null): string {
@@ -97,6 +100,13 @@ export function TaskEditPage() {
   const hydrated = useRef(false);
   const [sp] = useSearchParams();
   const returnTo = sp.get("returnTo");
+
+  const [nowMin] = useState(() => {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   const { data: me, isPending: mePending } = useMe();
   const canEditTask = taskModuleCanUpdate(me?.permissions);
 
@@ -126,6 +136,7 @@ export function TaskEditPage() {
       isRecurring: false,
       recurrencePattern: "DAILY",
       checklistItems: [{ text: "", mandatory: true }],
+        parentTaskId: "",
     },
   });
   const {
@@ -157,6 +168,17 @@ export function TaskEditPage() {
         "/api/tasks/assignable-users",
       );
       return data.data.users;
+    },
+  });
+
+  const { data: parentCandidates } = useQuery({
+    queryKey: ["tasks-for-parent-selector", id],
+    enabled: canEditTask && Boolean(id),
+    queryFn: async () => {
+      const { data } = await api.get<
+        ApiSuccess<{ tasks: { id: string; title: string }[] }>
+      >(`/api/tasks/for-parent-selector?excludeId=${id}`);
+      return data.data.tasks;
     },
   });
 
@@ -198,6 +220,7 @@ export function TaskEditPage() {
       isRecurring: false,
       recurrencePattern: "DAILY",
       checklistItems: [{ text: "", mandatory: true }],
+      parentTaskId: "",
     });
     replace([{ text: "", mandatory: true }]);
   }, [id]);
@@ -244,6 +267,7 @@ export function TaskEditPage() {
       isRecurring: Boolean(task.isRecurring),
       recurrencePattern: task.recurrencePattern ?? "DAILY",
       checklistItems: [{ text: "", mandatory: true }],
+      parentTaskId: task.parentTaskId ?? "",
     });
   }, [task]);
 
@@ -400,6 +424,7 @@ export function TaskEditPage() {
       isRecurring: values.isRecurring,
       recurrencePattern: values.isRecurring ? values.recurrencePattern : null,
       checklistItems: cleanedChecklistItems,
+      parentTaskId: values.parentTaskId.trim() || null,
     });
   }
 
@@ -543,6 +568,24 @@ export function TaskEditPage() {
                 )}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="parentTaskId">Parent task</Label>
+              <p className="text-xs text-muted-foreground">
+                Link this task as a sub-task of an existing task.
+              </p>
+              <Controller
+                control={control}
+                name="parentTaskId"
+                render={({ field }) => (
+                  <SearchableTaskSelect
+                    tasks={parentCandidates ?? []}
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="No parent task (optional)"
+                  />
+                )}
+              />
+            </div>
           </section>
 
           <Separator />
@@ -643,23 +686,42 @@ export function TaskEditPage() {
                 <Input
                   id="start"
                   type="datetime-local"
-                  {...register("startDate")}
+                  min={nowMin}
+                  {...register("startDate", {
+                    validate: (value) => {
+                      if (!value) return true;
+                      const picked = new Date(value).getTime();
+                      if (Number.isNaN(picked)) return true;
+                      return (
+                        picked >= new Date().getTime() - 60_000 ||
+                        "Start date/time cannot be in the past."
+                      );
+                    },
+                  })}
                 />
+                {errors.startDate?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.startDate.message}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="due">Due</Label>
                 <Input
                   id="due"
                   type="datetime-local"
-                  min={startDateValue || undefined}
+                  min={startDateValue || nowMin}
                   {...register("dueDate", {
                     validate: (value) => {
-                      const start = startDateValue;
-                      if (!start || !value) return true;
-                      const startMs = new Date(start).getTime();
+                      if (!value) return true;
                       const dueMs = new Date(value).getTime();
-                      if (Number.isNaN(startMs) || Number.isNaN(dueMs))
-                        return true;
+                      if (Number.isNaN(dueMs)) return true;
+                      if (dueMs < new Date().getTime() - 60_000)
+                        return "Due date/time cannot be in the past.";
+                      const start = startDateValue;
+                      if (!start) return true;
+                      const startMs = new Date(start).getTime();
+                      if (Number.isNaN(startMs)) return true;
                       return (
                         dueMs >= startMs ||
                         "Due date/time cannot be earlier than Start date/time."
