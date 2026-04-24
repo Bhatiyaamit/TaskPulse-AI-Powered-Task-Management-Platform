@@ -69,6 +69,12 @@ export function TaskCreatePage() {
   const canCreateTask = taskModuleCanCreate(me?.permissions);
 
   const [formError, setFormError] = useState<string | null>(null);
+  const [nowMin] = useState(() => {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   const {
     control,
     handleSubmit,
@@ -252,6 +258,15 @@ export function TaskCreatePage() {
     const dueIso = values.dueDate
       ? new Date(values.dueDate).toISOString()
       : null;
+    const nowMs = Date.now();
+    if (startIso && new Date(startIso).getTime() < nowMs - 60_000) {
+      setFormError("Start date/time cannot be in the past.");
+      return;
+    }
+    if (dueIso && new Date(dueIso).getTime() < nowMs - 60_000) {
+      setFormError("Due date/time cannot be in the past.");
+      return;
+    }
     if (startIso && dueIso) {
       const startMs = new Date(startIso).getTime();
       const dueMs = new Date(dueIso).getTime();
@@ -593,23 +608,44 @@ export function TaskCreatePage() {
                 <Input
                   id="start"
                   type="datetime-local"
-                  {...register("startDate")}
+                  min={nowMin}
+                  {...register("startDate", {
+                    validate: (value) => {
+                      if (!value) return true;
+                      const picked = new Date(value).getTime();
+                      const now = new Date().getTime();
+                      if (Number.isNaN(picked)) return true;
+                      return (
+                        picked >= now - 60_000 ||
+                        "Start date/time cannot be in the past."
+                      );
+                    },
+                  })}
                 />
+                {errors.startDate?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.startDate.message}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="due">Due</Label>
                 <Input
                   id="due"
                   type="datetime-local"
-                  min={startDateValue || undefined}
+                  min={startDateValue || nowMin}
                   {...register("dueDate", {
                     validate: (value) => {
-                      const start = startDateValue;
-                      if (!start || !value) return true;
-                      const startMs = new Date(start).getTime();
+                      if (!value) return true;
                       const dueMs = new Date(value).getTime();
-                      if (Number.isNaN(startMs) || Number.isNaN(dueMs))
-                        return true;
+                      if (Number.isNaN(dueMs)) return true;
+                      const now = new Date().getTime();
+                      if (dueMs < now - 60_000)
+                        return "Due date/time cannot be in the past.";
+                      const start = startDateValue;
+                      if (!start) return true;
+                      const startMs = new Date(start).getTime();
+                      if (Number.isNaN(startMs)) return true;
                       return (
                         dueMs >= startMs ||
                         "Due date/time cannot be earlier than Start date/time."

@@ -122,8 +122,9 @@ export function PlatformTenantCreatePage() {
         const msg =
           fieldMsg ||
           formMsg ||
-          body?.error?.message ||
           body?.message ||
+          body?.error?.message ||
+          (body?.error as any)?.details?.reason ||
           e.message ||
           "Could not create company";
         toast.error(String(msg));

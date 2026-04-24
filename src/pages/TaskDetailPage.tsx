@@ -124,8 +124,6 @@ type ChecklistItem = {
   checkedBy?: UserBrief | null;
 };
 
-const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
-
 function formatWhen(iso: string) {
   try {
     return new Intl.DateTimeFormat(undefined, {
@@ -586,7 +584,7 @@ export function TaskDetailPage() {
                     )}
                   </div>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-1">
                     <div className="text-sm font-semibold uppercase tracking-wide text-primary">
                       Escalation time
@@ -1051,26 +1049,6 @@ export function TaskDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label>Update priority</Label>
-                  <Select
-                    value={String(task.priority ?? "MEDIUM").toUpperCase()}
-                    onValueChange={(v) => patchTask.mutate({ priority: v })}
-                    disabled={patchTask.isPending}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TASK_PRIORITIES.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p.charAt(0) + p.slice(1).toLowerCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Separator />
                 <div className="space-y-2">
                   <Label>Update status</Label>
                   <Select

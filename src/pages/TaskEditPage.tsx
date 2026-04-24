@@ -98,6 +98,13 @@ export function TaskEditPage() {
   const hydrated = useRef(false);
   const [sp] = useSearchParams();
   const returnTo = sp.get("returnTo");
+
+  const [nowMin] = useState(() => {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   const { data: me, isPending: mePending } = useMe();
   const canEditTask = taskModuleCanUpdate(me?.permissions);
 
@@ -662,23 +669,42 @@ export function TaskEditPage() {
                 <Input
                   id="start"
                   type="datetime-local"
-                  {...register("startDate")}
+                  min={nowMin}
+                  {...register("startDate", {
+                    validate: (value) => {
+                      if (!value) return true;
+                      const picked = new Date(value).getTime();
+                      if (Number.isNaN(picked)) return true;
+                      return (
+                        picked >= new Date().getTime() - 60_000 ||
+                        "Start date/time cannot be in the past."
+                      );
+                    },
+                  })}
                 />
+                {errors.startDate?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.startDate.message}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="due">Due</Label>
                 <Input
                   id="due"
                   type="datetime-local"
-                  min={startDateValue || undefined}
+                  min={startDateValue || nowMin}
                   {...register("dueDate", {
                     validate: (value) => {
-                      const start = startDateValue;
-                      if (!start || !value) return true;
-                      const startMs = new Date(start).getTime();
+                      if (!value) return true;
                       const dueMs = new Date(value).getTime();
-                      if (Number.isNaN(startMs) || Number.isNaN(dueMs))
-                        return true;
+                      if (Number.isNaN(dueMs)) return true;
+                      if (dueMs < new Date().getTime() - 60_000)
+                        return "Due date/time cannot be in the past.";
+                      const start = startDateValue;
+                      if (!start) return true;
+                      const startMs = new Date(start).getTime();
+                      if (Number.isNaN(startMs)) return true;
                       return (
                         dueMs >= startMs ||
                         "Due date/time cannot be earlier than Start date/time."

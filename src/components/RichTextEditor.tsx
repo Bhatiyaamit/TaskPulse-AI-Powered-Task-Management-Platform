@@ -46,8 +46,8 @@ export function RichTextEditor({
     content: value || "",
     editorProps: {
       attributes: {
-        class:
-          "min-h-32 rounded-md px-3 py-2 text-sm focus:outline-none [&_p.is-editor-empty:first-child::before]:text-muted-foreground/70",
+          class:
+          "min-h-full px-3 py-2 text-sm focus:outline-none [&_p.is-editor-empty:first-child::before]:text-muted-foreground/70",
       },
     },
     onUpdate: ({ editor }) => {
@@ -166,7 +166,7 @@ export function RichTextEditor({
         </Button>
       </div>
 
-      <div className="rounded-md border border-border bg-background">
+      <div className="h-32 overflow-y-auto rounded-md border border-border bg-background">
         <EditorContent editor={editor} />
       </div>
     </div>

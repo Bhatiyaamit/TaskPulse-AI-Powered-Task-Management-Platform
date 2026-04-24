@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { isAxiosError } from "axios";
@@ -23,6 +23,7 @@ import {
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
 import { meetingModuleCanCreate } from "@/lib/permissions";
+import { AlertTriangle } from "lucide-react";
 
 const MEETING_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 const MEETING_TYPES = ["ONLINE", "OFFLINE"] as const;
@@ -39,6 +40,40 @@ export function MeetingCreatePage() {
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
   const [formError, setFormError] = useState<string | null>(null);
   const [attendeeSearch, setAttendeeSearch] = useState("");
+  const [datetimeValue, setDatetimeValue] = useState("");
+  const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<Set<string>>(new Set());
+
+  // Debounced values for conflict query
+  const [debouncedDatetime, setDebouncedDatetime] = useState("");
+  const [debouncedAttendees, setDebouncedAttendees] = useState<string[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedDatetime(datetimeValue);
+      setDebouncedAttendees([...selectedAttendeeIds].sort());
+    }, 600);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [datetimeValue, selectedAttendeeIds]);
+
+  type ConflictEntry = {
+    userId: string; userName: string; username: string;
+    meetingId: string; meetingTitle: string; meetingDatetime: string;
+    meetingDurationMinutes: number | null;
+  };
+  const conflictsQuery = useQuery({
+    queryKey: ["meeting-conflicts", debouncedDatetime, durationMinutes, debouncedAttendees],
+    enabled: Boolean(debouncedDatetime) && debouncedAttendees.length > 0,
+    staleTime: 0,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: { conflicts: ConflictEntry[] } }>(
+        "/api/meetings/conflicts",
+        { params: { datetime: new Date(debouncedDatetime).toISOString(), durationMinutes, attendeeIds: debouncedAttendees.join(",") } },
+      );
+      return data.data.conflicts;
+    },
+  });
+  const conflicts = conflictsQuery.data ?? [];
   const { data: users } = useQuery({
     enabled: canCreateMeetings,
     queryKey: ["meeting-attendees"],
@@ -224,6 +259,8 @@ export function MeetingCreatePage() {
               name="datetime"
               type="datetime-local"
               required
+              value={datetimeValue}
+              onChange={(e) => setDatetimeValue(e.target.value)}
             />
           </div>
 
@@ -273,24 +310,68 @@ export function MeetingCreatePage() {
               placeholder="Search attendees by name or username"
             />
             <div className="max-h-32 space-y-1 overflow-auto rounded-lg border border-border bg-background/30 p-2">
-              {filteredUsers.map((u) => (
-                <label key={u.id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="attendees" value={u.id} />
-                  <span>
-                    {u.name}
-                    <span className="text-muted-foreground">
-                      {" "}
-                      · {u.username}
+              {filteredUsers.map((u) => {
+                const hasConflict = conflicts.some((c) => c.userId === u.id);
+                return (
+                  <label key={u.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name="attendees"
+                      value={u.id}
+                      checked={selectedAttendeeIds.has(u.id)}
+                      onChange={(e) => {
+                        setSelectedAttendeeIds((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(u.id);
+                          else next.delete(u.id);
+                          return next;
+                        });
+                      }}
+                    />
+                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                      <span>
+                        {u.name}
+                        <span className="text-muted-foreground"> · {u.username}</span>
+                      </span>
+                      {hasConflict && selectedAttendeeIds.has(u.id) && (
+                        <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                          <AlertTriangle className="size-3" />
+                          Conflict
+                        </span>
+                      )}
                     </span>
-                  </span>
-                </label>
-              ))}
+                  </label>
+                );
+              })}
               {filteredUsers.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No attendees found.
-                </p>
+                <p className="text-sm text-muted-foreground">No attendees found.</p>
               ) : null}
             </div>
+
+            {conflicts.filter((c) => selectedAttendeeIds.has(c.userId)).length > 0 && (
+              <div className="rounded-md border border-amber-400/40 bg-amber-50/60 p-3 dark:bg-amber-500/10">
+                <div className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="size-4" />
+                  Scheduling conflicts detected
+                </div>
+                <ul className="space-y-1 text-xs text-amber-700 dark:text-amber-300">
+                  {conflicts
+                    .filter((c) => selectedAttendeeIds.has(c.userId))
+                    .map((c) => (
+                      <li key={`${c.userId}-${c.meetingId}`}>
+                        <span className="font-medium">{c.userName}</span> already has &quot;
+                        {c.meetingTitle}&quot; at{" "}
+                        {new Date(c.meetingDatetime).toLocaleString(undefined, {
+                          dateStyle: "medium", timeStyle: "short",
+                        })}
+                        {c.meetingDurationMinutes
+                          ? ` (${c.meetingDurationMinutes} min)`
+                          : ""}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
 
