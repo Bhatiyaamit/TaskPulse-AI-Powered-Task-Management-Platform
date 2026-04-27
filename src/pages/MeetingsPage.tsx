@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -648,9 +649,10 @@ export function MeetingsPage() {
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
               <div className="w-full sm:w-48 flex flex-col gap-2">
                 <Label>Status</Label>
-                <Select
+                <SearchableSelect
+                  showSearch={false}
                   value={status}
-                  onValueChange={(v) => {
+                  onChange={(v) => {
                     setSearchParams(
                       (prev) => {
                         const p = new URLSearchParams(prev);
@@ -662,24 +664,21 @@ export function MeetingsPage() {
                       { replace: true },
                     );
                   }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All statuses</SelectItem>
-                    <SelectItem value="SCHEDULED">Scheduled</SelectItem>
-                    <SelectItem value="IN_PROGRESS">In progress</SelectItem>
-                    <SelectItem value="COMPLETED">Completed</SelectItem>
-                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
+                  options={[
+                    { value: "", label: "All statuses" },
+                    { value: "SCHEDULED", label: "Scheduled" },
+                    { value: "IN_PROGRESS", label: "In progress" },
+                    { value: "COMPLETED", label: "Completed" },
+                    { value: "CANCELLED", label: "Cancelled" },
+                  ]}
+                />
               </div>
               <div className="w-full sm:w-48 flex flex-col gap-2">
                 <Label>Priority</Label>
-                <Select
+                <SearchableSelect
+                  showSearch={false}
                   value={priority}
-                  onValueChange={(v) => {
+                  onChange={(v) => {
                     setSearchParams(
                       (prev) => {
                         const p = new URLSearchParams(prev);
@@ -691,19 +690,14 @@ export function MeetingsPage() {
                       { replace: true },
                     );
                   }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All priorities" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All priorities</SelectItem>
-                    {MEETING_PRIORITIES.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p.charAt(0) + p.slice(1).toLowerCase()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={[
+                    { value: "", label: "All priorities" },
+                    ...MEETING_PRIORITIES.map((p) => ({
+                      value: p,
+                      label: p.charAt(0) + p.slice(1).toLowerCase(),
+                    })),
+                  ]}
+                />
               </div>
             </div>
           </div>

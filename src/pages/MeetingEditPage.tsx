@@ -22,7 +22,7 @@ import {
   FormBackLink,
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { meetingModuleCanUpdate } from "@/lib/permissions";
 
 const MEETING_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
@@ -172,26 +172,6 @@ export function MeetingEditPage() {
     },
   });
 
-  const markCompleted = useMutation({
-    mutationFn: async () => api.post(`/api/meetings/${id}/complete`),
-    onSuccess: async () => {
-      await qc.invalidateQueries({
-        queryKey: ["meetings-paginated"],
-        exact: false,
-      });
-      await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
-      await qc.invalidateQueries({ queryKey: ["meeting", id] });
-      toast.success("Meeting marked as completed");
-      navigate(`/meetings/${id}`);
-    },
-    onError: (e) => {
-      const msg = isAxiosError(e)
-        ? (e.response?.data?.message ?? e.message)
-        : "Could not mark meeting as completed";
-      toast.error(String(msg));
-    },
-  });
-
   const m = meetingQuery.data;
   const filteredUsers = useMemo(() => {
     const q = attendeeSearch.trim().toLowerCase();
@@ -215,8 +195,6 @@ export function MeetingEditPage() {
     );
   }
   if (!m) return <div className="text-muted-foreground">Loading…</div>;
-  const canMarkCompleted =
-    m.computedStatus !== "COMPLETED" && m.computedStatus !== "CANCELLED";
 
   return (
     <CenteredFormPage
@@ -231,8 +209,8 @@ export function MeetingEditPage() {
           setFormError(null);
           const fd = new FormData(e.currentTarget);
           const attendeeIds = fd.getAll("attendees") as string[];
-          if (!attendeeIds.length) {
-            setFormError("Select at least one attendee.");
+          if (attendeeIds.length < 2) {
+            setFormError("Select at least 2 attendees.");
             return;
           }
           update.mutate({
@@ -385,7 +363,7 @@ export function MeetingEditPage() {
           </div>
 
           <div className="space-y-2">
-            <Label required>Attendees</Label>
+            <Label required>Attendees <span className="text-xs font-normal text-muted-foreground">(min. 2)</span></Label>
             <Input
               value={attendeeSearch}
               onChange={(e) => setAttendeeSearch(e.target.value)}
@@ -464,16 +442,6 @@ export function MeetingEditPage() {
         ) : null}
 
         <div className="mt-8 flex flex-wrap gap-3 justify-end border-t border-border pt-6">
-          <Button
-            type="button"
-            isLoading={markCompleted.isPending}
-            disabled={!canMarkCompleted || markCompleted.isPending}
-            onClick={() => markCompleted.mutate()}
-            className={"mr-auto"}
-          >
-            <CheckCircle2 className="size-4" />
-            Mark as completed
-          </Button>
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancel
           </Button>

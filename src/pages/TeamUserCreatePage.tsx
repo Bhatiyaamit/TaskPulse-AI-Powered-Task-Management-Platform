@@ -21,12 +21,7 @@ import {
 } from "@/components/layout/CenteredFormPage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
   RoleNameCombobox,
@@ -530,41 +525,15 @@ export function TeamUserCreatePage() {
               control={control}
               name="departmentId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger
-                    id="departmentId"
-                    className="w-full min-w-0 justify-between"
-                  >
-                    {(() => {
-                      if (field.value === "__none__") {
-                        return (
-                          <span className="text-muted-foreground">
-                            No department
-                          </span>
-                        );
-                      }
-                      const selected = departmentOptions.find(
-                        (d) => d.id === field.value,
-                      );
-                      if (!selected) {
-                        return (
-                          <span className="text-muted-foreground">
-                            Select department
-                          </span>
-                        );
-                      }
-                      return <span className="truncate">{selected.name}</span>;
-                    })()}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No department</SelectItem>
-                    {departmentOptions.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={field.value}
+                  onChange={field.onChange}
+                  showSearch={departmentOptions.length > 5}
+                  options={[
+                    { value: "__none__", label: "No department" },
+                    ...departmentOptions.map((d) => ({ value: d.id, label: d.name })),
+                  ]}
+                />
               )}
             />
           </div>
@@ -575,45 +544,18 @@ export function TeamUserCreatePage() {
               control={control}
               name="managerId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger
-                    id="managerId"
-                    className="w-full min-w-0 justify-between"
-                  >
-                    {(() => {
-                      if (field.value === "__none__") {
-                        return (
-                          <span className="text-muted-foreground">
-                            No manager
-                          </span>
-                        );
-                      }
-                      const selected = managerOptions.find(
-                        (m) => m.id === field.value,
-                      );
-                      if (!selected) {
-                        return (
-                          <span className="text-muted-foreground">
-                            Select manager
-                          </span>
-                        );
-                      }
-                      return (
-                        <span className="truncate">
-                          {selected.name} ({selected.username})
-                        </span>
-                      );
-                    })()}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No manager</SelectItem>
-                    {managerOptions.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name} ({m.username})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={field.value}
+                  onChange={field.onChange}
+                  showSearch={managerOptions.length > 5}
+                  options={[
+                    { value: "__none__", label: "No manager" },
+                    ...managerOptions.map((m) => ({
+                      value: m.id,
+                      label: `${m.name} (${m.username})`,
+                    })),
+                  ]}
+                />
               )}
             />
           </div>

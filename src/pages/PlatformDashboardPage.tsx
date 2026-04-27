@@ -7,13 +7,7 @@ import {
   spotlightCardContentLayerClass,
   topLeftSpotlightCardClass,
 } from "@/lib/cardFx";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { usePlatformTenantsOptions } from "@/hooks/useTenantContext";
 import {
   Cell,
@@ -76,12 +70,6 @@ export function PlatformDashboardPage() {
     () => chartData.reduce((sum, d) => sum + (d.value || 0), 0),
     [chartData],
   );
-  const companyLabelForValue = (value: string) => {
-    if (value === "__all__") return "All companies";
-    return (
-      (tenantOptionsQuery.data ?? []).find((t) => t.id === value)?.name ?? value
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -168,23 +156,19 @@ export function PlatformDashboardPage() {
               <CardTitle className="text-base uppercase tracking-wide text-primary">
                 Tasks by status
               </CardTitle>
-              <Select
+              <SearchableSelect
+                className="w-56"
                 value={companyId}
-                onValueChange={setCompanyId}
-                itemToStringLabel={companyLabelForValue}
-              >
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="All companies" />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  <SelectItem value="__all__">All companies</SelectItem>
-                  {(tenantOptionsQuery.data ?? []).map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={setCompanyId}
+                showSearch
+                options={[
+                  { value: "__all__", label: "All companies" },
+                  ...(tenantOptionsQuery.data ?? []).map((t) => ({
+                    value: t.id,
+                    label: t.name,
+                  })),
+                ]}
+              />
             </CardHeader>
             <CardContent className="h-72">
               {chartData.length === 0 ? (
