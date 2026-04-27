@@ -362,6 +362,12 @@ export function TaskCreatePage() {
       checklistItems: cleanedChecklistItems,
       isRecurring: values.isRecurring,
       recurrencePattern: values.isRecurring ? values.recurrencePattern : null,
+      recurrenceInterval: values.isRecurring
+        ? Math.max(1, parseInt(values.recurrenceInterval) || 1)
+        : null,
+      recurrenceEndsAt: values.isRecurring && values.recurrenceEndsAt
+        ? new Date(values.recurrenceEndsAt).toISOString()
+        : null,
     });
   }
 
