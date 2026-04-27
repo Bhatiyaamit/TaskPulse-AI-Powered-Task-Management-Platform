@@ -309,6 +309,7 @@ export function TasksPage() {
     id: string;
     title: string;
     recurrenceGroupId?: string | null;
+    isRecurring?: boolean | null;
   } | null>(null);
   const [deleteScope, setDeleteScope] = useState<"this" | "future" | "all">(
     "this",
@@ -455,11 +456,22 @@ export function TasksPage() {
     mutationFn: async (params: {
       taskId: string;
       recurrenceGroupId?: string | null;
+      isRecurring?: boolean | null;
       scope?: "this" | "future" | "all";
     }) => {
       if (params.recurrenceGroupId && params.scope && params.scope !== "this") {
+        // Bulk materialized series (has recurrenceGroupId)
         await api.delete(`/api/tasks/series/${params.recurrenceGroupId}`, {
           data: { scope: params.scope, fromTaskId: params.taskId },
+        });
+      } else if (
+        params.isRecurring &&
+        !params.recurrenceGroupId &&
+        params.scope === "all"
+      ) {
+        // Live-spawning recurring source: delete source + all children
+        await api.delete(`/api/tasks/${params.taskId}`, {
+          params: { scope: "all" },
         });
       } else {
         await api.delete(`/api/tasks/${params.taskId}`);
@@ -471,11 +483,21 @@ export function TasksPage() {
         (old) => {
           if (!old?.tasks) return old;
           const nextTasks =
-            params.scope && params.scope !== "this"
+            params.scope === "all" && params.recurrenceGroupId
               ? old.tasks.filter(
                   (t) => t.recurrenceGroupId !== params.recurrenceGroupId,
                 )
-              : old.tasks.filter((t) => t.id !== params.taskId);
+              : params.scope === "all" && params.isRecurring
+                ? old.tasks.filter(
+                    (t) =>
+                      t.id !== params.taskId &&
+                      t.recurrenceSourceTaskId !== params.taskId,
+                  )
+                : params.scope === "future" && params.recurrenceGroupId
+                  ? old.tasks.filter(
+                      (t) => t.recurrenceGroupId !== params.recurrenceGroupId,
+                    )
+                  : old.tasks.filter((t) => t.id !== params.taskId);
           const removed = old.tasks.length - nextTasks.length;
           return {
             ...old,
@@ -813,6 +835,7 @@ export function TasksPage() {
                           id: row.original.id,
                           title: row.original.title,
                           recurrenceGroupId: row.original.recurrenceGroupId,
+                          isRecurring: row.original.isRecurring,
                         });
                       }}
                       isLoading={deleteTask.isPending}
@@ -1063,7 +1086,7 @@ export function TasksPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this task?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.recurrenceGroupId ? (
+              {deleteTarget?.recurrenceGroupId || deleteTarget?.isRecurring ? (
                 <div className="space-y-3 mt-4">
                   <p className="text-sm font-medium">
                     You are deleting a recurring task. What do you want to
@@ -1079,15 +1102,17 @@ export function TasksPage() {
                       />
                       This task only
                     </label>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-md">
-                      <input
-                        type="radio"
-                        name="deleteScope"
-                        checked={deleteScope === "future"}
-                        onChange={() => setDeleteScope("future")}
-                      />
-                      This and future tasks
-                    </label>
+                    {deleteTarget?.recurrenceGroupId && (
+                      <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-md">
+                        <input
+                          type="radio"
+                          name="deleteScope"
+                          checked={deleteScope === "future"}
+                          onChange={() => setDeleteScope("future")}
+                        />
+                        This and future tasks
+                      </label>
+                    )}
                     <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-md">
                       <input
                         type="radio"
@@ -1114,6 +1139,7 @@ export function TasksPage() {
                   deleteTask.mutate({
                     taskId: deleteTarget.id,
                     recurrenceGroupId: deleteTarget.recurrenceGroupId,
+                    isRecurring: deleteTarget.isRecurring,
                     scope: deleteScope,
                   });
               }}
