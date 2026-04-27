@@ -9,13 +9,7 @@ import { useMe } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CenteredFormPage,
@@ -149,8 +143,8 @@ export function MeetingCreatePage() {
           setFormError(null);
           const fd = new FormData(e.currentTarget);
           const attendeeIds = fd.getAll("attendees") as string[];
-          if (!attendeeIds.length) {
-            setFormError("Select at least one attendee.");
+          if (attendeeIds.length < 2) {
+            setFormError("Select at least 2 attendees.");
             return;
           }
           create.mutate({
@@ -198,20 +192,15 @@ export function MeetingCreatePage() {
 
           <div className="space-y-2">
             <Label>Meeting type</Label>
-            <Select
+            <SearchableSelect
+              showSearch={false}
               value={meetingType}
-              onValueChange={(v) =>
-                setMeetingType(v as (typeof MEETING_TYPES)[number])
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ONLINE">Online</SelectItem>
-                <SelectItem value="OFFLINE">Offline</SelectItem>
-              </SelectContent>
-            </Select>
+              onChange={(v) => setMeetingType(v as (typeof MEETING_TYPES)[number])}
+              options={[
+                { value: "ONLINE", label: "Online" },
+                { value: "OFFLINE", label: "Offline" },
+              ]}
+            />
           </div>
 
           {meetingType === "ONLINE" ? (
@@ -267,21 +256,15 @@ export function MeetingCreatePage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Priority</Label>
-              <Select
+              <SearchableSelect
+                showSearch={false}
                 value={priority}
-                onValueChange={(v) => setPriority(v as any)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MEETING_PRIORITIES.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p.charAt(0) + p.slice(1).toLowerCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(v) => setPriority(v as any)}
+                options={MEETING_PRIORITIES.map((p) => ({
+                  value: p,
+                  label: p.charAt(0) + p.slice(1).toLowerCase(),
+                }))}
+              />
             </div>
 
             <div className="space-y-2">
@@ -303,7 +286,7 @@ export function MeetingCreatePage() {
           </div>
 
           <div className="space-y-2">
-            <Label required>Attendees</Label>
+            <Label required>Attendees <span className="text-xs font-normal text-muted-foreground">(min. 2)</span></Label>
             <Input
               value={attendeeSearch}
               onChange={(e) => setAttendeeSearch(e.target.value)}

@@ -21,12 +21,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { cn } from "@/lib/utils";
 import { overdueBadgeClass, taskStatusBadgeClass } from "@/lib/badges";
 import {
@@ -252,26 +247,20 @@ export function EodPage() {
               {title}
             </h1>
             {subordinateOptions.length > 0 && (
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger className="w-56 h-8 text-sm bg-background border-border shadow-sm">
-                  <div className="flex-1 text-left truncate">
-                    {selectedUserId === "__self__"
-                      ? "My EOD"
-                      : selectedUserId === "__team__"
-                        ? "My Team's EOD"
-                        : `${subordinateOptions.find((m) => m.id === selectedUserId)?.name ?? "Selected user"}'s EOD`}
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__self__">My EOD</SelectItem>
-                  <SelectItem value="__team__">My Team's EOD</SelectItem>
-                  {subordinateOptions.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name}'s EOD
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                className="w-56"
+                value={selectedUserId}
+                onChange={setSelectedUserId}
+                showSearch={subordinateOptions.length > 5}
+                options={[
+                  { value: "__self__", label: "My EOD" },
+                  { value: "__team__", label: "My Team's EOD" },
+                  ...subordinateOptions.map((m) => ({
+                    value: m.id,
+                    label: `${m.name}'s EOD`,
+                  })),
+                ]}
+              />
             )}
           </div>
           <p className="text-sm text-muted-foreground mt-1">

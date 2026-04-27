@@ -15,13 +15,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
 
@@ -109,25 +103,25 @@ export function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               <Label htmlFor="theme">Theme</Label>
-              <Select
+              <SearchableSelect
+                id="theme"
+                className="w-full max-w-xs"
+                showSearch={false}
+                placeholder="Theme"
                 value={preference}
-                onValueChange={(v) => {
+                onChange={(v) => {
                   const next = v as ThemePreference;
                   setPreference(next);
                   if (next === "light" || next === "dark") {
                     saveThemePreference.mutate(next);
                   }
                 }}
-              >
-                <SelectTrigger id="theme" className="w-full max-w-xs">
-                  <SelectValue placeholder="Theme" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="dark">Dark</SelectItem>
-                  <SelectItem value="system">System default</SelectItem>
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: "light", label: "Light" },
+                  { value: "dark", label: "Dark" },
+                  { value: "system", label: "System default" },
+                ]}
+              />
               <p className="text-xs text-muted-foreground">
                 System follows your OS light or dark mode. Default for new
                 visits is dark.

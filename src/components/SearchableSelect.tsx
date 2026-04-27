@@ -9,18 +9,20 @@ import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type FilterOption = { value: string; label: string };
+export type SelectOption = { value: string; label: string };
 
-interface SearchableFilterSelectProps {
-  options: FilterOption[];
+interface SearchableSelectProps {
+  options: SelectOption[];
   value: string;
   onChange: (value: string) => void;
-  allValue?: string;
-  allLabel?: string;
   placeholder?: string;
-  disabled?: boolean;
+  /** Show search box. Defaults to true when options.length > 6. */
   showSearch?: boolean;
+  disabled?: boolean;
   className?: string;
+  emptyMessage?: string;
+  /** Associates the trigger with `<Label htmlFor="…">`. */
+  id?: string;
 }
 
 type PanelPos = { top: number; left: number; width: number; maxH: number };
@@ -30,17 +32,17 @@ function computePanelMaxHeight(triggerBottom: number) {
   return Math.max(120, window.innerHeight - triggerBottom - margin);
 }
 
-export function SearchableFilterSelect({
+export function SearchableSelect({
   options,
   value,
   onChange,
-  allValue = "__all__",
-  allLabel = "All",
-  placeholder,
+  placeholder = "Select…",
+  showSearch,
   disabled = false,
-  showSearch = true,
   className,
-}: SearchableFilterSelectProps) {
+  emptyMessage = "No results found.",
+  id,
+}: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -50,13 +52,12 @@ export function SearchableFilterSelect({
     top: 0,
     left: 0,
     width: 0,
-    maxH: 260,
+    maxH: 220,
   });
 
-  const isAll = !value || value === allValue;
-  const selectedLabel = isAll
-    ? null
-    : options.find((o) => o.value === value)?.label;
+  const shouldShowSearch = showSearch ?? options.length > 6;
+  const selectedOption = options.find((o) => o.value === value);
+  const isPlaceholder = !selectedOption;
 
   const filtered = options.filter((o) =>
     o.label.toLowerCase().includes(search.toLowerCase()),
@@ -124,7 +125,7 @@ export function SearchableFilterSelect({
   const panel = open && (
     <div
       ref={panelRef}
-      className="fixed z-10000 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md"
+      className="fixed z-10000 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
       style={{
         top: panelPos.top,
         left: panelPos.left,
@@ -132,7 +133,7 @@ export function SearchableFilterSelect({
         maxWidth: "calc(100vw - 16px)",
       }}
     >
-      {showSearch && (
+      {shouldShowSearch && (
         <div className="border-b border-border p-2">
           <div className="relative">
             <Search className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -150,23 +151,11 @@ export function SearchableFilterSelect({
 
       <div
         className="overflow-y-auto p-1"
-        style={{ maxHeight: Math.min(260, panelPos.maxH) }}
+        style={{ maxHeight: Math.min(220, panelPos.maxH) }}
       >
-        <div
-          role="option"
-          aria-selected={isAll}
-          onClick={() => select(allValue)}
-          className="flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-        >
-          <span className="min-w-0 flex-1 text-muted-foreground">
-            {allLabel}
-          </span>
-          {isAll && <Check className="size-4 shrink-0 text-primary" />}
-        </div>
-
         {filtered.length === 0 ? (
           <p className="py-3 text-center text-xs text-muted-foreground">
-            No results found.
+            {emptyMessage}
           </p>
         ) : (
           filtered.map((o) => (
@@ -175,7 +164,10 @@ export function SearchableFilterSelect({
               role="option"
               aria-selected={o.value === value}
               onClick={() => select(o.value)}
-              className="flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+              className={cn(
+                "flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground",
+                o.value === value && "bg-accent/40",
+              )}
             >
               <span className="min-w-0 flex-1 truncate">{o.label}</span>
               {o.value === value && (
@@ -191,20 +183,28 @@ export function SearchableFilterSelect({
   return (
     <div className={cn("relative w-full", className)}>
       <button
+        id={id}
         ref={triggerRef}
         type="button"
         disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         onClick={() => !disabled && setOpen((o) => !o)}
         className={cn(
           "flex h-9 w-full items-center justify-between gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors outline-none select-none",
-          "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-          isAll && "text-muted-foreground",
+          "hover:bg-accent/30 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+          isPlaceholder && "text-muted-foreground",
         )}
       >
         <span className="min-w-0 flex-1 truncate text-left">
-          {selectedLabel ?? placeholder ?? allLabel}
+          {selectedOption?.label ?? placeholder}
         </span>
-        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+        <ChevronDown
+          className={cn(
+            "size-4 shrink-0 text-muted-foreground transition-transform duration-150",
+            open && "rotate-180",
+          )}
+        />
       </button>
 
       {typeof document !== "undefined" && panel

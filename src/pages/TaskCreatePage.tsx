@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import {
   CenteredFormPage,
   FormBackButton,
@@ -160,11 +161,6 @@ export function TaskCreatePage() {
     setValue("statusId", todo.id, { shouldDirty: false });
   }, [statuses, statusId, setValue]);
 
-  function userLabelForValue(v: string) {
-    if (v === UNASSIGNED) return "Unassigned";
-    const u = assignable?.find((x) => x.id === v);
-    return u?.name || u?.username || v;
-  }
 
   // Compute estimated series size for live preview
   function estimateSeriesCount(): number | null {
@@ -371,33 +367,18 @@ export function TaskCreatePage() {
     });
   }
 
-  function userItems() {
-    const users = assignable ?? [];
-    return (
-      <>
-        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-        {users.map((u) => (
-          <SelectItem key={u.id} value={u.id}>
-            {u.name || u.username}
-          </SelectItem>
-        ))}
-      </>
-    );
-  }
+  const userOptions = useMemo(() => [
+    { value: UNASSIGNED, label: "Unassigned" },
+    ...(assignable ?? []).map((u) => ({ value: u.id, label: u.name || u.username })),
+  ], [assignable]);
 
-  function reviewerItems() {
-    const users = (assignable ?? []).filter((u) => Boolean(u.isReviewer));
-    return (
-      <>
-        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-        {users.map((u) => (
-          <SelectItem key={u.id} value={u.id}>
-            {u.name || u.username}
-          </SelectItem>
-        ))}
-      </>
-    );
-  }
+  const reviewerOptions = useMemo(() => [
+    { value: UNASSIGNED, label: "Unassigned" },
+    ...(assignable ?? []).filter((u) => Boolean(u.isReviewer)).map((u) => ({
+      value: u.id,
+      label: u.name || u.username,
+    })),
+  ], [assignable]);
 
   if (mePending) {
     return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
@@ -460,23 +441,15 @@ export function TaskCreatePage() {
                 control={control}
                 name="priority"
                 render={({ field }) => (
-                  <Select
+                  <SearchableSelect
+                    showSearch={false}
                     value={field.value}
-                    onValueChange={(v) =>
-                      field.onChange(v as (typeof TASK_PRIORITIES)[number])
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TASK_PRIORITIES.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p.charAt(0) + p.slice(1).toLowerCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(v) => field.onChange(v as (typeof TASK_PRIORITIES)[number])}
+                    options={TASK_PRIORITIES.map((p) => ({
+                      value: p,
+                      label: p.charAt(0) + p.slice(1).toLowerCase(),
+                    }))}
+                  />
                 )}
               />
             </div>
@@ -528,16 +501,13 @@ export function TaskCreatePage() {
                     control={control}
                     name="assignedToId"
                     render={({ field }) => (
-                      <Select
+                      <SearchableSelect
+                        showSearch
                         value={field.value}
-                        onValueChange={field.onChange}
-                        itemToStringLabel={userLabelForValue}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Who owns delivery" />
-                        </SelectTrigger>
-                        <SelectContent>{userItems()}</SelectContent>
-                      </Select>
+                        onChange={field.onChange}
+                        options={userOptions}
+                        placeholder="Who owns delivery"
+                      />
                     )}
                   />
                 </div>
@@ -547,16 +517,13 @@ export function TaskCreatePage() {
                     control={control}
                     name="reviewerId"
                     render={({ field }) => (
-                      <Select
+                      <SearchableSelect
+                        showSearch
                         value={field.value}
-                        onValueChange={field.onChange}
-                        itemToStringLabel={userLabelForValue}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Who signs off" />
-                        </SelectTrigger>
-                        <SelectContent>{reviewerItems()}</SelectContent>
-                      </Select>
+                        onChange={field.onChange}
+                        options={reviewerOptions}
+                        placeholder="Who signs off"
+                      />
                     )}
                   />
                 </div>
@@ -566,16 +533,13 @@ export function TaskCreatePage() {
                     control={control}
                     name="supporterId"
                     render={({ field }) => (
-                      <Select
+                      <SearchableSelect
+                        showSearch
                         value={field.value}
-                        onValueChange={field.onChange}
-                        itemToStringLabel={userLabelForValue}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Optional helper" />
-                        </SelectTrigger>
-                        <SelectContent>{userItems()}</SelectContent>
-                      </Select>
+                        onChange={field.onChange}
+                        options={userOptions}
+                        placeholder="Optional helper"
+                      />
                     )}
                   />
                 </div>
@@ -585,16 +549,13 @@ export function TaskCreatePage() {
                     control={control}
                     name="escalationToId"
                     render={({ field }) => (
-                      <Select
+                      <SearchableSelect
+                        showSearch
                         value={field.value}
-                        onValueChange={field.onChange}
-                        itemToStringLabel={userLabelForValue}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Who should be notified on escalation" />
-                        </SelectTrigger>
-                        <SelectContent>{userItems()}</SelectContent>
-                      </Select>
+                        onChange={field.onChange}
+                        options={userOptions}
+                        placeholder="Who should be notified on escalation"
+                      />
                     )}
                   />
                 </div>

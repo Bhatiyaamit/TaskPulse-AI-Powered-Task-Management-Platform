@@ -7,18 +7,29 @@ import { useMe } from "@/hooks/useAuth";
 import {
   meetingModuleCanUpdate,
   taskModuleCanCreate,
+  taskModuleCanDelete,
   taskModuleCanList,
   taskModuleCanUpdate,
 } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   CheckCircle2,
   ExternalLink,
-  Eye,
   Pencil,
   Play,
   Plus,
+  Trash2,
 } from "lucide-react";
 import {
   overdueBadgeClass,
@@ -51,6 +62,7 @@ import {
 } from "@/components/ui/select";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { SearchableSelect } from "@/components/SearchableSelect";
 
 type MeetingTaskRow = {
   id: string;
@@ -188,7 +200,12 @@ export function MeetingDetailPage() {
   const canListMeetingTasks = taskModuleCanList(perms);
   const canCreateTask = taskModuleCanCreate(perms);
   const canUpdateTask = taskModuleCanUpdate(perms);
+  const canDeleteTask = taskModuleCanDelete(perms);
   const [momNotesDraft, setMomNotesDraft] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<null | {
+    taskId: string;
+    taskTitle: string;
+  }>(null);
 
   const { data, isLoading: isMeetingLoading } = useQuery({
     queryKey: ["meeting", id, searchParams.toString()],
@@ -280,6 +297,23 @@ export function MeetingDetailPage() {
     },
   });
 
+  const deleteTask = useMutation({
+    mutationFn: async (taskId: string) => {
+      await api.delete(`/api/tasks/${taskId}`);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["meeting", id] });
+      toast.success("Task deleted");
+      setDeleteConfirm(null);
+    },
+    onError: (e) => {
+      const message = isAxiosError(e)
+        ? String(e.response?.data?.error?.message ?? e.response?.data?.message ?? e.message)
+        : "Could not delete task";
+      toast.error(message);
+    },
+  });
+
   const returnTo =
     id && String(id).trim()
       ? `/meetings/${encodeURIComponent(String(id))}`
@@ -327,11 +361,6 @@ export function MeetingDetailPage() {
 
   const statuses = data?.taskStatuses ?? [];
 
-  function statusFilterLabel(v: string) {
-    if (v === "__all__") return "All statuses";
-    const s = statuses?.find((x) => x.id === v);
-    return s?.label ?? v;
-  }
 
   const columns = useMemo<ColumnDef<MeetingTaskRow>[]>(
     () => [
@@ -340,9 +369,12 @@ export function MeetingDetailPage() {
         id: "title",
         header: "Title",
         cell: ({ row }) => (
-          <span className="font-medium text-foreground">
+          <Link
+            to={`/tasks/${row.original.id}?returnTo=${encodeURIComponent(returnTo)}`}
+            className="font-medium text-foreground hover:underline underline-offset-4"
+          >
             {row.original.title}
-          </span>
+          </Link>
         ),
       },
       {
@@ -457,30 +489,6 @@ export function MeetingDetailPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Link
-                    to={`/tasks/${row.original.id}?returnTo=${encodeURIComponent(
-                      returnTo,
-                    )}`}
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      aria-label="View task"
-                    >
-                      <Eye className="size-4" />
-                    </Button>
-                  </Link>
-                }
-              >
-                <span />
-              </TooltipTrigger>
-              <TooltipContent>View</TooltipContent>
-            </Tooltip>
             {canUpdateTask ? (
               <Tooltip>
                 <TooltipTrigger
@@ -507,11 +515,35 @@ export function MeetingDetailPage() {
                 <TooltipContent>Edit</TooltipContent>
               </Tooltip>
             ) : null}
+            {canDeleteTask ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Delete task"
+                      onClick={() =>
+                        setDeleteConfirm({
+                          taskId: row.original.id,
+                          taskTitle: row.original.title,
+                        })
+                      }
+                    />
+                  }
+                >
+                  <Trash2 className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Delete</TooltipContent>
+              </Tooltip>
+            ) : null}
           </div>
         ),
       },
     ],
-    [returnTo, canUpdateTask],
+    [returnTo, canUpdateTask, canDeleteTask],
   );
 
   const goPrev = useCallback(() => {
@@ -790,7 +822,7 @@ export function MeetingDetailPage() {
                 manage tasks for this meeting at any time after that.
               </p>
             </div>
-            {canUpdateMeeting ? (
+            {/* {canUpdateMeeting ? (
               <Button
                 type="button"
                 className="shrink-0 gap-2"
@@ -801,7 +833,7 @@ export function MeetingDetailPage() {
                 <Play className="size-4" />
                 Start meeting
               </Button>
-            ) : null}
+            ) : null} */}
           </CardContent>
         </Card>
       ) : null}
@@ -838,9 +870,10 @@ export function MeetingDetailPage() {
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select
+                <SearchableSelect
+                  showSearch={false}
                   value={parsed.statusId || "__all__"}
-                  onValueChange={(v) => {
+                  onChange={(v) => {
                     setSearchParams(
                       (prev) => {
                         const p = new URLSearchParams(prev);
@@ -852,20 +885,11 @@ export function MeetingDetailPage() {
                       { replace: true },
                     );
                   }}
-                  itemToStringLabel={statusFilterLabel}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All statuses</SelectItem>
-                    {(statuses ?? []).map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={[
+                    { value: "__all__", label: "All statuses" },
+                    ...(statuses ?? []).map((s) => ({ value: s.id, label: s.label })),
+                  ]}
+                />
               </div>
             </div>
 
@@ -958,6 +982,37 @@ export function MeetingDetailPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <AlertDialog
+        open={deleteConfirm != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete{" "}
+              <strong>{deleteConfirm?.taskTitle}</strong>. This action cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteTask.isPending}
+              onClick={() => {
+                if (!deleteConfirm) return;
+                deleteTask.mutate(deleteConfirm.taskId);
+              }}
+            >
+              {deleteTask.isPending ? "Deleting…" : "Confirm delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

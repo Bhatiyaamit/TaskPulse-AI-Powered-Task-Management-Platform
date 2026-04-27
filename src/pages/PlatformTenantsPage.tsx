@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
 import {
@@ -41,7 +42,6 @@ import {
 } from "@/components/ui/tooltip";
 import { tenantStatusBadgeClass } from "@/lib/badges";
 import {
-  Eye,
   Pencil,
   Plus,
   ToggleLeft,
@@ -272,7 +272,12 @@ export function PlatformTenantsPage() {
         id: "name",
         header: "Company",
         cell: ({ row }) => (
-          <span className="font-medium">{row.original.name}</span>
+          <Link
+            to={`/platform/tenants/${row.original.id}`}
+            className="font-medium hover:underline text-primary"
+          >
+            {row.original.name}
+          </Link>
         ),
       },
       {
@@ -318,28 +323,6 @@ export function PlatformTenantsPage() {
           if (t.status === "INVITED") {
             return (
               <div className="flex flex-wrap gap-0.5">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Link to={`/platform/tenants/${t.id}`}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          aria-label="View company details"
-                          disabled={
-                            setStatus.isPending || deleteTenant.isPending
-                          }
-                        >
-                          <Eye className="size-4" />
-                        </Button>
-                      </Link>
-                    }
-                  />
-                  <TooltipContent>View</TooltipContent>
-                </Tooltip>
-
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -393,26 +376,6 @@ export function PlatformTenantsPage() {
           const nextStatus = t.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
           return (
             <div className="flex flex-wrap gap-0.5">
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Link to={`/platform/tenants/${t.id}`}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        aria-label="View company details"
-                        disabled={setStatus.isPending || deleteTenant.isPending}
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                    </Link>
-                  }
-                />
-                <TooltipContent>View</TooltipContent>
-              </Tooltip>
-
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -652,9 +615,10 @@ export function PlatformTenantsPage() {
             </div>
             <div className="w-full flex flex-col gap-2 sm:max-w-sm">
               <Label>Status</Label>
-              <Select
+              <SearchableSelect
+                showSearch={false}
                 value={status}
-                onValueChange={(v) => {
+                onChange={(v) => {
                   setSearchParams(
                     (prev) => {
                       const p = new URLSearchParams(prev);
@@ -666,46 +630,12 @@ export function PlatformTenantsPage() {
                     { replace: true },
                   );
                 }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-full flex flex-col gap-2 sm:max-w-sm">
-              <Label>Rows</Label>
-              <Select
-                value={String(pagination.pageSize)}
-                onValueChange={(v) => {
-                  const n = Number(v);
-                  setSearchParams(
-                    (prev) => {
-                      const p = new URLSearchParams(prev);
-                      if (n === DEFAULT_PAGE_SIZE) p.delete("pageSize");
-                      else p.set("pageSize", String(n));
-                      p.delete("page");
-                      return p;
-                    },
-                    { replace: true },
-                  );
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZES.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: "", label: "All statuses" },
+                  { value: "ACTIVE", label: "Active" },
+                  { value: "INACTIVE", label: "Inactive" },
+                ]}
+              />
             </div>
           </div>
 
@@ -721,13 +651,45 @@ export function PlatformTenantsPage() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-muted-foreground">
-              {total === 0
-                ? "0 companies"
-                : `Showing ${pagination.pageIndex * pagination.pageSize + 1}–${Math.min(
-                    (pagination.pageIndex + 1) * pagination.pageSize,
-                    total,
-                  )} of ${total}`}
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <span>
+                {total === 0
+                  ? "0 companies"
+                  : `Showing ${pagination.pageIndex * pagination.pageSize + 1}–${Math.min(
+                      (pagination.pageIndex + 1) * pagination.pageSize,
+                      total,
+                    )} of ${total}`}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground">Rows</span>
+                <Select
+                  value={String(pagination.pageSize)}
+                  onValueChange={(v) => {
+                    const n = Number(v);
+                    setSearchParams(
+                      (prev) => {
+                        const p = new URLSearchParams(prev);
+                        if (n === DEFAULT_PAGE_SIZE) p.delete("pageSize");
+                        else p.set("pageSize", String(n));
+                        p.delete("page");
+                        return p;
+                      },
+                      { replace: true },
+                    );
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-16 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZES.map((n) => (
+                      <SelectItem key={n} value={String(n)} className="text-xs">
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Button

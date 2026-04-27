@@ -25,13 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -310,27 +304,18 @@ export function ReportsPage() {
               <Label className="text-xs font-semibold uppercase text-muted-foreground">
                 Date Range
               </Label>
-              <Select
+              <SearchableSelect
+                showSearch={false}
                 value={datePreset}
-                onValueChange={(value) => setDatePreset(value as DatePreset)}
-              >
-                <SelectTrigger className="h-9 w-full bg-background/60">
-                  <SelectValue>
-                    {datePreset === "ALL_TIME" && "All Time"}
-                    {datePreset === "TODAY" && "Today"}
-                    {datePreset === "THIS_WEEK" && "This Week"}
-                    {datePreset === "THIS_MONTH" && "This Month"}
-                    {datePreset === "CUSTOM" && "Custom"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL_TIME">All Time</SelectItem>
-                  <SelectItem value="TODAY">Today</SelectItem>
-                  <SelectItem value="THIS_WEEK">This Week</SelectItem>
-                  <SelectItem value="THIS_MONTH">This Month</SelectItem>
-                  <SelectItem value="CUSTOM">Custom</SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(value) => setDatePreset(value as DatePreset)}
+                options={[
+                  { value: "ALL_TIME", label: "All Time" },
+                  { value: "TODAY", label: "Today" },
+                  { value: "THIS_WEEK", label: "This Week" },
+                  { value: "THIS_MONTH", label: "This Month" },
+                  { value: "CUSTOM", label: "Custom" },
+                ]}
+              />
             </div>
 
             {isAdmin ? (
@@ -338,24 +323,15 @@ export function ReportsPage() {
                 <Label className="text-xs font-semibold uppercase text-muted-foreground">
                   Department
                 </Label>
-                <Select value={departmentId} onValueChange={setDepartmentId}>
-                  <SelectTrigger className="h-9 w-full bg-background/60">
-                    <SelectValue>
-                      {departmentId === "ALL"
-                        ? "All Departments"
-                        : depsQuery.data?.find((d) => d.id === departmentId)
-                            ?.name || departmentId}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Departments</SelectItem>
-                    {depsQuery.data?.map((department) => (
-                      <SelectItem key={department.id} value={department.id}>
-                        {department.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={departmentId}
+                  onChange={setDepartmentId}
+                  showSearch={(depsQuery.data?.length ?? 0) > 5}
+                  options={[
+                    { value: "ALL", label: "All Departments" },
+                    ...(depsQuery.data ?? []).map((d) => ({ value: d.id, label: d.name })),
+                  ]}
+                />
               </div>
             ) : null}
 
@@ -364,24 +340,15 @@ export function ReportsPage() {
                 <Label className="text-xs font-semibold uppercase text-muted-foreground">
                   Assignee
                 </Label>
-                <Select value={assigneeId} onValueChange={setAssigneeId}>
-                  <SelectTrigger className="h-9 w-full bg-background/60">
-                    <SelectValue>
-                      {assigneeId === "ALL"
-                        ? "All Assignees"
-                        : subordinateOptions.find((u) => u.id === assigneeId)
-                            ?.name || assigneeId}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Assignees</SelectItem>
-                    {subordinateOptions.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={assigneeId}
+                  onChange={setAssigneeId}
+                  showSearch={subordinateOptions.length > 5}
+                  options={[
+                    { value: "ALL", label: "All Assignees" },
+                    ...subordinateOptions.map((u) => ({ value: u.id, label: u.name })),
+                  ]}
+                />
               </div>
             ) : null}
           </div>

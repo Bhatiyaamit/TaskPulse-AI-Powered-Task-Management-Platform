@@ -39,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { cn } from "@/lib/utils";
 import { chartColor, statusChartColor } from "@/lib/chartColors";
 import {
@@ -600,9 +601,11 @@ export function DashboardPage() {
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <Select
+          <SearchableSelect
+            className="w-40"
+            showSearch={false}
             value={draftFilters.range}
-            onValueChange={(value) =>
+            onChange={(value) =>
               setDraftFilters((prev) => {
                 const range = value as DashboardRange;
                 if (range === "custom") {
@@ -615,18 +618,14 @@ export function DashboardPage() {
                 return { range };
               })
             }
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="week">This week</SelectItem>
-              <SelectItem value="month">This month</SelectItem>
-              <SelectItem value="all">All time</SelectItem>
-              <SelectItem value="custom">Custom</SelectItem>
-            </SelectContent>
-          </Select>
+            options={[
+              { value: "today", label: "Today" },
+              { value: "week", label: "This week" },
+              { value: "month", label: "This month" },
+              { value: "all", label: "All time" },
+              { value: "custom", label: "Custom" },
+            ]}
+          />
           {draftFilters.range === "custom" ? (
             <div className="flex items-center gap-2">
               <Input
@@ -764,24 +763,21 @@ export function DashboardPage() {
                     >
                       <div className="space-y-1">
                         <Label>Size</Label>
-                        <Select
+                        <SearchableSelect
+                          showSearch={false}
                           value={layout.size}
-                          onValueChange={(value) =>
+                          onChange={(value) =>
                             patchLayout(layout.widgetKey, {
                               size: value as DashboardWidgetSize,
                             })
                           }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="small">Small</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="large">Large</SelectItem>
-                            <SelectItem value="full">Full width</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          options={[
+                            { value: "small", label: "Small" },
+                            { value: "medium", label: "Medium" },
+                            { value: "large", label: "Large" },
+                            { value: "full", label: "Full width" },
+                          ]}
+                        />
                       </div>
 
                       {showChartControl ? (
