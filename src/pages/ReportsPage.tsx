@@ -3,14 +3,12 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  CartesianGrid,
+  Cell,
   Legend,
-  Line,
-  LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
-  XAxis,
-  YAxis,
 } from "recharts";
 import { AlertTriangle, CheckCircle2, Clock3 } from "lucide-react";
 import { api } from "@/api/client";
@@ -278,6 +276,33 @@ export function ReportsPage() {
   });
 
   const data = q.data;
+
+  const { completionDonutData, completionDonutTotal } = useMemo((): {
+    completionDonutData: { name: string; value: number; fill: string }[] | null;
+    completionDonutTotal: number;
+  } => {
+    if (!data?.completionTrend?.length) {
+      return { completionDonutData: null, completionDonutTotal: 0 };
+    }
+    const totalCreated = data.completionTrend.reduce(
+      (s, r) => s + (r.created || 0),
+      0,
+    );
+    const totalCompleted = data.completionTrend.reduce(
+      (s, r) => s + (r.completed || 0),
+      0,
+    );
+    if (totalCreated === 0 && totalCompleted === 0) {
+      return { completionDonutData: null, completionDonutTotal: 0 };
+    }
+    const completionDonutData = [
+      { name: "Created", value: totalCreated, fill: chartColor(0) },
+      { name: "Completed", value: totalCompleted, fill: chartColor(1) },
+    ];
+    const completionDonutTotal = totalCreated + totalCompleted;
+    return { completionDonutData, completionDonutTotal };
+  }, [data]);
+
   if (me.isPending) return <div className="p-6">Loading...</div>;
 
   return (
@@ -432,42 +457,49 @@ export function ReportsPage() {
               <CardHeader className="border-b border-border/60">
                 <SectionTitle
                   title="Completion Trend"
-                  description="Created versus completed work over the selected reporting window."
+                  description="Created versus completed work in the selected reporting window (totals and share)."
                 />
               </CardHeader>
               <CardContent className="h-80 p-4">
-                {data.completionTrend.length ? (
+                {completionDonutData ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={data.completionTrend}
-                      margin={{ top: 8, right: 16, left: -12, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fontSize: 11 }}
-                        minTickGap={18}
+                    <PieChart>
+                      <Tooltip
+                        contentStyle={chartTooltipStyle()}
+                        formatter={(value: unknown, name: unknown) => {
+                          const n =
+                            typeof value === "number" ? value : Number(value);
+                          const tot = completionDonutTotal;
+                          const pct =
+                            tot > 0 && Number.isFinite(n)
+                              ? Math.round((n / tot) * 100)
+                              : 0;
+                          return [`${n} (${pct}%)`, String(name)];
+                        }}
                       />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                      <Tooltip contentStyle={chartTooltipStyle()} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Line
-                        type="monotone"
-                        dataKey="created"
-                        name="Created"
-                        stroke={chartColor(0)}
+                      <Legend
+                        layout="horizontal"
+                        verticalAlign="bottom"
+                        align="center"
+                        wrapperStyle={{ fontSize: 11, lineHeight: "14px" }}
+                      />
+                      <Pie
+                        data={completionDonutData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="44%"
+                        innerRadius={58}
+                        outerRadius={88}
+                        paddingAngle={2}
+                        stroke="hsl(var(--background))"
                         strokeWidth={2}
-                        dot={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="completed"
-                        name="Completed"
-                        stroke={chartColor(1)}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </LineChart>
+                      >
+                        {completionDonutData.map((d, i) => (
+                          <Cell key={`${d.name}-${i}`} fill={d.fill} />
+                        ))}
+                      </Pie>
+                    </PieChart>
                   </ResponsiveContainer>
                 ) : (
                   <EmptyPanel>
