@@ -120,7 +120,10 @@ export function EodPage() {
     me.data?.user.tenantId ??
     "__no-tenant-context__";
 
-  const [selectedUserId, setSelectedUserId] = useState<string>("__self__");
+  const [eodScope, setEodScope] = useState<"__self__" | "__team__">(
+    "__self__",
+  );
+  const [teamUserId, setTeamUserId] = useState<string>("__team__");
 
   const orgQuery = useQuery({
     queryKey: ["org-team-hierarchy", tenantContextKey],
@@ -149,6 +152,8 @@ export function EodPage() {
     }
     return getDescendants(orgQuery.data, me.data.user.id);
   }, [orgQuery.data, me.data]);
+
+  const selectedUserId = eodScope === "__self__" ? "__self__" : teamUserId;
 
   const q = useQuery({
     queryKey: ["eod", "today", tenantContextKey, selectedUserId],
@@ -246,14 +251,29 @@ export function EodPage() {
               <ClipboardList className="size-5" />
               {title}
             </h1>
-            {subordinateOptions.length > 0 && (
+            <SearchableSelect
+              className="w-56"
+              value={eodScope}
+              onChange={(v) => {
+                const next = v === "__team__" ? "__team__" : "__self__";
+                setEodScope(next);
+                if (next === "__self__") {
+                  setTeamUserId("__team__");
+                }
+              }}
+              showSearch={false}
+              options={[
+                { value: "__self__", label: "My EOD" },
+                { value: "__team__", label: "My Team's EOD" },
+              ]}
+            />
+            {eodScope === "__team__" && (
               <SearchableSelect
                 className="w-56"
-                value={selectedUserId}
-                onChange={setSelectedUserId}
+                value={teamUserId}
+                onChange={setTeamUserId}
                 showSearch={subordinateOptions.length > 5}
                 options={[
-                  { value: "__self__", label: "My EOD" },
                   { value: "__team__", label: "My Team's EOD" },
                   ...subordinateOptions.map((m) => ({
                     value: m.id,

@@ -9,6 +9,7 @@ import {
   P,
   PERMISSION_MATRIX_ACTIONS,
   PERMISSION_MATRIX_MODULES,
+  userIsTenantPrimaryAdmin,
 } from "@/lib/permissions";
 import { useMe } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
 } from "@/components/layout/CenteredFormPage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Select,
   SelectContent,
@@ -118,6 +120,7 @@ export function TeamUserEditPage() {
 
   const me = useMe();
   const perms = new Set(me.data?.permissions ?? []);
+  const isTenantAdmin = userIsTenantPrimaryAdmin(me.data?.user?.roleCode);
   const canUpdateUsers = perms.has(P.USERS_UPDATE);
   const userQuery = useQuery({
     enabled: canUpdateUsers && Boolean(id),
@@ -209,6 +212,16 @@ export function TeamUserEditPage() {
     phoneValue.length > 0 && phoneValue.length < 10
       ? `Enter all 10 digits (${phoneValue.length}/10).`
       : null;
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
+  const resetPasswordsMatch =
+    resetPassword.length > 0 &&
+    resetPasswordConfirm.length > 0 &&
+    resetPassword === resetPasswordConfirm;
+  const hasPasswordInput =
+    resetPassword.length > 0 || resetPasswordConfirm.length > 0;
+  const passwordSectionValid =
+    !hasPasswordInput || (resetPassword.length >= 8 && resetPasswordsMatch);
 
   useEffect(() => {
     const u = userQuery.data;
@@ -365,6 +378,9 @@ export function TeamUserEditPage() {
         phone: v.phone?.trim() ? v.phone.trim() : null,
         birthDate: v.birthDate ? new Date(v.birthDate) : null,
         isReviewer: Boolean(v.isReviewer),
+        ...(isTenantAdmin && resetPassword.trim().length > 0
+          ? { password: resetPassword }
+          : {}),
       };
       const { data } = await api.patch<ApiSuccess<{ user: UserDetail }>>(
         `/api/tenant/users/${id}`,
@@ -379,6 +395,8 @@ export function TeamUserEditPage() {
         queryKey: ["tenant-user", id],
         exact: false,
       });
+      setResetPassword("");
+      setResetPasswordConfirm("");
       toast.success("User updated");
       navigate("/team");
     },
@@ -442,6 +460,12 @@ export function TeamUserEditPage() {
         className="space-y-8"
         onSubmit={handleSubmit((values) => {
           if (!phoneOk) return;
+          if (!passwordSectionValid) {
+            toast.error(
+              "Password must be at least 8 characters and both password fields must match.",
+            );
+            return;
+          }
           update.mutate(values);
         })}
       >
@@ -756,6 +780,59 @@ export function TeamUserEditPage() {
               </table>
             </div>
           </div>
+
+          {isTenantAdmin ? (
+            <div className="rounded-md border border-border bg-muted/20 p-4 sm:col-span-2 space-y-4">
+              <div>
+                <div className="font-medium">Reset password</div>
+                <div className="text-xs text-muted-foreground">
+                  Set a new password for this user. This overrides the old one
+                  and clears active sessions.
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="resetPassword">New password</Label>
+                  <PasswordInput
+                    id="resetPassword"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="resetPasswordConfirm">Confirm password</Label>
+                  <PasswordInput
+                    id="resetPasswordConfirm"
+                    value={resetPasswordConfirm}
+                    onChange={(e) => setResetPasswordConfirm(e.target.value)}
+                    placeholder="Repeat new password"
+                    autoComplete="new-password"
+                    aria-invalid={
+                      resetPasswordConfirm.length > 0 && !resetPasswordsMatch
+                        ? true
+                        : undefined
+                    }
+                  />
+                  {resetPasswordConfirm.length > 0 && !resetPasswordsMatch ? (
+                    <p className="text-xs text-destructive">
+                      Passwords do not match.
+                    </p>
+                  ) : null}
+                  {resetPassword.length > 0 && resetPassword.length < 8 ? (
+                    <p className="text-xs text-destructive">
+                      Password must be at least 8 characters.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Password update will be applied when you click Save changes.
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-8 flex flex-wrap justify-end border-t border-border pt-6 gap-3">
@@ -768,6 +845,7 @@ export function TeamUserEditPage() {
               update.isPending ||
               !canUpdateUsers ||
               !phoneOk ||
+              !passwordSectionValid ||
               rolesQuery.isLoading ||
               rolesQuery.isError
             }
