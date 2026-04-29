@@ -34,7 +34,7 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   SENT_BACK: "#F97316", // orange
   CLOSED: "#60A5FA", // blue
   ESCALATED: "#FB7185", // rose
-  BLOCKED: "#FBBF24", // amber
+  BLOCKED: "#EF4444", // red — blocked / action required
 };
 
 export function statusChartColor(status: string, index = 0) {
