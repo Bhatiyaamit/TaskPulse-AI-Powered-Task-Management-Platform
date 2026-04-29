@@ -1,0 +1,12 @@
+---
+description: Core standards for VKJ TMS frontend (React, API, UX)
+alwaysApply: true
+---
+
+# Frontend core
+
+- **Scope**: One concern per edit; extend existing components and utilities before adding parallel abstractions.
+- **Hooks & data**: Use TanStack Query for server state; avoid duplicating fetch logic without query keys invalidation strategy.
+- **Auth / tenant**: Rely on existing axios instance and cookie session; Super Admin flows must include selected company context when touching tenant endpoints.
+- **Quality**: Prefer accessible labels, loading states, and error toasts/messages consistent with nearby pages (`sonner` if already used).
+- **Verification**: Run `npm run lint` and `npm run build` for non-trivial changes.
