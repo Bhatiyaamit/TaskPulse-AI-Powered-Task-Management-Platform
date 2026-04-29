@@ -1,0 +1,13 @@
+---
+description: React components and pages — TSX patterns
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# React / TSX
+
+- **Components**: Prefer function components; colocate helpers when single-use.
+- **Forms**: `react-hook-form` + Zod; derive default values from API types safely (null vs undefined matches backend).
+- **Styling**: Tailwind utilities; reuse `cn()` / variants if the file already does; respect dark/light tokens used in the subtree.
+- **Tables & charts**: Follow existing TanStack Table and Recharts usage for column defs and responsive layout.
+- **Routing**: Align URL params and search params types with backend query contracts.
