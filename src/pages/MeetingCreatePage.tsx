@@ -92,13 +92,10 @@ export function MeetingCreatePage() {
       datetime: string;
       attendeeIds: string[];
     }) => api.post("/api/meetings", payload),
-    onSuccess: (res) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["meetings"] });
       toast.success("Meeting created");
-      const mid = (res.data as ApiSuccess<{ meeting: { id: string } }>).data
-        .meeting?.id;
-      if (mid) navigate(`/meetings/${mid}`);
-      else navigate("/meetings");
+      navigate("/meetings");
     },
     onError: (e) => {
       const msg = isAxiosError(e)

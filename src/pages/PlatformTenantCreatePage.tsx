@@ -194,7 +194,6 @@ export function PlatformTenantCreatePage() {
             />
             <p className="text-xs text-muted-foreground">
               3–64 characters: letters, numbers, dots, underscores, hyphens.
-              Stored in lowercase.
             </p>
           </div>
           <div className="space-y-2">

@@ -14,10 +14,8 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  GitBranch,
   GitMerge,
   ListTree,
-  MessageSquare,
   Paperclip,
   Shield,
   Repeat,
@@ -78,7 +76,7 @@ type TaskDetail = {
   dueDate: string | null;
   escalationAt: string | null;
   estimatedMinutes: number | null;
-  status: { id: string; code: string; label: string };
+  status: { id: string; code: string; label: string; isTerminal?: boolean };
   assignedTo: UserBrief | null;
   reviewer: UserBrief | null;
   supporter: UserBrief | null;
@@ -103,12 +101,17 @@ type TaskDetail = {
   parent?: {
     id: string;
     title: string;
-    status: { label: string; code: string };
+    status: { label: string; code: string; isTerminal?: boolean };
   } | null;
   children?: {
     id: string;
     title: string;
-    status: { id: string; label: string; code: string };
+    status: {
+      id: string;
+      label: string;
+      code: string;
+      isTerminal?: boolean;
+    };
     assignedTo: UserBrief | null;
     dueDate: string | null;
   }[];
@@ -175,15 +178,10 @@ function escalationMinutesBeforeDue(
   return Math.max(0, Math.round((dueMs - escMs) / 60_000));
 }
 
-function activityIcon(type: TaskActivity["type"]) {
-  switch (type) {
-    case "COMMENT":
-      return <MessageSquare className="size-4 text-muted-foreground" />;
-    case "TIME_LOG":
-      return <Clock className="size-4 text-muted-foreground" />;
-    default:
-      return <GitBranch className="size-4 text-muted-foreground" />;
-  }
+function formatEstimatedHours(minutes: number | null) {
+  if (minutes == null) return "—";
+  const hours = minutes / 60;
+  return `${hours.toFixed(1)} hr`;
 }
 
 function activityLabel(type: TaskActivity["type"]) {
@@ -250,9 +248,6 @@ export function TaskDetailPage() {
     },
   });
   const checklistItems = checklistQuery.data ?? [];
-  const hasMandatoryChecklistGap = checklistItems.some(
-    (item) => item.mandatory && !item.isChecked,
-  );
 
   const seriesQuery = useQuery({
     queryKey: ["task-series", task?.recurrenceGroupId],
@@ -270,10 +265,45 @@ export function TaskDetailPage() {
     : 0;
   const seriesTotal = seriesQuery.data?.length ?? 0;
 
-  const doneStatusId = useMemo(
-    () => statuses.find((s) => s.code === "DONE")?.id,
-    [statuses],
+  /** Parent with open subtasks: status / complete only after every child is terminal (backend enforces too). */
+  const allChildrenTerminal = useMemo(() => {
+    const kids = task?.children;
+    if (!kids?.length) return true;
+    return kids.every(
+      (c) =>
+        Boolean(c.status.isTerminal) ||
+        String(c.status.code).toUpperCase() === "DONE",
+    );
+  }, [task?.children]);
+
+  const parentBlockedByOpenSubtasks = Boolean(
+    task?.children?.length && !allChildrenTerminal,
   );
+
+  /** Only when parent has open subtasks — Done/terminal tasks can still change status (e.g. mistaken completion). */
+  const statusSelectDisabled = parentBlockedByOpenSubtasks;
+
+  /** Ensures Select shows a label: current task status may be missing from `/statuses` for some roles. */
+  const statusOptionsForSelect = useMemo(() => {
+    if (!task) return statuses;
+    if (statuses.some((s) => s.id === task.status.id)) return statuses;
+    return [
+      ...statuses,
+      {
+        id: task.status.id,
+        code: task.status.code,
+        label: task.status.label,
+      },
+    ];
+  }, [statuses, task]);
+
+  const currentStatusLabel = useMemo(() => {
+    if (!task) return "";
+    return (
+      statusOptionsForSelect.find((s) => s.id === task.status.id)?.label ??
+      task.status.label
+    );
+  }, [task, statusOptionsForSelect]);
 
   const isReviewer = Boolean(
     me && task?.reviewer?.id && task.reviewer.id === me.user?.id,
@@ -353,7 +383,6 @@ export function TaskDetailPage() {
 
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [showAllAttachments, setShowAllAttachments] = useState(false);
 
   const deleteAttachmentMutation = useMutation({
     mutationFn: (attachmentId: string) =>
@@ -371,6 +400,23 @@ export function TaskDetailPage() {
       qc.invalidateQueries({ queryKey: ["task-checklist", id] });
     },
   });
+
+  const recentActivities = useMemo(() => {
+    return [...(task?.activities ?? [])].slice(-10).reverse();
+  }, [task?.activities]);
+
+  const recentChecklistItems = useMemo(() => {
+    return checklistItems.slice(0, 10);
+  }, [checklistItems]);
+
+  const recentAttachments = useMemo(() => {
+    return [...(task?.attachments ?? [])]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
+      .slice(0, 10);
+  }, [task?.attachments]);
 
   async function onPickFile(files: FileList | null) {
     if (!files?.length || !id || !canUpdate) return;
@@ -437,20 +483,6 @@ export function TaskDetailPage() {
 
   function applyStatus(nextId: string) {
     patchTask.mutate({ statusId: nextId });
-  }
-
-  function markComplete() {
-    if (hasMandatoryChecklistGap) {
-      toast.error(
-        "Complete all mandatory checklist items before marking done.",
-      );
-      return;
-    }
-    if (!doneStatusId) {
-      toast.error("No “Done” status configured for this tenant.");
-      return;
-    }
-    applyStatus(doneStatusId);
   }
 
   function submitComment() {
@@ -653,6 +685,14 @@ export function TaskDetailPage() {
                       </p>
                     )}
                   </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-primary">
+                      Estimation hours
+                    </div>
+                    <p className="text-sm font-medium">
+                      {formatEstimatedHours(task.estimatedMinutes)}
+                    </p>
+                  </div>
                 </div>
                 {task.meetingId && task.meeting ? (
                   <>
@@ -694,7 +734,7 @@ export function TaskDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <Link
-                    to={`/tasks/${task.parent.id}`}
+                    to={`/tasks/${task.parent.id}?returnTo=${encodeURIComponent(returnTo)}`}
                     className="group flex items-center gap-3 rounded-lg border border-border px-4 py-3 transition-colors hover:bg-muted/50"
                   >
                     <div className="min-w-0 flex-1">
@@ -738,7 +778,7 @@ export function TaskDetailPage() {
                     {task.children.map((child) => (
                       <li key={child.id}>
                         <Link
-                          to={`/tasks/${child.id}`}
+                          to={`/tasks/${child.id}?returnTo=${encodeURIComponent(returnTo)}`}
                           className="group flex items-center gap-3 rounded-lg border border-border px-4 py-3 transition-colors hover:bg-muted/50"
                         >
                           <div className="min-w-0 flex-1">
@@ -797,12 +837,12 @@ export function TaskDetailPage() {
                     No activity yet.
                   </p>
                 ) : (
-                  <ul className="relative space-y-0 border-l border-border pl-6">
-                    {task.activities.map((a) => (
-                      <li key={a.id} className="pb-6 last:pb-0">
-                        <span className="absolute -left-2.25 mt-1.5 flex size-4.5 items-center justify-center rounded-full border border-border bg-background">
-                          {activityIcon(a.type)}
-                        </span>
+                  <ul className="max-h-96 space-y-3 overflow-y-auto pr-1">
+                    {recentActivities.map((a) => (
+                      <li
+                        key={a.id}
+                        className="rounded-md border border-border/60 bg-background/40 px-3 py-2"
+                      >
                         <div className="text-xs text-muted-foreground">
                           {formatWhen(a.createdAt)} · {a.user.name} ·{" "}
                           {activityLabel(a.type)}
@@ -840,8 +880,8 @@ export function TaskDetailPage() {
                     No checklist items.
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {checklistItems.map((item) => (
+                  <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
+                    {recentChecklistItems.map((item) => (
                       <div
                         key={item.id}
                         className="rounded-lg border border-border p-3"
@@ -933,10 +973,8 @@ export function TaskDetailPage() {
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    <ul className="space-y-2">
-                      {task.attachments
-                        .slice(0, showAllAttachments ? undefined : 5)
-                        .map((att) => (
+                    <ul className="max-h-96 space-y-2 overflow-y-auto pr-1">
+                      {recentAttachments.map((att) => (
                           <li
                             key={att.id}
                             className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
@@ -973,19 +1011,8 @@ export function TaskDetailPage() {
                               ) : null}
                             </div>
                           </li>
-                        ))}
+                      ))}
                     </ul>
-                    {task.attachments.length > 5 && !showAllAttachments ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="w-full text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowAllAttachments(true)}
-                      >
-                        Load more ({task.attachments.length - 5})
-                      </Button>
-                    ) : null}
                   </div>
                 )}
               </CardContent>
@@ -1089,21 +1116,29 @@ export function TaskDetailPage() {
                 <div className="space-y-2">
                   <Label>Update status</Label>
                   <Select
-                    value={task.status.code}
+                    value={task.status.id}
                     onValueChange={(v) => applyStatus(v)}
-                    disabled={patchTask.isPending}
+                    disabled={patchTask.isPending || statusSelectDisabled}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Status" />
+                      <SelectValue placeholder="Status">
+                        {currentStatusLabel}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {statuses.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
+                      {statusOptionsForSelect.map((s) => (
+                        <SelectItem key={s.id} value={s.id} label={s.label}>
                           {s.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {parentBlockedByOpenSubtasks ? (
+                    <p className="text-xs text-muted-foreground">
+                      Complete all subtasks before updating status or marking this task
+                      complete.
+                    </p>
+                  ) : null}
                 </div>
                 <Separator />
                 <div className="space-y-2">
@@ -1148,22 +1183,6 @@ export function TaskDetailPage() {
                     Log time
                   </Button>
                 </div>
-                <Separator />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border-emerald-500/30 bg-emerald-500/10 text-emerald-800 hover:bg-emerald-500/15 dark:text-emerald-200"
-                  onClick={markComplete}
-                  disabled={
-                    patchTask.isPending ||
-                    task.status.code === "DONE" ||
-                    !doneStatusId ||
-                    hasMandatoryChecklistGap
-                  }
-                >
-                  <CheckCircle2 className="mr-2 size-4" />
-                  Mark complete
-                </Button>
               </CardContent>
             </Card>
           </motion.aside>
