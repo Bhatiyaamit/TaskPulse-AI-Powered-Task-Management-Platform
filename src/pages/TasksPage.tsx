@@ -325,6 +325,10 @@ export function TasksPage() {
     () => parseTasksUrlParams(searchParams),
     [searchParams],
   );
+  const listReturnTo = useMemo(() => {
+    const qs = searchParams.toString();
+    return qs ? `/tasks?${qs}` : "/tasks";
+  }, [searchParams]);
   const {
     page,
     pagination,
@@ -426,6 +430,7 @@ export function TasksPage() {
         params: {
           page: 1,
           pageSize: 100,
+          hierarchyScope: "subordinates",
           sortBy: "name",
           sortDir: "asc",
         },
@@ -627,7 +632,9 @@ export function TasksPage() {
               className="cursor-pointer text-left font-medium text-foreground hover:underline"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/tasks/${row.original.id}`);
+                navigate(
+                  `/tasks/${row.original.id}?returnTo=${encodeURIComponent(listReturnTo)}`,
+                );
               }}
               aria-label={`Open task: ${title}`}
             >
@@ -773,8 +780,17 @@ export function TasksPage() {
       },
     ];
 
-    // "My team task" is a read-only list (no row-level actions).
-    if (queue !== "team") {
+    const hideActionsForMyTaskTabs =
+      queue === "my_tasks" &&
+      (myTab === "assigned" || myTab === "supporting" || myTab === "review");
+
+    // "My team task" is read-only, selected My Tasks tabs hide actions,
+    // and users without both update/delete permissions should not see the column at all.
+    if (
+      queue !== "team" &&
+      !hideActionsForMyTaskTabs &&
+      (canUpdateTask || canDeleteTask)
+    ) {
       cols.push({
         id: "actions",
         header: "Actions",
@@ -807,7 +823,9 @@ export function TasksPage() {
                             recurrenceGroupId: row.original.recurrenceGroupId,
                           });
                         } else {
-                          navigate(`/tasks/${row.original.id}/edit`);
+                          navigate(
+                            `/tasks/${row.original.id}/edit?returnTo=${encodeURIComponent(listReturnTo)}`,
+                          );
                         }
                       }}
                     />
@@ -861,6 +879,8 @@ export function TasksPage() {
     canDeleteTask,
     deleteTask.isPending,
     queue,
+    myTab,
+    listReturnTo,
   ]);
 
   const onChangeSort = useCallback(
@@ -1055,7 +1075,10 @@ export function TasksPage() {
               ) : null}
               <div className="flex flex-wrap gap-2 pt-1">
                 {canCreateTask ? (
-                  <Link to="/tasks/new" className={cn(buttonVariants())}>
+                  <Link
+                    to={`/tasks/new?returnTo=${encodeURIComponent(listReturnTo)}`}
+                    className={cn(buttonVariants())}
+                  >
                     <Plus className="size-4" />
                     New task
                   </Link>
@@ -1202,7 +1225,10 @@ export function TasksPage() {
               onClick={() => {
                 if (editTarget) {
                   navigate(
-                    `/tasks/${editTarget.id}/edit${editScope !== "this" ? `?scope=${editScope}` : ""}`,
+                    `/tasks/${editTarget.id}/edit?${new URLSearchParams({
+                      ...(editScope !== "this" ? { scope: editScope } : {}),
+                      returnTo: listReturnTo,
+                    }).toString()}`,
                   );
                   setEditTarget(null);
                 }
@@ -1221,7 +1247,10 @@ export function TasksPage() {
           </h1>
         </div>
         {canCreateTask ? (
-          <Link to="/tasks/new" className={cn(buttonVariants())}>
+          <Link
+            to={`/tasks/new?returnTo=${encodeURIComponent(listReturnTo)}`}
+            className={cn(buttonVariants())}
+          >
             <Plus className="size-4" />
             New task
           </Link>
@@ -1530,9 +1559,6 @@ export function TasksPage() {
                               )
                             }
                           />
-                          <span className="truncate">{u.name}</span>
-                        </span>
-                        <span className="truncate text-xs text-muted-foreground">
                           {u.username}
                         </span>
                         {selected ? (

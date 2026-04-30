@@ -162,7 +162,7 @@ export function MeetingEditPage() {
       await qc.invalidateQueries({ queryKey: ["meetings"], exact: false });
       await qc.invalidateQueries({ queryKey: ["meeting", id] });
       toast.success("Meeting updated");
-      navigate(`/meetings/${id}`);
+      navigate("/meetings");
     },
     onError: (e) => {
       const msg = isAxiosError(e)

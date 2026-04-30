@@ -34,6 +34,8 @@ type TaskSummary = {
   title: string;
   dueDate: string | null;
   updatedAt: string;
+  estimatedMinutes: number | null;
+  spentTotalMinutes: number;
   status: { code: string; label: string; isTerminal: boolean };
 };
 
@@ -53,10 +55,12 @@ function TaskList({
   items,
   emptyText,
   kind = "default",
+  showTimeMeta = false,
 }: {
   items: TaskSummary[];
   emptyText: string;
   kind?: "default" | "overdue";
+  showTimeMeta?: boolean;
 }) {
   if (!items.length) {
     return <div className="text-sm text-muted-foreground">{emptyText}</div>;
@@ -100,6 +104,20 @@ function TaskList({
                       dateStyle: "medium",
                     }).format(new Date(t.dueDate))}
                   </span>
+                ) : null}
+                {showTimeMeta ? (
+                  <>
+                    <span>
+                      Spent time:{" "}
+                      {`${(t.spentTotalMinutes / 60).toFixed(1)} hr`}
+                    </span>
+                    <span>
+                      Est:{" "}
+                      {t.estimatedMinutes != null
+                        ? `${(t.estimatedMinutes / 60).toFixed(1)} hr`
+                        : "—"}
+                    </span>
+                  </>
                 ) : null}
               </div>
             </div>
@@ -274,7 +292,7 @@ export function EodPage() {
                 onChange={setTeamUserId}
                 showSearch={subordinateOptions.length > 5}
                 options={[
-                  { value: "__team__", label: "My Team's EOD" },
+                  { value: "__team__", label: "All" },
                   ...subordinateOptions.map((m) => ({
                     value: m.id,
                     label: `${m.name}'s EOD`,
@@ -327,6 +345,7 @@ export function EodPage() {
             <TaskList
               items={q.data?.completedToday ?? []}
               emptyText={q.isLoading ? "Loading…" : "No completed tasks today."}
+              showTimeMeta
             />
           </CardContent>
         </Card>

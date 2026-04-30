@@ -216,6 +216,17 @@ function todayInputValue(now = new Date()) {
   return now.toISOString().slice(0, 10);
 }
 
+function normalizeFiltersForCompare(filters: DashboardFilters): DashboardFilters {
+  if (filters.range !== "custom") {
+    return { range: filters.range };
+  }
+  return {
+    range: "custom",
+    customStart: filters.customStart ?? null,
+    customEnd: filters.customEnd ?? null,
+  };
+}
+
 function DashboardChart({ widget }: { widget: DashboardWidgetData }) {
   const rows = normalizeChartRows(widget.data).filter((row) => row.value > 0);
   if (!rows.length)
@@ -464,22 +475,30 @@ export function DashboardPage() {
   }, [dashboardQuery.data]);
 
   const saveDashboard = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (payload?: {
+      layout?: DashboardWidgetLayout[];
+      filters?: DashboardFilters;
+      successMessage?: string;
+      silent?: boolean;
+    }) => {
       const { data } = await api.put<ApiSuccess<DashboardResponse>>(
         "/api/dashboard",
         {
-          layout: draftLayout,
-          filters: draftFilters,
+          layout: payload?.layout ?? draftLayout,
+          filters: payload?.filters ?? draftFilters,
         },
       );
       return data.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_result, payload) => {
       await qc.invalidateQueries({ queryKey: ["dynamic-dashboard"] });
       await qc.invalidateQueries({ queryKey: ["dashboard"] });
-      toast.success(
-        customize ? "Dashboard layout updated" : "Dashboard filter applied",
-      );
+      if (!payload?.silent) {
+        toast.success(
+          payload?.successMessage ??
+            (customize ? "Dashboard layout updated" : "Dashboard filter applied"),
+        );
+      }
     },
     onError: () => toast.error("Could not save dashboard"),
   });
@@ -541,17 +560,22 @@ export function DashboardPage() {
   const savedState = useMemo(() => {
     if (!data) return "";
     return JSON.stringify({
-      layout: data.layout.filter((item) =>
-        ALLOWED_WIDGET_KEYS.has(item.widgetKey),
-      ),
-      filters: data.filters,
+      layout: data.layout
+        .filter((item) => ALLOWED_WIDGET_KEYS.has(item.widgetKey))
+        .sort((a, b) => a.order - b.order),
+      filters: normalizeFiltersForCompare(data.filters),
     });
   }, [data]);
   const draftState = useMemo(
-    () => JSON.stringify({ layout: sortedDraftLayout, filters: draftFilters }),
+    () =>
+      JSON.stringify({
+        layout: sortedDraftLayout,
+        filters: normalizeFiltersForCompare(draftFilters),
+      }),
     [draftFilters, sortedDraftLayout],
   );
   const isDirty = Boolean(data) && savedState !== draftState;
+  const showUnsavedBanner = customize && isDirty;
 
   function patchLayout(
     widgetKey: string,
@@ -562,6 +586,16 @@ export function DashboardPage() {
         item.widgetKey === widgetKey ? { ...item, ...patch } : item,
       ),
     );
+  }
+
+  function applyAndPersistFilters(nextFilters: DashboardFilters) {
+    setDraftFilters(nextFilters);
+    if (customize) return;
+    saveDashboard.mutate({
+      layout: draftLayout,
+      filters: nextFilters,
+      silent: true,
+    });
   }
 
   if (dashboardQuery.isLoading) {
@@ -601,59 +635,65 @@ export function DashboardPage() {
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <SearchableSelect
-            className="w-40"
-            showSearch={false}
-            value={draftFilters.range}
-            onChange={(value) =>
-              setDraftFilters((prev) => {
-                const range = value as DashboardRange;
-                if (range === "custom") {
-                  return {
-                    range,
-                    customStart: prev.customStart ?? startOfMonthInputValue(),
-                    customEnd: prev.customEnd ?? todayInputValue(),
-                  };
-                }
-                return { range };
-              })
-            }
-            options={[
-              { value: "today", label: "Today" },
-              { value: "week", label: "This week" },
-              { value: "month", label: "This month" },
-              { value: "all", label: "All time" },
-              { value: "custom", label: "Custom" },
-            ]}
-          />
-          {draftFilters.range === "custom" ? (
-            <div className="flex items-center gap-2">
-              <Input
-                id="dashboard-custom-start"
-                type="date"
-                value={draftFilters.customStart ?? ""}
-                onChange={(e) =>
-                  setDraftFilters((prev) => ({
-                    ...prev,
-                    customStart: e.target.value,
-                  }))
-                }
-                className="w-36"
+          {!customize ? (
+            <>
+              <SearchableSelect
+                className="w-40"
+                showSearch={false}
+                value={draftFilters.range}
+                onChange={(value) => {
+                  const next = (() => {
+                    const range = value as DashboardRange;
+                    if (range === "custom") {
+                      const prev = draftFilters;
+                      return {
+                        range,
+                        customStart: prev.customStart ?? startOfMonthInputValue(),
+                        customEnd: prev.customEnd ?? todayInputValue(),
+                      };
+                    }
+                    return { range };
+                  })();
+                  applyAndPersistFilters(next);
+                }}
+                options={[
+                  { value: "today", label: "Today" },
+                  { value: "week", label: "This week" },
+                  { value: "month", label: "This month" },
+                  { value: "all", label: "All time" },
+                  { value: "custom", label: "Custom" },
+                ]}
               />
-              <span className="text-muted-foreground">-</span>
-              <Input
-                id="dashboard-custom-end"
-                type="date"
-                value={draftFilters.customEnd ?? ""}
-                onChange={(e) =>
-                  setDraftFilters((prev) => ({
-                    ...prev,
-                    customEnd: e.target.value,
-                  }))
-                }
-                className="w-36"
-              />
-            </div>
+              {draftFilters.range === "custom" ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="dashboard-custom-start"
+                    type="date"
+                    value={draftFilters.customStart ?? ""}
+                    onChange={(e) => {
+                      applyAndPersistFilters({
+                        ...draftFilters,
+                        customStart: e.target.value,
+                      });
+                    }}
+                    className="w-36"
+                  />
+                  <span className="text-muted-foreground">-</span>
+                  <Input
+                    id="dashboard-custom-end"
+                    type="date"
+                    value={draftFilters.customEnd ?? ""}
+                    onChange={(e) => {
+                      applyAndPersistFilters({
+                        ...draftFilters,
+                        customEnd: e.target.value,
+                      });
+                    }}
+                    className="w-36"
+                  />
+                </div>
+              ) : null}
+            </>
           ) : null}
           {customize ? (
             <>
@@ -669,7 +709,7 @@ export function DashboardPage() {
                 disabled={saveDashboard.isPending}
                 isLoading={saveDashboard.isPending}
                 onClick={async () => {
-                  await saveDashboard.mutateAsync();
+                  await saveDashboard.mutateAsync({});
                   setCustomize(false);
                 }}
               >
@@ -679,17 +719,6 @@ export function DashboardPage() {
             </>
           ) : (
             <>
-              {isDirty ? (
-                <Button
-                  type="button"
-                  disabled={saveDashboard.isPending}
-                  isLoading={saveDashboard.isPending}
-                  onClick={() => saveDashboard.mutate()}
-                >
-                  <Save className="size-4" />
-                  Save
-                </Button>
-              ) : null}
               <Button
                 type="button"
                 variant="outline"
@@ -716,6 +745,9 @@ export function DashboardPage() {
                 const item = catalog.find((w) => w.key === layout.widgetKey);
                 if (!item) return null;
                 const showChartControl = item.type !== "KPI";
+                const hideSizeControl =
+                  layout.widgetKey === "tasks_by_status" ||
+                  layout.widgetKey === "tasks_by_priority";
                 return (
                   <div
                     key={layout.widgetKey}
@@ -758,27 +790,31 @@ export function DashboardPage() {
                     <div
                       className={cn(
                         "mt-3 grid gap-2",
-                        showChartControl ? "sm:grid-cols-2" : "sm:grid-cols-1",
+                        showChartControl && !hideSizeControl
+                          ? "sm:grid-cols-2"
+                          : "sm:grid-cols-1",
                       )}
                     >
-                      <div className="space-y-1">
-                        <Label>Size</Label>
-                        <SearchableSelect
-                          showSearch={false}
-                          value={layout.size}
-                          onChange={(value) =>
-                            patchLayout(layout.widgetKey, {
-                              size: value as DashboardWidgetSize,
-                            })
-                          }
-                          options={[
-                            { value: "small", label: "Small" },
-                            { value: "medium", label: "Medium" },
-                            { value: "large", label: "Large" },
-                            { value: "full", label: "Full width" },
-                          ]}
-                        />
-                      </div>
+                      {!hideSizeControl ? (
+                        <div className="space-y-1">
+                          <Label>Size</Label>
+                          <SearchableSelect
+                            showSearch={false}
+                            value={layout.size}
+                            onChange={(value) =>
+                              patchLayout(layout.widgetKey, {
+                                size: value as DashboardWidgetSize,
+                              })
+                            }
+                            options={[
+                              { value: "small", label: "Small" },
+                              { value: "medium", label: "Medium" },
+                              { value: "large", label: "Large" },
+                              { value: "full", label: "Full width" },
+                            ]}
+                          />
+                        </div>
+                      ) : null}
 
                       {showChartControl ? (
                         <div className="space-y-1">
@@ -868,7 +904,7 @@ export function DashboardPage() {
         </Card>
       ) : null}
 
-      {isDirty ? (
+      {showUnsavedBanner ? (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
           You have unsaved dashboard changes. Save to refresh analytics for the
           selected layout and range.

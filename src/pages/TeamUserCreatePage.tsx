@@ -58,7 +58,12 @@ const userSchema = z.object({
     .refine((v) => !v.includes(" "), {
       message: "Password cannot contain spaces",
     }),
-  managerId: z.string().default("__none__"),
+  managerId: z
+    .string()
+    .min(1, "Reports to is required")
+    .refine((v) => v !== "__none__", {
+      message: "Reports to is required",
+    }),
   departmentId: z.string().default("__none__"),
   isReviewer: z.boolean().default(false).catch(false),
 });
@@ -131,7 +136,7 @@ export function TeamUserCreatePage() {
       phone: "",
       birthDate: "",
       password: "",
-      managerId: "__none__",
+      managerId: "",
       departmentId: "__none__",
       isReviewer: false,
     },
@@ -219,9 +224,9 @@ export function TeamUserCreatePage() {
 
   useEffect(() => {
     if (!managersQuery.isSuccess) return;
-    if (selectedManagerId === "__none__") return;
+    if (!selectedManagerId || selectedManagerId === "__none__") return;
     if (!managerOptions.some((m) => m.id === selectedManagerId)) {
-      setValue("managerId", "__none__");
+      setValue("managerId", "");
     }
   }, [managersQuery.isSuccess, managerOptions, selectedManagerId, setValue]);
 
@@ -299,7 +304,7 @@ export function TeamUserCreatePage() {
         username: v.username.trim().toLowerCase(),
         password: v.password,
         roleId,
-        managerId: v.managerId === "__none__" ? null : v.managerId,
+        managerId: v.managerId,
         departmentId: v.departmentId === "__none__" ? null : v.departmentId,
         employeeCode: v.employeeCode?.trim() ? v.employeeCode.trim() : null,
         phone: v.phone?.trim() ? v.phone.trim() : null,
@@ -387,6 +392,10 @@ export function TeamUserCreatePage() {
         className="space-y-8"
         onSubmit={handleSubmit((values) => {
           if (!phoneOk) return;
+          if (!values.managerId || values.managerId === "__none__") {
+            toast.error("Reports to is required.");
+            return;
+          }
           create.mutate(values);
         })}
       >
@@ -539,7 +548,9 @@ export function TeamUserCreatePage() {
           </div>
 
           <div className="space-y-2 sm:col-span-1">
-            <Label htmlFor="managerId">Reports to</Label>
+            <Label htmlFor="managerId" required>
+              Reports to
+            </Label>
             <Controller
               control={control}
               name="managerId"
@@ -548,16 +559,18 @@ export function TeamUserCreatePage() {
                   value={field.value}
                   onChange={field.onChange}
                   showSearch={managerOptions.length > 5}
-                  options={[
-                    { value: "__none__", label: "No manager" },
-                    ...managerOptions.map((m) => ({
-                      value: m.id,
-                      label: `${m.name} (${m.username})`,
-                    })),
-                  ]}
+                  options={managerOptions.map((m) => ({
+                    value: m.id,
+                    label: `${m.name} (${m.username})`,
+                  }))}
                 />
               )}
             />
+            {errors.managerId?.message ? (
+              <p className="text-xs text-destructive">
+                {errors.managerId.message}
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-2 sm:col-span-1">
@@ -695,7 +708,15 @@ export function TeamUserCreatePage() {
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={create.isPending || !phoneOk}>
+          <Button
+            type="submit"
+            disabled={
+              create.isPending ||
+              !phoneOk ||
+              !selectedManagerId ||
+              selectedManagerId === "__none__"
+            }
+          >
             {create.isPending ? "Creating…" : "Create user"}
           </Button>
         </div>

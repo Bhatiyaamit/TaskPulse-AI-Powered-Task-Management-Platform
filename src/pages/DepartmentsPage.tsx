@@ -250,9 +250,10 @@ export function DepartmentsPage() {
         header: "Created",
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-              new Date(row.original.createdAt),
-            )}
+            {new Intl.DateTimeFormat(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(row.original.createdAt))}
           </span>
         ),
       },

@@ -25,6 +25,7 @@ import {
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
+import { useMe } from "@/hooks/useAuth";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,10 +66,13 @@ type TenantsApiResponse = {
 };
 
 const PAGE_SIZES = [10, 20, 50, 100] as const;
-type SortId = "createdAt" | "name" | "users";
+type SortId = "created" | "name" | "users" | "status";
+type ApiSortBy = "createdAt" | "name" | "users" | "status";
 
 function isSortId(id: string): id is SortId {
-  return (["createdAt", "name", "users"] as const).includes(id as SortId);
+  return (["created", "name", "users", "status"] as const).includes(
+    id as SortId,
+  );
 }
 
 function useDebouncedValue<T>(value: T, ms: number): T {
@@ -103,12 +107,13 @@ function parseTenantsUrlParams(searchParams: URLSearchParams) {
     isSortId(sortByRaw) &&
     (sortDirRaw === "asc" || sortDirRaw === "desc");
 
-  const apiSortBy: SortId = explicitSort ? (sortByRaw as SortId) : "createdAt";
+  const sortBy: SortId = explicitSort ? (sortByRaw as SortId) : "created";
+  const apiSortBy: ApiSortBy = sortBy === "created" ? "createdAt" : sortBy;
   const apiSortDir: "asc" | "desc" = explicitSort ? sortDirRaw : "desc";
 
   const tableSorting: SortingState = explicitSort
-    ? [{ id: apiSortBy, desc: apiSortDir === "desc" }]
-    : [{ id: "createdAt", desc: true }];
+    ? [{ id: sortBy, desc: apiSortDir === "desc" }]
+    : [{ id: "created", desc: true }];
 
   const pagination: PaginationState = { pageIndex: page - 1, pageSize };
 
@@ -125,6 +130,7 @@ function parseTenantsUrlParams(searchParams: URLSearchParams) {
 
 export function PlatformTenantsPage() {
   const qc = useQueryClient();
+  const me = useMe();
   const [searchParams, setSearchParams] = useSearchParams();
   const skipSearchInputSync = useRef(false);
   const listParams = useMemo(
@@ -238,8 +244,16 @@ export function PlatformTenantsPage() {
     mutationFn: async (tenantId: string) => {
       await api.delete(`/api/platform/tenants/${tenantId}`);
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, deletedTenantId) => {
+      if (me.data?.selectedTenantId === deletedTenantId) {
+        await api.delete("/api/platform/tenant-context");
+        await qc.invalidateQueries({ queryKey: ["me"] });
+      }
       await qc.invalidateQueries({ queryKey: ["tenants"], exact: false });
+      await qc.invalidateQueries({
+        queryKey: ["platform-tenants", "options"],
+        exact: false,
+      });
       await qc.invalidateQueries({
         queryKey: ["platform-dashboard"],
         exact: false,
@@ -257,9 +271,10 @@ export function PlatformTenantsPage() {
   });
   function formatDate(iso: string) {
     try {
-      return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-        new Date(iso),
-      );
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date(iso));
     } catch {
       return iso;
     }
@@ -306,8 +321,9 @@ export function PlatformTenantsPage() {
       },
       {
         accessorKey: "createdAt",
-        id: "createdAt",
+        id: "created",
         header: "Created",
+        enableSorting: true,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {formatDate(row.original.createdAt)}
@@ -499,12 +515,18 @@ export function PlatformTenantsPage() {
           const next = typeof updater === "function" ? updater(cur) : updater;
           const first = next[0];
           if (!first) {
-            p.delete("sortBy");
-            p.delete("sortDir");
+            // Keep sorting deterministic (two-state toggle): asc <-> desc.
+            // DataTable's cycle emits [] after desc; map that to asc on same column.
+            const current = cur[0];
+            const id = isSortId(String(current?.id))
+              ? (current!.id as SortId)
+              : "created";
+            p.set("sortBy", id);
+            p.set("sortDir", "asc");
           } else {
             const id = isSortId(String(first.id))
               ? (first.id as SortId)
-              : "createdAt";
+              : "created";
             const dir: "asc" | "desc" = first.desc ? "desc" : "asc";
             p.set("sortBy", id);
             p.set("sortDir", dir);

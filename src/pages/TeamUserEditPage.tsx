@@ -62,7 +62,12 @@ const schema = z.object({
   employeeCode: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   birthDate: z.string().optional(),
-  managerId: z.string().default("__none__"),
+  managerId: z
+    .string()
+    .min(1, "Reports to is required")
+    .refine((v) => v !== "__none__", {
+      message: "Reports to is required",
+    }),
   departmentId: z.string().default("__none__"),
   roleName: z
     .string()
@@ -196,7 +201,7 @@ export function TeamUserEditPage() {
       employeeCode: "",
       phone: "",
       birthDate: "",
-      managerId: "__none__",
+      managerId: "",
       departmentId: "__none__",
       roleName: "",
       isReviewer: false,
@@ -229,7 +234,7 @@ export function TeamUserEditPage() {
     setValue("name", u.name);
     setValue("employeeCode", u.employeeCode ?? "");
     setValue("phone", u.phone ?? "");
-    setValue("managerId", u.managerId ?? "__none__");
+    setValue("managerId", u.managerId ?? "");
     setValue("departmentId", u.departmentId ?? "__none__");
     setValue("isReviewer", Boolean(u.isReviewer));
     if (u.birthDate) {
@@ -271,9 +276,9 @@ export function TeamUserEditPage() {
 
   useEffect(() => {
     if (!managersQuery.isSuccess) return;
-    if (selectedManagerId === "__none__") return;
+    if (!selectedManagerId || selectedManagerId === "__none__") return;
     if (!managerOptions.some((m) => m.id === selectedManagerId)) {
-      setValue("managerId", "__none__");
+      setValue("managerId", "");
     }
   }, [managersQuery.isSuccess, managerOptions, selectedManagerId, setValue]);
 
@@ -372,7 +377,7 @@ export function TeamUserEditPage() {
       const payload = {
         name: v.name.trim(),
         roleId,
-        managerId: v.managerId === "__none__" ? null : v.managerId,
+        managerId: v.managerId,
         departmentId: v.departmentId === "__none__" ? null : v.departmentId,
         employeeCode: v.employeeCode?.trim() ? v.employeeCode.trim() : null,
         phone: v.phone?.trim() ? v.phone.trim() : null,
@@ -460,6 +465,10 @@ export function TeamUserEditPage() {
         className="space-y-8"
         onSubmit={handleSubmit((values) => {
           if (!phoneOk) return;
+          if (!values.managerId || values.managerId === "__none__") {
+            toast.error("Reports to is required.");
+            return;
+          }
           if (!passwordSectionValid) {
             toast.error(
               "Password must be at least 8 characters and both password fields must match.",
@@ -616,7 +625,9 @@ export function TeamUserEditPage() {
           </div>
 
           <div className="space-y-2 sm:col-span-1">
-            <Label htmlFor="managerId">Reports to</Label>
+            <Label htmlFor="managerId" required>
+              Reports to
+            </Label>
             <Controller
               control={control}
               name="managerId"
@@ -627,10 +638,10 @@ export function TeamUserEditPage() {
                     className="w-full min-w-0 justify-between"
                   >
                     {(() => {
-                      if (field.value === "__none__")
+                      if (!field.value)
                         return (
                           <span className="text-muted-foreground">
-                            No manager
+                            Select manager
                           </span>
                         );
                       const selected = managerOptions.find(
@@ -648,7 +659,6 @@ export function TeamUserEditPage() {
                     })()}
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">No manager</SelectItem>
                     {managerOptions
                       .filter((m) => m.id !== user.id)
                       .map((m) => (
@@ -660,6 +670,11 @@ export function TeamUserEditPage() {
                 </Select>
               )}
             />
+            {errors.managerId?.message ? (
+              <p className="text-xs text-destructive">
+                {errors.managerId.message}
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-2 sm:col-span-1">
@@ -845,6 +860,8 @@ export function TeamUserEditPage() {
               update.isPending ||
               !canUpdateUsers ||
               !phoneOk ||
+              !selectedManagerId ||
+              selectedManagerId === "__none__" ||
               !passwordSectionValid ||
               rolesQuery.isLoading ||
               rolesQuery.isError

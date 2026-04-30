@@ -662,12 +662,12 @@ export function MeetingDetailPage() {
           {/* SCHEDULED: Edit + Start meeting */}
           {isScheduled && canUpdateMeeting ? (
             <>
-              <Link to={`/meetings/${meeting.id}/edit`}>
+              {/* <Link to={`/meetings/${meeting.id}/edit`}>
                 <Button variant="outline">
                   <Pencil className="size-3" />
                   Edit
                 </Button>
-              </Link>
+              </Link> */}
               <Button
                 type="button"
                 isLoading={startMeeting.isPending}
@@ -763,7 +763,7 @@ export function MeetingDetailPage() {
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground">Agenda</div>
                 <div className="whitespace-pre-wrap text-muted-foreground">
-                  {meeting.agenda ?? "—"}
+                  {meeting.agenda && meeting.agenda.trim() ? meeting.agenda : "—"}
                 </div>
               </div>
 
@@ -772,7 +772,9 @@ export function MeetingDetailPage() {
                   Preparation notes
                 </div>
                 <div className="whitespace-pre-wrap text-muted-foreground">
-                  {meeting.preparationNotes ?? "—"}
+                  {meeting.preparationNotes && meeting.preparationNotes.trim()
+                    ? meeting.preparationNotes
+                    : "—"}
                 </div>
               </div>
             </div>
