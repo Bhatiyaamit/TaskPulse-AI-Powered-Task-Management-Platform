@@ -126,6 +126,16 @@ export async function deleteTaskAttachment(taskId: string, attachmentId: string)
   await api.delete(`/api/tasks/${taskId}/attachments/${attachmentId}`);
 }
 
+/**
+ * Download URL through the API (serves local uploads with Content-Disposition: attachment,
+ * or redirects to a short-lived S3 presigned URL that also forces download). Prefer over raw `fileUrl`.
+ */
+export function taskAttachmentDownloadUrl(taskId: string, attachmentId: string): string {
+  const origin = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+  const p = `/api/tasks/${taskId}/attachments/${attachmentId}/download`;
+  return origin ? `${origin}${p}` : p;
+}
+
 export async function uploadTaskChecklistAttachment(
   taskId: string,
   itemId: string,

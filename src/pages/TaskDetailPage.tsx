@@ -23,7 +23,12 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { api, deleteTaskAttachment, uploadTaskAttachment } from "@/api/client";
+import {
+  api,
+  deleteTaskAttachment,
+  taskAttachmentDownloadUrl,
+  uploadTaskAttachment,
+} from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe, useHasPermission } from "@/hooks/useAuth";
 import {
@@ -996,12 +1001,11 @@ export function TaskDetailPage() {
                             </span>
                             <div className="ml-auto flex shrink-0 items-center gap-0">
                               <a
-                                href={att.fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
+                                href={taskAttachmentDownloadUrl(task.id, att.id)}
+                                download={att.fileName || undefined}
                                 className="text-primary underline-offset-4 hover:underline"
                               >
-                                Open
+                                Download
                               </a>
                               {canUpdate ? (
                                 <Button
