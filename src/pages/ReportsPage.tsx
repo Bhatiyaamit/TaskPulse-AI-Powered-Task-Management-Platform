@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -24,8 +24,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { chartColor } from "@/lib/chartColors";
 
@@ -71,6 +79,9 @@ type ReportsSummaryResponse = {
 };
 
 type DatePreset = "ALL_TIME" | "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "CUSTOM";
+
+const OVERDUE_PAGE_SIZES = [10, 20, 50] as const;
+const DEFAULT_OVERDUE_PAGE_SIZE = 10;
 
 function chartTooltipStyle() {
   return {
@@ -192,6 +203,10 @@ export function ReportsPage() {
   const [customEnd, setCustomEnd] = useState("");
   const [departmentId, setDepartmentId] = useState("ALL");
   const [assigneeId, setAssigneeId] = useState("ALL");
+  const [overduePage, setOverduePage] = useState(1);
+  const [overduePageSize, setOverduePageSize] = useState(
+    DEFAULT_OVERDUE_PAGE_SIZE,
+  );
   const showCustomRange = datePreset === "CUSTOM";
 
   const dateParams = useMemo(() => {
@@ -276,6 +291,33 @@ export function ReportsPage() {
   });
 
   const data = q.data;
+
+  useEffect(() => {
+    setOverduePage(1);
+  }, [datePreset, customStart, customEnd, departmentId, assigneeId]);
+
+  const overdueTasksAll = data?.overdueTasks ?? [];
+  const overdueTotal = overdueTasksAll.length;
+  const overduePageCount = Math.max(
+    1,
+    Math.ceil(overdueTotal / overduePageSize),
+  );
+
+  useEffect(() => {
+    setOverduePage((p) => Math.min(Math.max(1, p), overduePageCount));
+  }, [overduePageCount]);
+
+  const overdueTasksPage = useMemo(() => {
+    const start = (overduePage - 1) * overduePageSize;
+    return overdueTasksAll.slice(start, start + overduePageSize);
+  }, [overdueTasksAll, overduePage, overduePageSize]);
+
+  const overdueRangeLabel = useMemo(() => {
+    if (overdueTotal === 0) return "0 tasks";
+    const from = (overduePage - 1) * overduePageSize + 1;
+    const to = Math.min(overduePage * overduePageSize, overdueTotal);
+    return `Showing ${from}–${to} of ${overdueTotal}`;
+  }, [overduePage, overduePageSize, overdueTotal]);
 
   const { completionDonutData, completionDonutTotal } = useMemo((): {
     completionDonutData: { name: string; value: number; fill: string }[] | null;
@@ -589,7 +631,7 @@ export function ReportsPage() {
                   description="Longest-running overdue tasks in the current report set."
                 />
               </CardHeader>
-              <CardContent className="p-4">
+              <CardContent className="space-y-4 p-4">
                 <Table className="table-fixed">
                   <TableHeader>
                     <TableRow>
@@ -603,7 +645,7 @@ export function ReportsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.overdueTasks.length === 0 ? (
+                    {overdueTotal === 0 ? (
                       <TableRow>
                         <TableCell
                           colSpan={5}
@@ -613,7 +655,7 @@ export function ReportsPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      data.overdueTasks.map((task) => (
+                      overdueTasksPage.map((task) => (
                         <TableRow
                           key={task.id}
                           className="transition-colors hover:bg-rose-500/10"
@@ -645,6 +687,76 @@ export function ReportsPage() {
                     )}
                   </TableBody>
                 </Table>
+                {overdueTotal > 0 ? (
+                  <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      {overdueRangeLabel}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Label
+                          htmlFor="overdue-hitlist-page-size"
+                          className="text-xs text-muted-foreground whitespace-nowrap"
+                        >
+                          Rows per page
+                        </Label>
+                        <Select
+                          value={String(overduePageSize)}
+                          onValueChange={(v) => {
+                            const n = Number(v) as (typeof OVERDUE_PAGE_SIZES)[number];
+                            setOverduePageSize(n);
+                            setOverduePage(1);
+                          }}
+                        >
+                          <SelectTrigger
+                            id="overdue-hitlist-page-size"
+                            className="h-8 w-18"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {OVERDUE_PAGE_SIZES.map((n) => (
+                              <SelectItem key={n} value={String(n)}>
+                                {n}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={overduePage <= 1 || q.isLoading}
+                          onClick={() =>
+                            setOverduePage((p) => Math.max(1, p - 1))
+                          }
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm text-muted-foreground tabular-nums">
+                          Page {overduePage} / {overduePageCount}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            overduePage >= overduePageCount || q.isLoading
+                          }
+                          onClick={() =>
+                            setOverduePage((p) =>
+                              Math.min(overduePageCount, p + 1),
+                            )
+                          }
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </div>

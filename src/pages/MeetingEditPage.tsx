@@ -10,13 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import {
   CenteredFormPage,
   FormBackLink,
@@ -257,20 +251,17 @@ export function MeetingEditPage() {
 
           <div className="space-y-2">
             <Label>Meeting type</Label>
-            <Select
+            <SearchableSelect
+              showSearch={false}
               value={meetingType}
-              onValueChange={(v) =>
+              onChange={(v) =>
                 setMeetingType(v as (typeof MEETING_TYPES)[number])
               }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ONLINE">Online</SelectItem>
-                <SelectItem value="OFFLINE">Offline</SelectItem>
-              </SelectContent>
-            </Select>
+              options={[
+                { value: "ONLINE", label: "Online" },
+                { value: "OFFLINE", label: "Offline" },
+              ]}
+            />
           </div>
 
           {meetingType === "ONLINE" ? (
@@ -327,21 +318,17 @@ export function MeetingEditPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Priority</Label>
-              <Select
+              <SearchableSelect
+                showSearch={false}
                 value={priority}
-                onValueChange={(v) => setPriority(v as any)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MEETING_PRIORITIES.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p.charAt(0) + p.slice(1).toLowerCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(v) =>
+                  setPriority(v as (typeof MEETING_PRIORITIES)[number])
+                }
+                options={MEETING_PRIORITIES.map((p) => ({
+                  value: p,
+                  label: p.charAt(0) + p.slice(1).toLowerCase(),
+                }))}
+              />
             </div>
 
             <div className="space-y-2">

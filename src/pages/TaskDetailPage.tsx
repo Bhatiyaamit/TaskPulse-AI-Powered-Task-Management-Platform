@@ -396,13 +396,22 @@ export function TaskDetailPage() {
   const updateChecklistItem = useMutation({
     mutationFn: async (payload: { itemId: string; isChecked?: boolean }) =>
       api.patch(`/api/tasks/${id}/checklist/${payload.itemId}`, payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["task-checklist", id] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["task-checklist", id] });
+      // Activities live on the task payload — refetch so timeline matches DB without a full page refresh.
+      await qc.invalidateQueries({ queryKey: ["task", id] });
     },
   });
 
   const recentActivities = useMemo(() => {
-    return [...(task?.activities ?? [])].slice(-10).reverse();
+    const sorted = [...(task?.activities ?? [])].sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+    return sorted
+      .filter((a) => a.message?.trim().toLowerCase() !== "checklist updated")
+      .slice(-50)
+      .reverse();
   }, [task?.activities]);
 
   const recentChecklistItems = useMemo(() => {
