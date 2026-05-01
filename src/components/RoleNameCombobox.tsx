@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDownIcon, ChevronUpIcon, X } from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type RoleNameComboboxRole = {
@@ -42,20 +42,22 @@ export function RoleNameCombobox({
   className,
 }: Props) {
   const [open, setOpen] = useState(false);
-  /** When true, list shows all roles until the user types (fixes “only one match” while editing). */
-  const [browseAll, setBrowseAll] = useState(true);
+  /** Filters the dropdown list only; role name `value` stays in the main field. */
+  const [listQuery, setListQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const showClear = Boolean(!disabled && value.trim());
 
+  useEffect(() => {
+    if (!open) setListQuery("");
+  }, [open]);
+
   const displayed = useMemo(() => {
-    const q = value.trim().toLowerCase();
-    if (browseAll || !q) {
-      return roles.slice(0, MAX_SUGGESTIONS);
-    }
+    const q = listQuery.trim().toLowerCase();
+    if (!q) return roles.slice(0, MAX_SUGGESTIONS);
     return roles
       .filter((r) => r.name.toLowerCase().includes(q))
       .slice(0, MAX_SUGGESTIONS);
-  }, [roles, value, browseAll]);
+  }, [roles, listQuery]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -85,12 +87,10 @@ export function RoleNameCombobox({
           id={id}
           value={value}
           onChange={(e) => {
-            setBrowseAll(false);
             onChange(e.target.value);
             setOpen(true);
           }}
           onFocus={() => {
-            setBrowseAll(true);
             setOpen(true);
           }}
           onBlur={() => {
@@ -114,9 +114,9 @@ export function RoleNameCombobox({
               aria-label="Clear role name"
               onMouseDown={(e) => {
                 e.preventDefault();
-                setBrowseAll(true);
                 onChange("");
                 onClear?.();
+                setListQuery("");
                 setOpen(true);
               }}
             >
@@ -136,7 +136,6 @@ export function RoleNameCombobox({
             onMouseDown={(e) => {
               e.preventDefault();
               if (!canToggleList) return;
-              if (!open) setBrowseAll(true);
               setOpen((o) => !o);
             }}
           >
@@ -149,52 +148,65 @@ export function RoleNameCombobox({
         </div>
       </div>
       {open && !disabled && roles.length > 0 ? (
-        <ul
-          className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-popover/80 text-popover-foreground shadow-lg ring-1 ring-foreground/12 backdrop-blur"
-          role="listbox"
-        >
-          {browseAll && value.trim() ? (
-            <li
-              className="border-b border-border/60 px-3 py-1.5 text-xs text-muted-foreground"
-              role="presentation"
-            >
-              Showing all roles — type to narrow the list
-            </li>
-          ) : null}
-          {displayed.length === 0 ? (
-            <li
-              className="px-3 py-2 text-sm text-muted-foreground"
-              role="presentation"
-            >
-              No matches — continue typing to use a new role name (set
-              permissions below).
-            </li>
-          ) : (
-            displayed.map((r) => (
-              <li key={r.id} role="presentation">
-                <button
-                  type="button"
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
-                  role="option"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    onChange(r.name);
-                    onPickRole?.(r);
-                    setBrowseAll(true);
-                    setOpen(false);
-                  }}
-                >
-                  {r.name}
-                  {r.level > 0 ? (
-                    <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      L{r.level}
-                    </span>
-                  ) : null}
-                </button>
+        <div className="absolute z-50 mt-1 flex max-h-60 w-full flex-col overflow-hidden rounded-lg border border-border bg-popover/80 text-popover-foreground shadow-lg ring-1 ring-foreground/12 backdrop-blur">
+          <div className="sticky top-0 z-10 shrink-0 border-b border-border/60 bg-popover/95 p-2 backdrop-blur">
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <input
+                type="search"
+                value={listQuery}
+                onChange={(e) => setListQuery(e.target.value)}
+                onMouseDown={(e) => e.preventDefault()}
+                placeholder="Search roles…"
+                autoComplete="off"
+                className="h-8 w-full rounded-md border border-input bg-background/80 py-1 pl-8 pr-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                aria-label="Search roles"
+              />
+            </div>
+          </div>
+          <ul
+            className="min-h-0 flex-1 overflow-y-auto py-0"
+            role="listbox"
+            aria-label="Role suggestions"
+          >
+            {displayed.length === 0 ? (
+              <li
+                className="px-3 py-2 text-sm text-muted-foreground"
+                role="presentation"
+              >
+                No matches — adjust search or type a new role name above (set
+                permissions below).
               </li>
-            ))
-          )}
-        </ul>
+            ) : (
+              displayed.map((r) => (
+                <li key={r.id} role="presentation">
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
+                    role="option"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onChange(r.name);
+                      onPickRole?.(r);
+                      setListQuery("");
+                      setOpen(false);
+                    }}
+                  >
+                    {r.name}
+                    {r.level > 0 ? (
+                      <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        L{r.level}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
       ) : null}
       {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
     </div>

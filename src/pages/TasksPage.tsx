@@ -121,6 +121,9 @@ const LIST_STATE_QUERY_KEYS = [
 const SORT_IDS = [
   "title",
   "status",
+  "priority",
+  "createdBy",
+  "assignedTo",
   "overdue",
   "dueDate",
   "reviewer",

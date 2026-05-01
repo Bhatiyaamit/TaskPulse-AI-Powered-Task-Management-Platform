@@ -23,7 +23,12 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { api, deleteTaskAttachment, uploadTaskAttachment } from "@/api/client";
+import {
+  api,
+  deleteTaskAttachment,
+  taskAttachmentDownloadUrl,
+  uploadTaskAttachment,
+} from "@/api/client";
 import type { ApiSuccess } from "@/api/types";
 import { useMe, useHasPermission } from "@/hooks/useAuth";
 import {
@@ -396,13 +401,22 @@ export function TaskDetailPage() {
   const updateChecklistItem = useMutation({
     mutationFn: async (payload: { itemId: string; isChecked?: boolean }) =>
       api.patch(`/api/tasks/${id}/checklist/${payload.itemId}`, payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["task-checklist", id] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["task-checklist", id] });
+      // Activities live on the task payload — refetch so timeline matches DB without a full page refresh.
+      await qc.invalidateQueries({ queryKey: ["task", id] });
     },
   });
 
   const recentActivities = useMemo(() => {
-    return [...(task?.activities ?? [])].slice(-10).reverse();
+    const sorted = [...(task?.activities ?? [])].sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+    return sorted
+      .filter((a) => a.message?.trim().toLowerCase() !== "checklist updated")
+      .slice(-50)
+      .reverse();
   }, [task?.activities]);
 
   const recentChecklistItems = useMemo(() => {
@@ -987,12 +1001,11 @@ export function TaskDetailPage() {
                             </span>
                             <div className="ml-auto flex shrink-0 items-center gap-0">
                               <a
-                                href={att.fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
+                                href={taskAttachmentDownloadUrl(task.id, att.id)}
+                                download={att.fileName || undefined}
                                 className="text-primary underline-offset-4 hover:underline"
                               >
-                                Open
+                                Download
                               </a>
                               {canUpdate ? (
                                 <Button

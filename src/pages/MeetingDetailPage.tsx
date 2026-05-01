@@ -72,7 +72,13 @@ type MeetingTaskRow = {
   updatedAt: string;
   status: { code: string; label: string };
   createdBy: { id: string; name: string; username: string } | null;
-  assignedTo: { id: string; name: string; username: string } | null;
+  assignedTo: {
+    id: string;
+    name: string;
+    username: string;
+    role?: { name: string } | null;
+  } | null;
+  department: { id: string; name: string } | null;
   reviewer: { id: string; name: string; username: string } | null;
 };
 
@@ -109,6 +115,11 @@ const PAGE_SIZES = [10, 20, 50] as const;
 const SORT_IDS = [
   "title",
   "status",
+  "priority",
+  "assignedTo",
+  "role",
+  "department",
+  "createdBy",
   "overdue",
   "dueDate",
   "reviewer",
@@ -118,17 +129,6 @@ type SortId = (typeof SORT_IDS)[number];
 
 function isSortId(id: string): id is SortId {
   return (SORT_IDS as readonly string[]).includes(id);
-}
-
-function formatDay(iso: string | null) {
-  if (!iso) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-      new Date(iso),
-    );
-  } catch {
-    return "—";
-  }
 }
 
 function formatDateTime(iso: string) {
@@ -212,12 +212,6 @@ export function MeetingDetailPage() {
     enabled: Boolean(id),
     queryFn: async () => {
       const parsed = parseMeetingTasksUrlParams(searchParams);
-      const apiSortBy =
-        parsed.sortBy && parsed.sortDir
-          ? parsed.sortBy === "overdue"
-            ? "dueDate"
-            : parsed.sortBy
-          : undefined;
       const { data } = await api.get<
         ApiSuccess<{ meeting: MeetingDetailResponse }>
       >(`/api/meetings/${id}`, {
@@ -226,8 +220,8 @@ export function MeetingDetailPage() {
           pageSize: parsed.pagination.pageSize,
           ...(parsed.statusId ? { statusId: parsed.statusId } : {}),
           ...(parsed.q ? { search: parsed.q } : {}),
-          ...(apiSortBy && parsed.sortDir
-            ? { sortBy: apiSortBy, sortDir: parsed.sortDir }
+          ...(parsed.sortBy && parsed.sortDir
+            ? { sortBy: parsed.sortBy, sortDir: parsed.sortDir }
             : {}),
         },
       });
@@ -401,10 +395,10 @@ export function MeetingDetailPage() {
         },
       },
       {
-        accessorKey: "assignedTo",
         id: "assignedTo",
+        accessorFn: (r) =>
+          r.assignedTo?.name ?? r.assignedTo?.username ?? "",
         header: "Assigned to",
-        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.assignedTo?.name ||
@@ -414,10 +408,30 @@ export function MeetingDetailPage() {
         ),
       },
       {
-        accessorKey: "createdBy",
+        id: "role",
+        accessorFn: (r) => r.assignedTo?.role?.name ?? "",
+        header: "Role",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.assignedTo?.role?.name ?? "—"}
+          </span>
+        ),
+      },
+      {
+        id: "department",
+        accessorFn: (r) => r.department?.name ?? "",
+        header: "Department",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.department?.name ?? "—"}
+          </span>
+        ),
+      },
+      {
         id: "createdBy",
+        accessorFn: (r) =>
+          r.createdBy?.name ?? r.createdBy?.username ?? "",
         header: "Created by",
-        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.createdBy?.name ||
@@ -457,7 +471,9 @@ export function MeetingDetailPage() {
         header: "Due date",
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {formatDay(row.original.dueDate)}
+            {row.original.dueDate
+              ? formatDateTime(row.original.dueDate)
+              : "—"}
           </span>
         ),
       },

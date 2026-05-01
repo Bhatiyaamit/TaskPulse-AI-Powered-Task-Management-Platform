@@ -20,12 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -181,6 +176,15 @@ export function TeamUserEditPage() {
 
   const managerOptions = managersQuery.data ?? [];
   const departmentOptions = departmentsQuery.data ?? [];
+
+  const managerSelectOptions = useMemo(
+    () =>
+      managerOptions
+        .filter((m) => m.id !== userQuery.data?.id)
+        .map((m) => ({ value: m.id, label: `${m.name} (${m.username})` })),
+    [managerOptions, userQuery.data?.id],
+  );
+
   const roleOptionsForCombobox = useMemo(
     () => dedupeRolesByDisplayName(rolesQuery.data ?? []),
     [rolesQuery.data],
@@ -586,40 +590,18 @@ export function TeamUserEditPage() {
               control={control}
               name="departmentId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger
-                    id="departmentId"
-                    className="w-full min-w-0 justify-between"
-                  >
-                    {(() => {
-                      if (field.value === "__none__") {
-                        return (
-                          <span className="text-muted-foreground">
-                            No department
-                          </span>
-                        );
-                      }
-                      const selected = departmentOptions.find(
-                        (d) => d.id === field.value,
-                      );
-                      return selected ? (
-                        <span className="truncate">{selected.name}</span>
-                      ) : (
-                        <span className="text-muted-foreground">
-                          Select department
-                        </span>
-                      );
-                    })()}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No department</SelectItem>
-                    {departmentOptions.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={field.value}
+                  onChange={field.onChange}
+                  showSearch={departmentOptions.length > 5}
+                  options={[
+                    { value: "__none__", label: "No department" },
+                    ...departmentOptions.map((d) => ({
+                      value: d.id,
+                      label: d.name,
+                    })),
+                  ]}
+                />
               )}
             />
           </div>
@@ -632,42 +614,12 @@ export function TeamUserEditPage() {
               control={control}
               name="managerId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger
-                    id="managerId"
-                    className="w-full min-w-0 justify-between"
-                  >
-                    {(() => {
-                      if (!field.value)
-                        return (
-                          <span className="text-muted-foreground">
-                            Select manager
-                          </span>
-                        );
-                      const selected = managerOptions.find(
-                        (m) => m.id === field.value,
-                      );
-                      return selected ? (
-                        <span className="truncate">
-                          {selected.name} ({selected.username})
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">
-                          Select manager
-                        </span>
-                      );
-                    })()}
-                  </SelectTrigger>
-                  <SelectContent>
-                    {managerOptions
-                      .filter((m) => m.id !== user.id)
-                      .map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.name} ({m.username})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={field.value}
+                  onChange={field.onChange}
+                  showSearch={managerSelectOptions.length > 5}
+                  options={managerSelectOptions}
+                />
               )}
             />
             {errors.managerId?.message ? (
