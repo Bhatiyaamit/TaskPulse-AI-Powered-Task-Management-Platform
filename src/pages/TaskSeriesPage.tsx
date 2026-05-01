@@ -1,7 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Repeat } from "lucide-react";
-import { toast } from "sonner";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,7 +20,6 @@ function formatDay(iso: string | null) {
 export function TaskSeriesPage() {
   const { recurrenceGroupId } = useParams<{ recurrenceGroupId: string }>();
   const navigate = useNavigate();
-  const qc = useQueryClient();
 
   const seriesQuery = useQuery({
     queryKey: ["task-series", recurrenceGroupId],
@@ -30,32 +28,6 @@ export function TaskSeriesPage() {
       const { data } = await api.get(`/api/tasks/series/${recurrenceGroupId}`);
       return data.data.tasks as any[];
     },
-  });
-
-  const cancelRemaining = useMutation({
-    mutationFn: async () => {
-      // "delete all tasks where startDate >= today"
-      // since scope="future" requires fromTaskId, let's find the first task >= today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tasks = seriesQuery.data || [];
-      const futureTask = tasks.find((t) => new Date(t.startDate) >= today);
-      if (!futureTask) {
-        throw new Error("No remaining tasks found to cancel");
-      }
-      return api.delete(`/api/tasks/series/${recurrenceGroupId}`, {
-        data: { scope: "future", fromTaskId: futureTask.id },
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["task-series", recurrenceGroupId] });
-      qc.invalidateQueries({ queryKey: ["tasks"] });
-      toast.success("Remaining tasks cancelled");
-    },
-    onError: (e: any) =>
-      toast.error(
-        e?.response?.data?.message || "Failed to cancel remaining tasks",
-      ),
   });
 
   const tasks = seriesQuery.data || [];
@@ -136,30 +108,6 @@ export function TaskSeriesPage() {
           </div>
         </CardContent>
       </Card>
-
-      <div className="flex items-center gap-4 border-t border-border pt-6">
-        <Button
-          onClick={() => navigate(`/tasks/${firstTask.id}/edit?scope=all`)}
-          variant="default"
-        >
-          Edit entire series
-        </Button>
-        <Button
-          onClick={() => {
-            if (
-              confirm(
-                "Are you sure you want to cancel all future remaining tasks in this series?",
-              )
-            ) {
-              cancelRemaining.mutate();
-            }
-          }}
-          disabled={cancelRemaining.isPending}
-          variant="destructive"
-        >
-          Cancel remaining tasks
-        </Button>
-      </div>
     </div>
   );
 }
