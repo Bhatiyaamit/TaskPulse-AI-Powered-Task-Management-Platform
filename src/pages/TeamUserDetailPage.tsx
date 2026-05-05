@@ -138,8 +138,6 @@ export function TeamUserDetailPage() {
   }
 
   const user = userQuery.data;
-  const isCompanyAdminRole =
-    user.role?.code?.toUpperCase() === "COMPANY_ADMIN";
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
@@ -159,28 +157,6 @@ export function TeamUserDetailPage() {
           >
             Back to team
           </Link>
-          {canUpdateUsers ? (
-            isCompanyAdminRole ? (
-              <span
-                className={cn(
-                  "text-sm font-medium text-muted-foreground cursor-not-allowed",
-                )}
-                aria-disabled
-                title="Company admin users cannot be edited from Team"
-              >
-                Edit
-              </span>
-            ) : (
-              <Link
-                to={`/team/${user.id}/edit`}
-                className={cn(
-                  "text-sm font-medium text-primary underline-offset-4 hover:underline",
-                )}
-              >
-                Edit
-              </Link>
-            )
-          ) : null}
         </div>
       </div>
 

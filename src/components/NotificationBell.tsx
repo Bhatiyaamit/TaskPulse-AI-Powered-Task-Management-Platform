@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Info,
   Mail,
+  Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -35,12 +36,24 @@ type Notif = {
   metadata?: any;
 };
 
+function notificationKind(n: Notif): string {
+  const k = String(n.metadata?.kind ?? "").toUpperCase();
+  if (k) return k;
+  return String(n.type ?? "").toUpperCase();
+}
+
+function isTaskDeletedNotification(n: Notif): boolean {
+  return notificationKind(n) === "TASK_DELETED";
+}
+
 function isTaskEscalationNotification(n: Notif): boolean {
-  return n.metadata?.kind === "TASK_ESCALATION";
+  return notificationKind(n) === "TASK_ESCALATION";
 }
 
 function notificationIcon(n: Notif) {
+  const kind = notificationKind(n);
   if (isTaskEscalationNotification(n)) return AlertTriangle;
+  if (kind === "TASK_DELETED") return Trash2;
   const t = String(n.type || "").toUpperCase();
   if (t.includes("MEETING")) return Calendar;
   if (t.includes("ASSIGNED")) return ClipboardList;
@@ -69,11 +82,16 @@ function taskEscalationBadgeClass() {
 }
 
 function notificationBadgeClassFor(n: Notif) {
+  if (notificationKind(n) === "TASK_DELETED") {
+    const base = badgeBase();
+    return `${base} border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200`;
+  }
   if (isTaskEscalationNotification(n)) return taskEscalationBadgeClass();
   return notificationBadgeClass(n.type);
 }
 
 function notificationBadgeLabel(n: Notif) {
+  if (notificationKind(n) === "TASK_DELETED") return "Task deleted";
   if (isTaskEscalationNotification(n)) return "Task Escalation";
   return String(n.type || "")
     .replace(/_/g, " ")
@@ -244,7 +262,9 @@ export function NotificationBell() {
                           const taskId = n.taskId ?? n.metadata?.taskId ?? null;
                           const meetingId = n.metadata?.meetingId ?? null;
 
-                          if (taskId) nav(`/tasks/${taskId}`);
+                          if (taskId && !isTaskDeletedNotification(n)) {
+                            nav(`/tasks/${taskId}`);
+                          }
                           else if (meetingId) nav(`/meetings/${meetingId}`);
 
                           setOpen(false);
