@@ -96,7 +96,7 @@ export function PlatformTenantEditPage() {
       description="Update company details. First admin username is read-only."
       back={
         <FormBackLink
-          to={tenantId ? `/platform/tenants/${tenantId}` : "/platform/tenants"}
+          to={tenantId ? `/platform/tenants` : "/platform/tenants"}
         >
           Back
         </FormBackLink>

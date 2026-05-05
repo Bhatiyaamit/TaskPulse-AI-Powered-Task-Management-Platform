@@ -123,12 +123,23 @@ const RANGE_LABELS: Record<DashboardRange, string> = {
 };
 
 const ALLOWED_WIDGET_KEYS = new Set<string>([
-  "total_tasks",
+  "my_open_tasks",
+  "due_today",
   "overdue_tasks",
-  "completed_today",
   "pending_review",
+  "high_priority",
+  "escalated",
+  "total_tasks",
+  "completed_today",
   "tasks_by_status",
   "tasks_by_priority",
+  "my_tasks_today",
+]);
+
+/** Shown side-by-side below KPIs; size is fixed (not customizable). */
+const DASHBOARD_CHART_PAIR_KEYS = new Set<string>([
+  "tasks_by_priority",
+  "tasks_by_status",
 ]);
 
 function widgetSizeClass(size: DashboardWidgetSize) {
@@ -156,6 +167,18 @@ function formatDate(iso: string | null) {
     return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
       new Date(iso),
     );
+  } catch {
+    return "-";
+  }
+}
+
+function formatDueDateTime(iso: string | null) {
+  if (!iso) return "-";
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso));
   } catch {
     return "-";
   }
@@ -345,6 +368,8 @@ function KpiWidget({ widget }: { widget: DashboardWidgetData }) {
 
 function TaskTableWidget({ widget }: { widget: DashboardWidgetData }) {
   const rows = normalizeTaskRows(widget.data);
+  const isMyToday = widget.widgetKey === "my_tasks_today";
+  const formatDue = isMyToday ? formatDueDateTime : formatDate;
   if (!rows.length) {
     return (
       <div className="rounded-lg border border-border bg-background/30 px-3 py-8 text-center text-sm text-muted-foreground">
@@ -353,63 +378,99 @@ function TaskTableWidget({ widget }: { widget: DashboardWidgetData }) {
     );
   }
   return (
-    <div className="overflow-auto rounded-lg border border-border">
-      <table className="w-full min-w-160 text-sm">
-        <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 text-left">Task</th>
-            <th className="px-3 py-2 text-left">Priority</th>
-            <th className="px-3 py-2 text-left">Status</th>
-            <th className="px-3 py-2 text-left">Assigned to</th>
-            <th className="px-3 py-2 text-left">Due</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((task) => (
-            <tr key={task.id} className="border-t border-border/70">
-              <td className="max-w-72 px-3 py-2">
-                <Link
-                  to={`/tasks/${task.id}`}
-                  className="font-medium text-foreground underline-offset-4 hover:underline"
-                >
-                  {task.title}
-                </Link>
-                {task.overdue ? (
-                  <span className={cn("ml-2", overdueBadgeClass())}>
-                    Overdue
-                  </span>
-                ) : null}
-              </td>
-              <td className="px-3 py-2">
-                <span className={taskPriorityBadgeClass(task.priority)}>
-                  {task.priority}
-                </span>
-              </td>
-              <td className="px-3 py-2">
-                <span className={taskStatusBadgeClass(task.status.code)}>
-                  {task.status.label}
-                </span>
-              </td>
-              <td className="px-3 py-2 text-muted-foreground">
-                {task.assignedTo?.name ?? "-"}
-              </td>
-              <td className="px-3 py-2 text-muted-foreground">
-                {formatDate(task.dueDate)}
-              </td>
+    <div className="space-y-2">
+      <div className="overflow-auto rounded-lg border border-border">
+        <table className="w-full min-w-160 text-sm">
+          <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 text-left">Task</th>
+              <th className="px-3 py-2 text-left">Priority</th>
+              {!isMyToday ? (
+                <th className="px-3 py-2 text-left">Status</th>
+              ) : null}
+              {!isMyToday ? (
+                <th className="px-3 py-2 text-left">Assigned to</th>
+              ) : null}
+              <th className="px-3 py-2 text-left">Due</th>
+              {isMyToday ? (
+                <th className="px-3 py-2 text-left">Status</th>
+              ) : null}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((task) => (
+              <tr key={task.id} className="border-t border-border/70">
+                <td className="max-w-72 px-3 py-2">
+                  <Link
+                    to={`/tasks/${task.id}`}
+                    className="font-medium text-foreground underline-offset-4 hover:underline"
+                  >
+                    {task.title}
+                  </Link>
+                  {task.overdue ? (
+                    <span className={cn("ml-2", overdueBadgeClass())}>
+                      Overdue
+                    </span>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2">
+                  <span className={taskPriorityBadgeClass(task.priority)}>
+                    {task.priority === "URGENT" ? "Critical" : task.priority}
+                  </span>
+                </td>
+                {!isMyToday ? (
+                  <td className="px-3 py-2">
+                    <span className={taskStatusBadgeClass(task.status.code)}>
+                      {task.status.label}
+                    </span>
+                  </td>
+                ) : null}
+                {!isMyToday ? (
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {task.assignedTo?.name ?? "-"}
+                  </td>
+                ) : null}
+                <td className="px-3 py-2 text-muted-foreground">
+                  {formatDue(task.dueDate)}
+                </td>
+                {isMyToday ? (
+                  <td className="px-3 py-2">
+                    <span className={taskStatusBadgeClass(task.status.code)}>
+                      {task.status.label}
+                    </span>
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {isMyToday ? (
+        <div className="text-right text-sm">
+          <Link
+            to="/tasks"
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            View more
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function DashboardWidgetCard({ widget }: { widget: DashboardWidgetData }) {
+function DashboardWidgetCard({
+  widget,
+  chartPairSlot = false,
+}: {
+  widget: DashboardWidgetData;
+  chartPairSlot?: boolean;
+}) {
   return (
     <Card
       className={cn(
         "border-border/80 bg-background/45",
-        widgetSizeClass(widget.size),
+        chartPairSlot ? "w-full min-w-0" : widgetSizeClass(widget.size),
         cardHeightClass(widget),
       )}
     >
@@ -556,6 +617,43 @@ export function DashboardPage() {
       })
       .filter((widget): widget is DashboardWidgetData => widget != null);
   }, [catalog, sortedDraftLayout, widgetDataByKey]);
+
+  /** Preserves layout order; consecutive chart widgets render in one two-column row. */
+  const dashboardSections = useMemo(() => {
+    type GridSection = { kind: "grid"; widgets: DashboardWidgetData[] };
+    type ChartSection = { kind: "chartPair"; widgets: DashboardWidgetData[] };
+    const sections: (GridSection | ChartSection)[] = [];
+    let gridBuf: DashboardWidgetData[] = [];
+
+    const flushGrid = () => {
+      if (gridBuf.length) {
+        sections.push({ kind: "grid", widgets: gridBuf });
+        gridBuf = [];
+      }
+    };
+
+    let i = 0;
+    while (i < visibleWidgets.length) {
+      const w = visibleWidgets[i];
+      if (DASHBOARD_CHART_PAIR_KEYS.has(w.widgetKey)) {
+        flushGrid();
+        const charts: DashboardWidgetData[] = [];
+        while (
+          i < visibleWidgets.length &&
+          DASHBOARD_CHART_PAIR_KEYS.has(visibleWidgets[i].widgetKey)
+        ) {
+          charts.push(visibleWidgets[i]);
+          i += 1;
+        }
+        sections.push({ kind: "chartPair", widgets: charts });
+      } else {
+        gridBuf.push(w);
+        i += 1;
+      }
+    }
+    flushGrid();
+    return sections;
+  }, [visibleWidgets]);
 
   const savedState = useMemo(() => {
     if (!data) return "";
@@ -745,9 +843,7 @@ export function DashboardPage() {
                 const item = catalog.find((w) => w.key === layout.widgetKey);
                 if (!item) return null;
                 const showChartControl = item.type !== "KPI";
-                const hideSizeControl =
-                  layout.widgetKey === "tasks_by_status" ||
-                  layout.widgetKey === "tasks_by_priority";
+                const hideSizeControl = item.type === "CHART";
                 return (
                   <div
                     key={layout.widgetKey}
@@ -913,22 +1009,50 @@ export function DashboardPage() {
 
       {!customize ? (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {visibleWidgets.length ? (
-              visibleWidgets.map((widget) => (
-                <DashboardWidgetCard key={widget.widgetKey} widget={widget} />
-              ))
-            ) : (
-              <Card className="md:col-span-2 xl:col-span-4">
-                <CardHeader>
-                  <CardTitle>No widgets selected</CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  Turn on at least one widget in Customize mode.
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          {!dashboardSections.length ? (
+            <Card className="md:col-span-2 xl:col-span-4">
+              <CardHeader>
+                <CardTitle>No widgets selected</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                Turn on at least one widget in Customize mode.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {dashboardSections.map((section, sectionIndex) =>
+                section.kind === "grid" ? (
+                  <div
+                    key={`grid-${sectionIndex}`}
+                    className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+                  >
+                    {section.widgets.map((widget) => (
+                      <DashboardWidgetCard
+                        key={widget.widgetKey}
+                        widget={widget}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    key={`charts-${sectionIndex}`}
+                    className={cn(
+                      "grid grid-cols-1 gap-4",
+                      section.widgets.length > 1 && "lg:grid-cols-2",
+                    )}
+                  >
+                    {section.widgets.map((widget) => (
+                      <DashboardWidgetCard
+                        key={widget.widgetKey}
+                        widget={widget}
+                        chartPairSlot
+                      />
+                    ))}
+                  </div>
+                ),
+              )}
+            </div>
+          )}
 
           <div className="text-xs text-muted-foreground">
             Current range: {RANGE_LABELS[data.filters.range]}. Use Customize to
