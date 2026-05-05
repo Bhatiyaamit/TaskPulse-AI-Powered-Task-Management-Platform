@@ -231,6 +231,26 @@ export function TeamPage() {
     () => dedupeRolesByDisplayName(roleOptions),
     [roleOptions],
   );
+  const subordinateIdsQuery = useQuery({
+    queryKey: ["team-members", "subordinate-ids", myUserId],
+    enabled: canListTeam && Boolean(myUserId) && (canEditUsers || canDeleteUsers),
+    queryFn: async () => {
+      const { data } = await api.get<PaginatedResponse<TeamMemberRow>>(
+        "/api/team/members",
+        {
+          params: {
+            page: 1,
+            pageSize: 2000,
+            hierarchyScope: "subordinates",
+          },
+        },
+      );
+      return new Set(data.data.map((u) => u.id));
+    },
+    staleTime: 30_000,
+  });
+  const subordinateIds = subordinateIdsQuery.data ?? new Set<string>();
+  const hasLoadedHierarchyScope = subordinateIdsQuery.isSuccess;
 
   useEffect(() => {
     if (roleName || !legacyRoleId) return;
@@ -410,179 +430,210 @@ export function TeamPage() {
           </span>
         ),
       },
-      {
-        id: "actions",
-        header: "Actions",
-        cell: ({ row }) => {
-          const isSelf = Boolean(myUserId && row.original.id === myUserId);
-          const isCompanyAdminRole =
-            row.original.role?.code?.toUpperCase() === "COMPANY_ADMIN";
-          return (
-            <div className="flex items-center gap-0.5">
-              {canEditUsers ? (
-                <>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        isCompanyAdminRole ? (
-                          <span className="inline-flex cursor-not-allowed rounded-md">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 pointer-events-none opacity-50"
-                              disabled
-                              aria-label="Edit user (not available for company admin)"
-                            >
-                              <Pencil className="size-4 text-muted-foreground" />
-                            </Button>
-                          </span>
-                        ) : (
-                          <Link to={`/team/${row.original.id}/edit`}>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-8"
-                              aria-label="Edit user"
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                          </Link>
-                        )
-                      }
-                    ></TooltipTrigger>
-                    <TooltipContent>
-                      {isCompanyAdminRole
-                        ? "Company admin users cannot be edited from Team"
-                        : "Edit"}
-                    </TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        isSelf || isCompanyAdminRole ? (
-                          <span className="inline-flex cursor-not-allowed rounded-md">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 pointer-events-none opacity-50"
-                              disabled
-                              aria-label={
-                                isCompanyAdminRole
-                                  ? row.original.isActive
-                                    ? "Deactivate user (not available for company admin)"
-                                    : "Activate user (not available for company admin)"
-                                  : row.original.isActive
-                                    ? "Deactivate user (not available for your account)"
-                                    : "Activate user (not available for your account)"
-                              }
-                            >
-                              {row.original.isActive ? (
-                                <ToggleRight className="size-5 text-muted-foreground" />
+      ...((canEditUsers || canDeleteUsers)
+        ? ([
+            {
+              id: "actions",
+              header: "Actions",
+              cell: ({ row }) => {
+                const isSelf = Boolean(myUserId && row.original.id === myUserId);
+                const isCompanyAdminRole =
+                  row.original.role?.code?.toUpperCase() === "COMPANY_ADMIN";
+                const isSubordinate = subordinateIds.has(row.original.id);
+                const hierarchyBlocked = !isSubordinate;
+                const hierarchyTooltip = hasLoadedHierarchyScope
+                  ? "You can manage only your subordinate users"
+                  : "Checking hierarchy access...";
+                return (
+                  <div className="flex items-center gap-0.5">
+                    {canEditUsers ? (
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              isCompanyAdminRole || hierarchyBlocked ? (
+                                <span className="inline-flex cursor-not-allowed rounded-md">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8 pointer-events-none opacity-50"
+                                    disabled
+                                    aria-label={
+                                      isCompanyAdminRole
+                                        ? "Edit user (not available for company admin)"
+                                        : "Edit user (not available outside your hierarchy)"
+                                    }
+                                  >
+                                    <Pencil className="size-4 text-muted-foreground" />
+                                  </Button>
+                                </span>
                               ) : (
-                                <ToggleLeft className="size-5 text-muted-foreground" />
-                              )}
-                            </Button>
-                          </span>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            aria-label={
-                              row.original.isActive
-                                ? "Deactivate user"
-                                : "Activate user"
+                                <Link to={`/team/${row.original.id}/edit`}>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8"
+                                    aria-label="Edit user"
+                                  >
+                                    <Pencil className="size-4" />
+                                  </Button>
+                                </Link>
+                              )
                             }
-                            onClick={() =>
-                              setConfirm({
-                                userId: row.original.id,
-                                userName: row.original.name,
-                                next: !row.original.isActive,
-                              })
-                            }
-                          >
-                            {row.original.isActive ? (
-                              <ToggleRight className="size-5 text-green-500" />
-                            ) : (
-                              <ToggleLeft className="size-5 text-red-500" />
-                            )}
-                          </Button>
-                        )
-                      }
-                    ></TooltipTrigger>
-                    <TooltipContent>
-                      {isCompanyAdminRole
-                        ? "Company admin user status cannot be changed from Team"
-                        : isSelf
-                          ? "You cannot activate or deactivate your own account"
-                          : row.original.isActive
-                            ? "Deactivate user"
-                            : "Activate user"}
-                    </TooltipContent>
-                  </Tooltip>
-                </>
-              ) : null}
+                          ></TooltipTrigger>
+                          <TooltipContent>
+                            {isCompanyAdminRole
+                              ? "Company admin users cannot be edited from Team"
+                              : hierarchyBlocked
+                                ? hierarchyTooltip
+                                : "Edit"}
+                          </TooltipContent>
+                        </Tooltip>
 
-              {canDeleteUsers ? (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      isSelf || isCompanyAdminRole ? (
-                        <span className="inline-flex cursor-not-allowed rounded-md">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 pointer-events-none text-muted-foreground opacity-50"
-                            disabled
-                            aria-label={
-                              isCompanyAdminRole
-                                ? "Delete user (not available for company admin)"
-                                : "Delete user (not available for your account)"
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              isSelf || isCompanyAdminRole || hierarchyBlocked ? (
+                                <span className="inline-flex cursor-not-allowed rounded-md">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8 pointer-events-none opacity-50"
+                                    disabled
+                                    aria-label={
+                                      isCompanyAdminRole
+                                        ? row.original.isActive
+                                          ? "Deactivate user (not available for company admin)"
+                                          : "Activate user (not available for company admin)"
+                                        : hierarchyBlocked
+                                          ? row.original.isActive
+                                            ? "Deactivate user (not available outside your hierarchy)"
+                                            : "Activate user (not available outside your hierarchy)"
+                                          : row.original.isActive
+                                            ? "Deactivate user (not available for your account)"
+                                            : "Activate user (not available for your account)"
+                                    }
+                                  >
+                                    {row.original.isActive ? (
+                                      <ToggleRight className="size-5 text-muted-foreground" />
+                                    ) : (
+                                      <ToggleLeft className="size-5 text-muted-foreground" />
+                                    )}
+                                  </Button>
+                                </span>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8"
+                                  aria-label={
+                                    row.original.isActive
+                                      ? "Deactivate user"
+                                      : "Activate user"
+                                  }
+                                  onClick={() =>
+                                    setConfirm({
+                                      userId: row.original.id,
+                                      userName: row.original.name,
+                                      next: !row.original.isActive,
+                                    })
+                                  }
+                                >
+                                  {row.original.isActive ? (
+                                    <ToggleRight className="size-5 text-green-500" />
+                                  ) : (
+                                    <ToggleLeft className="size-5 text-red-500" />
+                                  )}
+                                </Button>
+                              )
                             }
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </span>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          aria-label="Delete user"
-                          onClick={() =>
-                            setDeleteConfirm({
-                              userId: row.original.id,
-                              userName: row.original.name,
-                            })
+                          ></TooltipTrigger>
+                          <TooltipContent>
+                            {isCompanyAdminRole
+                              ? "Company admin user status cannot be changed from Team"
+                              : hierarchyBlocked
+                                ? hierarchyTooltip
+                                : isSelf
+                                  ? "You cannot activate or deactivate your own account"
+                                  : row.original.isActive
+                                    ? "Deactivate user"
+                                    : "Activate user"}
+                          </TooltipContent>
+                        </Tooltip>
+                      </>
+                    ) : null}
+
+                    {canDeleteUsers ? (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            isSelf || isCompanyAdminRole || hierarchyBlocked ? (
+                              <span className="inline-flex cursor-not-allowed rounded-md">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 pointer-events-none text-muted-foreground opacity-50"
+                                  disabled
+                                  aria-label={
+                                    isCompanyAdminRole
+                                      ? "Delete user (not available for company admin)"
+                                      : hierarchyBlocked
+                                        ? "Delete user (not available outside your hierarchy)"
+                                        : "Delete user (not available for your account)"
+                                  }
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              </span>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                aria-label="Delete user"
+                                onClick={() =>
+                                  setDeleteConfirm({
+                                    userId: row.original.id,
+                                    userName: row.original.name,
+                                  })
+                                }
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            )
                           }
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      )
-                    }
-                  ></TooltipTrigger>
-                  <TooltipContent>
-                    {isCompanyAdminRole
-                      ? "Company admin users cannot be deleted from Team"
-                      : isSelf
-                        ? "You cannot delete your own account"
-                        : "Delete"}
-                  </TooltipContent>
-                </Tooltip>
-              ) : null}
-            </div>
-          );
-        },
-      } satisfies ColumnDef<TeamMemberRow>,
+                        ></TooltipTrigger>
+                        <TooltipContent>
+                          {isCompanyAdminRole
+                            ? "Company admin users cannot be deleted from Team"
+                            : hierarchyBlocked
+                              ? hierarchyTooltip
+                              : isSelf
+                                ? "You cannot delete your own account"
+                                : "Delete"}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : null}
+                  </div>
+                );
+              },
+            } satisfies ColumnDef<TeamMemberRow>,
+          ] as ColumnDef<TeamMemberRow>[])
+        : []),
     ],
-    [canDeleteUsers, canEditUsers, myUserId],
+    [
+      canDeleteUsers,
+      canEditUsers,
+      hasLoadedHierarchyScope,
+      myUserId,
+      subordinateIds,
+    ],
   );
 
   const table = useReactTable({

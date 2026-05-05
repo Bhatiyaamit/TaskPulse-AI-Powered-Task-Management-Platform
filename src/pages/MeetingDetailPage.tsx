@@ -499,65 +499,69 @@ export function MeetingDetailPage() {
           </span>
         ),
       },
-      {
-        id: "actions",
-        header: "Actions",
-        enableSorting: false,
-        cell: ({ row }) => (
-          <div className="flex items-center gap-0.5">
-            {canUpdateTask ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Link
-                      to={`/tasks/${row.original.id}/edit?returnTo=${encodeURIComponent(
-                        returnTo,
-                      )}`}
-                    >
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        aria-label="Edit task"
+      ...((canUpdateTask || canDeleteTask)
+        ? ([
+            {
+              id: "actions",
+              header: "Actions",
+              enableSorting: false,
+              cell: ({ row }) => (
+                <div className="flex items-center gap-0.5">
+                  {canUpdateTask ? (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Link
+                            to={`/tasks/${row.original.id}/edit?returnTo=${encodeURIComponent(
+                              returnTo,
+                            )}`}
+                          >
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label="Edit task"
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                          </Link>
+                        }
                       >
-                        <Pencil className="size-4" />
-                      </Button>
-                    </Link>
-                  }
-                >
-                  <span />
-                </TooltipTrigger>
-                <TooltipContent>Edit</TooltipContent>
-              </Tooltip>
-            ) : null}
-            {canDeleteTask ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      aria-label="Delete task"
-                      onClick={() =>
-                        setDeleteConfirm({
-                          taskId: row.original.id,
-                          taskTitle: row.original.title,
-                        })
-                      }
-                    />
-                  }
-                >
-                  <Trash2 className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>Delete</TooltipContent>
-              </Tooltip>
-            ) : null}
-          </div>
-        ),
-      },
+                        <span />
+                      </TooltipTrigger>
+                      <TooltipContent>Edit</TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                  {canDeleteTask ? (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            aria-label="Delete task"
+                            onClick={() =>
+                              setDeleteConfirm({
+                                taskId: row.original.id,
+                                taskTitle: row.original.title,
+                              })
+                            }
+                          />
+                        }
+                      >
+                        <Trash2 className="size-4" />
+                      </TooltipTrigger>
+                      <TooltipContent>Delete</TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                </div>
+              ),
+            } satisfies ColumnDef<MeetingTaskRow>,
+          ] as ColumnDef<MeetingTaskRow>[])
+        : []),
     ],
     [returnTo, canUpdateTask, canDeleteTask],
   );
