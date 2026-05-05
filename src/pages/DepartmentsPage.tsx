@@ -257,58 +257,62 @@ export function DepartmentsPage() {
           </span>
         ),
       },
-      {
-        id: "actions",
-        header: "Action",
-        enableSorting: false,
-        cell: ({ row }) => (
-          <div className="flex items-center gap-0.5">
-            {canUpdateDept ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Link
-                      to={`/departments/${encodeURIComponent(row.original.id)}/edit`}
-                      className={cn(
-                        buttonVariants({ variant: "outline", size: "sm" }),
-                        "h-8 w-8 p-0",
-                      )}
-                      aria-label={`Edit ${row.original.name}`}
-                    >
-                      <Pencil className="size-4" />
-                    </Link>
-                  }
-                />
-                <TooltipContent>Edit</TooltipContent>
-              </Tooltip>
-            ) : null}
-            {canDeleteDept ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                      aria-label={`Delete ${row.original.name}`}
-                      onClick={() =>
-                        setDeleteTarget({
-                          id: row.original.id,
-                          name: row.original.name,
-                        })
-                      }
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  }
-                />
-                <TooltipContent>Delete</TooltipContent>
-              </Tooltip>
-            ) : null}
-          </div>
-        ),
-      },
+      ...((canUpdateDept || canDeleteDept)
+        ? ([
+            {
+              id: "actions",
+              header: "Action",
+              enableSorting: false,
+              cell: ({ row }) => (
+                <div className="flex items-center gap-0.5">
+                  {canUpdateDept ? (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Link
+                            to={`/departments/${encodeURIComponent(row.original.id)}/edit`}
+                            className={cn(
+                              buttonVariants({ variant: "outline", size: "sm" }),
+                              "h-8 w-8 p-0",
+                            )}
+                            aria-label={`Edit ${row.original.name}`}
+                          >
+                            <Pencil className="size-4" />
+                          </Link>
+                        }
+                      />
+                      <TooltipContent>Edit</TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                  {canDeleteDept ? (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                            aria-label={`Delete ${row.original.name}`}
+                            onClick={() =>
+                              setDeleteTarget({
+                                id: row.original.id,
+                                name: row.original.name,
+                              })
+                            }
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Delete</TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                </div>
+              ),
+            } satisfies ColumnDef<DepartmentRow>,
+          ] as ColumnDef<DepartmentRow>[])
+        : []),
     ],
     [canViewTeamByDept, canUpdateDept, canDeleteDept],
   );

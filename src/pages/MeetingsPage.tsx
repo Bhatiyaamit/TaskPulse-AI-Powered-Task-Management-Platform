@@ -107,6 +107,10 @@ export function MeetingsPage() {
   const canCreateMeetings = meetingModuleCanCreate(perms);
   const canUpdateMeetings = meetingModuleCanUpdate(perms);
   const canDeleteMeetings = meetingModuleCanDelete(perms);
+  const myUserId = me.data?.user.id;
+  const myRoleCode = String(me.data?.user.roleCode ?? "").toUpperCase();
+  const hasTenantWideManageAccess =
+    myRoleCode === "SUPER_ADMIN" || myRoleCode === "COMPANY_ADMIN" || myRoleCode === "ADMIN";
   const [searchParams, setSearchParams] = useSearchParams();
   const { page, pageSize, search, priority, status, sortBy, sortDir } =
     parseMeetingsUrlParams(searchParams);
@@ -183,6 +187,24 @@ export function MeetingsPage() {
   const rows = meetingsQuery.data?.items ?? [];
   const total = meetingsQuery.data?.meta.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const subordinateIdsQuery = useQuery({
+    queryKey: ["team-members", "subordinate-ids", myUserId],
+    enabled:
+      canReadMeetings &&
+      Boolean(myUserId) &&
+      !hasTenantWideManageAccess &&
+      (canUpdateMeetings || canDeleteMeetings),
+    queryFn: async () => {
+      const { data } = await api.get<
+        ApiSuccess<MeetingRow[], { page: number; limit: number; total: number }>
+      >("/api/team/members", {
+        params: { page: 1, pageSize: 2000, hierarchyScope: "subordinates" },
+      });
+      return new Set((data.data ?? []).map((u) => u.id));
+    },
+    staleTime: 30_000,
+  });
+  const subordinateIds = subordinateIdsQuery.data ?? new Set<string>();
 
   const deleteMeeting = useMutation({
     mutationFn: async (id: string) => {
@@ -325,14 +347,42 @@ export function MeetingsPage() {
           </span>
         ),
       },
-      {
-        id: "actions",
-        header: "Action",
-        enableSorting: false,
-        cell: ({ row }) => (
-          <div className="flex items-center gap-0.5">
-            {canUpdateMeetings &&
-            row.original.computedStatus === "SCHEDULED" ? (
+      ...((canUpdateMeetings || canDeleteMeetings)
+        ? ([
+            {
+              id: "actions",
+              header: "Action",
+              enableSorting: false,
+              cell: ({ row }) => {
+                const canManageThisMeeting =
+                  hasTenantWideManageAccess ||
+                  row.original.createdBy.id === myUserId ||
+                  subordinateIds.has(row.original.createdBy.id);
+                const hierarchyBlocked = !canManageThisMeeting;
+                const hierarchyTooltip = "You can manage only your subordinate users' meetings";
+                return (
+                  <div className="flex items-center gap-0.5">
+                    {canUpdateMeetings &&
+                    row.original.computedStatus === "SCHEDULED" ? (
+                      hierarchyBlocked ? (
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 pointer-events-none text-muted-foreground opacity-50"
+                                aria-label="Start meeting (not available outside your hierarchy)"
+                                disabled
+                              />
+                            }
+                          >
+                            <Play className="size-4" />
+                          </TooltipTrigger>
+                          <TooltipContent>{hierarchyTooltip}</TooltipContent>
+                        </Tooltip>
+                      ) : (
               <button
                 type="button"
                 onClick={() => startMeeting.mutate(row.original.id)}
@@ -356,104 +406,131 @@ export function MeetingsPage() {
                   <TooltipContent>Start meeting</TooltipContent>
                 </Tooltip>
               </button>
-            ) : null}
-            {canUpdateMeetings ? (
-              row.original.computedStatus !== "SCHEDULED" ? (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        aria-label="Edit meeting (disabled)"
-                        disabled
-                      />
-                    }
-                  >
-                    <Pencil className="size-4" />
-                  </TooltipTrigger>
-                  <TooltipContent>Edit</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Link to={`/meetings/${row.original.id}/edit`}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          aria-label="Edit meeting"
-                        />
-                      }
-                    >
-                      <Pencil className="size-4" />
-                    </TooltipTrigger>
-                    <TooltipContent>Edit</TooltipContent>
-                  </Tooltip>
-                </Link>
-              )
-            ) : null}
-            {canUpdateMeetings ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      aria-label="Cancel meeting"
-                      disabled={
-                        cancelMeeting.isPending ||
-                        row.original.computedStatus === "CANCELLED" ||
-                        row.original.computedStatus === "COMPLETED"
-                      }
-                      onClick={() =>
-                        setCancelTarget({
-                          id: row.original.id,
-                          title: row.original.title,
-                        })
-                      }
-                    />
-                  }
-                >
-                  <Ban className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>Cancel</TooltipContent>
-              </Tooltip>
-            ) : null}
-            {canDeleteMeetings ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      aria-label="Delete meeting"
-                      onClick={() =>
-                        setDeleteTarget({
-                          id: row.original.id,
-                          title: row.original.title,
-                        })
-                      }
-                      disabled={deleteMeeting.isPending}
-                    />
-                  }
-                >
-                  <Trash2 className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>Delete</TooltipContent>
-              </Tooltip>
-            ) : null}
-          </div>
-        ),
-      },
+                      )
+                    ) : null}
+                    {canUpdateMeetings ? (
+                      hierarchyBlocked ? (
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 pointer-events-none text-muted-foreground opacity-50"
+                                aria-label="Edit meeting (not available outside your hierarchy)"
+                                disabled
+                              />
+                            }
+                          >
+                            <Pencil className="size-4" />
+                          </TooltipTrigger>
+                          <TooltipContent>{hierarchyTooltip}</TooltipContent>
+                        </Tooltip>
+                      ) : row.original.computedStatus !== "SCHEDULED" ? (
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8"
+                                aria-label="Edit meeting (disabled)"
+                                disabled
+                              />
+                            }
+                          >
+                            <Pencil className="size-4" />
+                          </TooltipTrigger>
+                          <TooltipContent>Edit</TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Link to={`/meetings/${row.original.id}/edit`}>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8"
+                                  aria-label="Edit meeting"
+                                />
+                              }
+                            >
+                              <Pencil className="size-4" />
+                            </TooltipTrigger>
+                            <TooltipContent>Edit</TooltipContent>
+                          </Tooltip>
+                        </Link>
+                      )
+                    ) : null}
+                    {canUpdateMeetings ? (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              aria-label="Cancel meeting"
+                              disabled={
+                                hierarchyBlocked ||
+                                cancelMeeting.isPending ||
+                                row.original.computedStatus === "CANCELLED" ||
+                                row.original.computedStatus === "COMPLETED"
+                              }
+                              onClick={() =>
+                                setCancelTarget({
+                                  id: row.original.id,
+                                  title: row.original.title,
+                                })
+                              }
+                            />
+                          }
+                        >
+                          <Ban className="size-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {hierarchyBlocked ? hierarchyTooltip : "Cancel"}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : null}
+                    {canDeleteMeetings ? (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              aria-label="Delete meeting"
+                              onClick={() =>
+                                setDeleteTarget({
+                                  id: row.original.id,
+                                  title: row.original.title,
+                                })
+                              }
+                              disabled={hierarchyBlocked || deleteMeeting.isPending}
+                            />
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {hierarchyBlocked ? hierarchyTooltip : "Delete"}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : null}
+                  </div>
+                );
+              },
+            } satisfies ColumnDef<MeetingRow>,
+          ] as ColumnDef<MeetingRow>[])
+        : []),
     ],
     [
       canDeleteMeetings,
@@ -461,6 +538,9 @@ export function MeetingsPage() {
       deleteMeeting.isPending,
       cancelMeeting.isPending,
       startMeeting.isPending,
+      hasTenantWideManageAccess,
+      myUserId,
+      subordinateIds,
     ],
   );
 
