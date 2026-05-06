@@ -310,3 +310,22 @@ export function userIsTenantPrimaryAdmin(
   const c = String(roleCode ?? "").toUpperCase();
   return c === "COMPANY_ADMIN" || c === "ADMIN";
 }
+
+/**
+ * Who may set another tenant user's password (edit-user "Reset password"):
+ * company primary admin, or Super Admin with a selected company context.
+ */
+export function userMayResetTenantUserPassword(
+  user:
+    | { tenantId?: string | null; roleCode?: string | null }
+    | null
+    | undefined,
+  selectedTenantId: string | null | undefined,
+): boolean {
+  if (userIsTenantPrimaryAdmin(user?.roleCode)) return true;
+  return (
+    user?.tenantId == null &&
+    String(user?.roleCode ?? "").toUpperCase() === "SUPER_ADMIN" &&
+    Boolean(selectedTenantId)
+  );
+}

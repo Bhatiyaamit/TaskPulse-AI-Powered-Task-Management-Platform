@@ -1,5 +1,3 @@
-
-//hello
 import { useEffect, useState } from "react";
 import {
   Navigate,
@@ -20,6 +18,10 @@ import {
   CenteredFormPage,
   FormBackLink,
 } from "@/components/layout/CenteredFormPage";
+import {
+  DEPARTMENT_NAME_MAX_LENGTH,
+  sanitizeDepartmentNameInput,
+} from "@/lib/departmentName";
 
 type DepartmentDetail = {
   id: string;
@@ -52,7 +54,7 @@ export function DepartmentEditPage() {
   useEffect(() => {
     const d = deptQuery.data;
     if (!d) return;
-    setName(d.name);
+    setName(sanitizeDepartmentNameInput(d.name));
     setCode(d.code ?? "");
   }, [deptQuery.data]);
 
@@ -143,10 +145,18 @@ export function DepartmentEditPage() {
             <Input
               id="dept-name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) =>
+                setName(sanitizeDepartmentNameInput(e.target.value))
+              }
               required
-              maxLength={120}
+              maxLength={DEPARTMENT_NAME_MAX_LENGTH}
+              pattern="[A-Za-z0-9]+"
+              title="Letters and numbers only"
+              autoComplete="off"
             />
+            <p className="text-xs text-muted-foreground">
+              Letters and numbers only (no spaces or symbols).
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="dept-code">Code (optional)</Label>

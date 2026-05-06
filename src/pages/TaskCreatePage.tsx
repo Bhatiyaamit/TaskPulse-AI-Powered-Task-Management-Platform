@@ -346,6 +346,7 @@ export function TaskCreatePage() {
       steps: values.steps.trim() || null,
       priority: values.priority,
       statusId: values.statusId,
+      parentTaskId: values.parentTaskId.trim() || null,
       assignedToId: toNull(values.assignedToId),
       reviewerId: toNull(values.reviewerId),
       supporterId: toNull(values.supporterId),

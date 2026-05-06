@@ -118,6 +118,19 @@ const LIST_STATE_QUERY_KEYS = [
   "recurrenceGroupId",
 ] as const;
 
+/** Cleared when switching task queue or My tasks tab — keeps status & due filters. */
+const QUEUE_OR_MY_TAB_NAV_CLEAR_KEYS = [
+  "page",
+  "pageSize",
+  "q",
+  "sortBy",
+  "sortDir",
+  "teamUserId",
+  "teamUserIds",
+  "teamUsersMode",
+  "recurrenceGroupId",
+] as const;
+
 const SORT_IDS = [
   "title",
   "status",
@@ -252,6 +265,10 @@ function clearListStateParams(p: URLSearchParams) {
   for (const key of LIST_STATE_QUERY_KEYS) p.delete(key);
 }
 
+function clearQueueOrMyTabNavParams(p: URLSearchParams) {
+  for (const key of QUEUE_OR_MY_TAB_NAV_CLEAR_KEYS) p.delete(key);
+}
+
 function TaskSeriesBadge({
   taskId,
   recurrenceGroupId,
@@ -353,6 +370,7 @@ export function TasksPage() {
     () => searchParams.get("q") ?? "",
   );
   const [teamUsersOpen, setTeamUsersOpen] = useState(false);
+  const [teamUsersSearch, setTeamUsersSearch] = useState("");
   const teamUsersDropdownRef = useRef<HTMLDivElement | null>(null);
   const search = useDebouncedValue(searchInput, 350);
   const prevTenantContextKeyRef = useRef<string>(tenantContextKey);
@@ -384,6 +402,10 @@ export function TasksPage() {
     };
     window.addEventListener("pointerdown", onPointerDown);
     return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [teamUsersOpen]);
+
+  useEffect(() => {
+    if (!teamUsersOpen) setTeamUsersSearch("");
   }, [teamUsersOpen]);
 
   useEffect(() => {
@@ -442,6 +464,18 @@ export function TasksPage() {
     },
   });
   const teamMembers = teamMembersQuery.data ?? [];
+  const teamUsersSearchNorm = teamUsersSearch.trim().toLowerCase();
+  const filteredTeamMembers = useMemo(() => {
+    if (!teamUsersSearchNorm) return teamMembers;
+    return teamMembers.filter((u) => {
+      const name = (u.name ?? "").toLowerCase();
+      const username = (u.username ?? "").toLowerCase();
+      return (
+        name.includes(teamUsersSearchNorm) ||
+        username.includes(teamUsersSearchNorm)
+      );
+    });
+  }, [teamMembers, teamUsersSearchNorm]);
   const allTeamUserIds = teamMembers.map((u) => u.id);
   const allTeamUserIdSet = new Set(allTeamUserIds);
   const validTeamUserIds = teamUserIds.filter((id) => allTeamUserIdSet.has(id));
@@ -656,6 +690,7 @@ export function TasksPage() {
         id: "status",
         accessorFn: (r) => r.status.label,
         header: "Status",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className={taskStatusBadgeClass(row.original.status.code)}>
             {row.original.status.label}
@@ -997,7 +1032,7 @@ export function TasksPage() {
       setSearchParams(
         (prev) => {
           const p = new URLSearchParams(prev);
-          clearListStateParams(p);
+          clearQueueOrMyTabNavParams(p);
           if (next === "my_tasks") {
             p.delete("queue");
           } else {
@@ -1017,7 +1052,7 @@ export function TasksPage() {
       setSearchParams(
         (prev) => {
           const p = new URLSearchParams(prev);
-          clearListStateParams(p);
+          clearQueueOrMyTabNavParams(p);
           if (tab === "assigned") p.delete("myTab");
           else p.set("myTab", tab);
           return p;
@@ -1490,10 +1525,21 @@ export function TasksPage() {
                 </button>
                 <div
                   className={cn(
-                    "absolute left-0 top-full z-70 mt-2 max-h-64 w-full overflow-auto rounded-md border border-border bg-card p-2 shadow-lg",
+                    "absolute left-0 top-full z-70 mt-2 max-h-72 w-full overflow-auto rounded-md border border-border bg-card p-2 shadow-lg",
                     !teamUsersOpen && "hidden",
                   )}
                 >
+                  <div className="sticky top-0 z-10 mb-2 space-y-1 bg-card pb-1">
+                    <Input
+                      type="search"
+                      placeholder="Search by name or username…"
+                      value={teamUsersSearch}
+                      onChange={(e) => setTeamUsersSearch(e.target.value)}
+                      className="h-8 text-sm"
+                      aria-label="Search team users"
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
                   <label className="mb-2 flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted/60">
                     <input
                       type="checkbox"
@@ -1523,7 +1569,7 @@ export function TasksPage() {
                     />
                     <span>All users selected</span>
                   </label>
-                  {teamMembers.map((u) => {
+                  {filteredTeamMembers.map((u) => {
                     const selected = effectiveSelectedTeamUserIds.includes(
                       u.id,
                     );
@@ -1562,7 +1608,16 @@ export function TasksPage() {
                               )
                             }
                           />
-                          {u.username}
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">
+                              {u.name || u.username}
+                            </span>
+                            {u.name ? (
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {u.username}
+                              </span>
+                            ) : null}
+                          </span>
                         </span>
                         {selected ? (
                           <Check className="size-3 text-primary" />
@@ -1570,6 +1625,13 @@ export function TasksPage() {
                       </label>
                     );
                   })}
+                  {!teamMembersQuery.isLoading &&
+                  teamMembers.length > 0 &&
+                  filteredTeamMembers.length === 0 ? (
+                    <div className="px-2 py-1 text-xs text-muted-foreground">
+                      No users match your search.
+                    </div>
+                  ) : null}
                   {!teamMembersQuery.isLoading && teamMembers.length === 0 ? (
                     <div className="px-2 py-1 text-xs text-muted-foreground">
                       No team users found.

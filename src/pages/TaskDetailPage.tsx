@@ -19,6 +19,7 @@ import {
   Paperclip,
   Shield,
   Repeat,
+  Upload,
   User,
   X,
 } from "lucide-react";
@@ -170,6 +171,17 @@ function safeStepsHtml(raw: string) {
   return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
   });
+}
+
+function hasVisibleStepsContent(raw: string | null | undefined) {
+  if (!raw) return false;
+  const clean = safeStepsHtml(raw);
+  const text = clean
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<\/?[^>]+(>|$)/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .trim();
+  return text.length > 0;
 }
 
 function escalationMinutesBeforeDue(
@@ -387,6 +399,7 @@ export function TaskDetailPage() {
   });
 
   const [uploading, setUploading] = useState(false);
+  const [selectedUploadText, setSelectedUploadText] = useState("No file chosen");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const deleteAttachmentMutation = useMutation({
@@ -445,6 +458,7 @@ export function TaskDetailPage() {
       toast.error("Upload failed");
     } finally {
       setUploading(false);
+      setSelectedUploadText("No file chosen");
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
@@ -611,12 +625,12 @@ export function TaskDetailPage() {
                     <h4 className="mb-2 text-sm font-semibold uppercase tracking-wide text-primary">
                       Steps (How to do)
                     </h4>
-                    {task.steps?.trim() ? (
+                    {hasVisibleStepsContent(task.steps) ? (
                       <div
-                        className="prose prose-sm max-w-none dark:prose-invert"
+                        className="steps-html-content max-w-none"
                         // Sanitized HTML only (see safeStepsHtml).
                         dangerouslySetInnerHTML={{
-                          __html: safeStepsHtml(task.steps),
+                          __html: safeStepsHtml(task.steps ?? ""),
                         }}
                       />
                     ) : (
@@ -788,7 +802,7 @@ export function TaskDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-2">
+                  <ul className="max-h-96 space-y-2 overflow-y-auto pr-1">
                     {task.children.map((child) => (
                       <li key={child.id}>
                         <Link
@@ -965,15 +979,42 @@ export function TaskDetailPage() {
                     >
                       Upload
                     </Label>
-                    <Input
+                    <input
                       id="file-up"
                       ref={fileInputRef}
                       type="file"
                       multiple
                       disabled={uploading}
-                      className="cursor-pointer file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm"
-                      onChange={(e) => void onPickFile(e.target.files)}
+                      className="sr-only"
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (files?.length) {
+                          if (files.length === 1) {
+                            setSelectedUploadText(files[0].name);
+                          } else {
+                            setSelectedUploadText(`${files.length} files selected`);
+                          }
+                        } else {
+                          setSelectedUploadText("No file chosen");
+                        }
+                        void onPickFile(files);
+                      }}
                     />
+                    <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={uploading}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload className="mr-2 size-4" />
+                        Choose files
+                      </Button>
+                      <span className="truncate text-sm text-muted-foreground">
+                        {uploading ? "Uploading..." : selectedUploadText}
+                      </span>
+                    </div>
                     {uploading && (
                       <p className="text-xs text-muted-foreground">
                         Uploading…

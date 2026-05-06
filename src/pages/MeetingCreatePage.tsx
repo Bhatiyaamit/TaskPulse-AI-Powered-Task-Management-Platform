@@ -283,7 +283,7 @@ export function MeetingCreatePage() {
           </div>
 
           <div className="space-y-2">
-            <Label required>Attendees <span className="text-xs font-normal text-muted-foreground">(min. 2)</span></Label>
+            <Label required>Attendees </Label>
             <Input
               value={attendeeSearch}
               onChange={(e) => setAttendeeSearch(e.target.value)}
