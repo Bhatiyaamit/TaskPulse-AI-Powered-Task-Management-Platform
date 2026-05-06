@@ -6,7 +6,6 @@ import Link from "@tiptap/extension-link";
 import {
   Bold,
   Italic,
-  Link as LinkIcon,
   List,
   ListOrdered,
   Redo2,
@@ -35,8 +34,8 @@ export function RichTextEditor({
       StarterKit,
       Link.configure({
         openOnClick: false,
-        autolink: true,
-        linkOnPaste: true,
+        autolink: false,
+        linkOnPaste: false,
         HTMLAttributes: { rel: "noopener noreferrer nofollow" },
       }),
       Placeholder.configure({
@@ -67,18 +66,6 @@ export function RichTextEditor({
   }, [editor, value]);
 
   if (!editor) return null;
-
-  function setLink() {
-    const prev = editor.getAttributes("link").href as string | undefined;
-    const url = window.prompt("Enter link URL", prev ?? "");
-    if (url == null) return;
-    const next = url.trim();
-    if (!next) {
-      editor.chain().focus().unsetLink().run();
-      return;
-    }
-    editor.chain().focus().setLink({ href: next }).run();
-  }
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -125,19 +112,6 @@ export function RichTextEditor({
           title="Numbered list"
         >
           <ListOrdered className="size-4" />
-        </Button>
-
-        <Separator orientation="vertical" className="mx-1 h-7" />
-
-        <Button
-          type="button"
-          size="icon-sm"
-          variant={editor.isActive("link") ? "secondary" : "ghost"}
-          onClick={setLink}
-          aria-label="Link"
-          title="Link"
-        >
-          <LinkIcon className="size-4" />
         </Button>
 
         <Separator orientation="vertical" className="mx-1 h-7" />

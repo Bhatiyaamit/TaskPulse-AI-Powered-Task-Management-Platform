@@ -9,7 +9,7 @@ import {
   P,
   PERMISSION_MATRIX_ACTIONS,
   PERMISSION_MATRIX_MODULES,
-  userIsTenantPrimaryAdmin,
+  userMayResetTenantUserPassword,
 } from "@/lib/permissions";
 import { useMe } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -120,7 +120,10 @@ export function TeamUserEditPage() {
 
   const me = useMe();
   const perms = new Set(me.data?.permissions ?? []);
-  const isTenantAdmin = userIsTenantPrimaryAdmin(me.data?.user?.roleCode);
+  const canResetUserPassword = userMayResetTenantUserPassword(
+    me.data?.user,
+    me.data?.selectedTenantId,
+  );
   const canUpdateUsers = perms.has(P.USERS_UPDATE);
   const userQuery = useQuery({
     enabled: canUpdateUsers && Boolean(id),
@@ -387,7 +390,7 @@ export function TeamUserEditPage() {
         phone: v.phone?.trim() ? v.phone.trim() : null,
         birthDate: v.birthDate ? new Date(v.birthDate) : null,
         isReviewer: Boolean(v.isReviewer),
-        ...(isTenantAdmin && resetPassword.trim().length > 0
+        ...(canResetUserPassword && resetPassword.trim().length > 0
           ? { password: resetPassword }
           : {}),
       };
@@ -748,7 +751,7 @@ export function TeamUserEditPage() {
             </div>
           </div>
 
-          {isTenantAdmin ? (
+          {canResetUserPassword ? (
             <div className="rounded-md border border-border bg-muted/20 p-4 sm:col-span-2 space-y-4">
               <div>
                 <div className="font-medium">Reset password</div>
