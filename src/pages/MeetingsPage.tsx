@@ -348,7 +348,7 @@ export function MeetingsPage() {
           </span>
         ),
       },
-      ...(canReadMeetings
+      ...(canUpdateMeetings || canDeleteMeetings
         ? ([
             {
               id: "actions",
@@ -367,7 +367,7 @@ export function MeetingsPage() {
                 const hierarchyTooltip = "Only host/admin/attendees can manage this meeting";
                 return (
                   <div className="flex items-center gap-0.5">
-                    {row.original.computedStatus === "SCHEDULED" ? (
+                    {canUpdateMeetings && row.original.computedStatus === "SCHEDULED" ? (
                       hierarchyBlocked ? (
                         <Tooltip>
                           <TooltipTrigger
@@ -412,7 +412,7 @@ export function MeetingsPage() {
               </button>
                       )
                     ) : null}
-                    {canReadMeetings ? (
+                    {canUpdateMeetings ? (
                       hierarchyBlocked ? (
                         <Tooltip>
                           <TooltipTrigger
@@ -470,7 +470,7 @@ export function MeetingsPage() {
                         </Link>
                       )
                     ) : null}
-                    {canReadMeetings ? (
+                    {canUpdateMeetings ? (
                       <Tooltip>
                         <TooltipTrigger
                           render={
@@ -502,7 +502,7 @@ export function MeetingsPage() {
                         </TooltipContent>
                       </Tooltip>
                     ) : null}
-                    {canReadMeetings ? (
+                    {canDeleteMeetings ? (
                       <Tooltip>
                         <TooltipTrigger
                           render={
