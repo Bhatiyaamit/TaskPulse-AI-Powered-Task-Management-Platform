@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Link,
@@ -111,6 +111,7 @@ export function TaskEditPage() {
     handleSubmit,
     register,
     reset,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<TaskEditFormValues>({
@@ -278,6 +279,11 @@ export function TaskEditPage() {
     );
   }, [checklistQuery.data, replace]);
 
+  useEffect(() => {
+    if (!isRecurring) return;
+    setValue("parentTaskId", "", { shouldDirty: true });
+  }, [isRecurring, setValue]);
+
   const userOptions = useMemo(
     () => [
       { value: UNASSIGNED, label: "Unassigned" },
@@ -434,7 +440,7 @@ export function TaskEditPage() {
       isRecurring: values.isRecurring,
       recurrencePattern: values.isRecurring ? values.recurrencePattern : null,
       checklistItems: cleanedChecklistItems,
-      parentTaskId: values.parentTaskId.trim() || null,
+      parentTaskId: values.isRecurring ? null : values.parentTaskId.trim() || null,
     });
   }
 
@@ -544,24 +550,26 @@ export function TaskEditPage() {
                 )}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="parentTaskId">Parent task</Label>
-              <p className="text-xs text-muted-foreground">
-                Link this task as a sub-task of an existing task.
-              </p>
-              <Controller
-                control={control}
-                name="parentTaskId"
-                render={({ field }) => (
-                  <SearchableTaskSelect
-                    tasks={parentCandidates ?? []}
-                    value={field.value}
-                    onChange={field.onChange}
-                    placeholder="No parent task (optional)"
-                  />
-                )}
-              />
-            </div>
+            {!isRecurring ? (
+              <div className="space-y-2">
+                <Label htmlFor="parentTaskId">Parent task</Label>
+                <p className="text-xs text-muted-foreground">
+                  Link this task as a sub-task of an existing task.
+                </p>
+                <Controller
+                  control={control}
+                  name="parentTaskId"
+                  render={({ field }) => (
+                    <SearchableTaskSelect
+                      tasks={parentCandidates ?? []}
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="No parent task (optional)"
+                    />
+                  )}
+                />
+              </div>
+            ) : null}
           </section>
 
           <Separator />
@@ -644,6 +652,15 @@ export function TaskEditPage() {
             <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">
               Timeline
             </h4>
+            {Boolean(task?.recurrenceGroupId) &&
+            sp.get("scope") &&
+            sp.get("scope") !== "this" ? (
+              <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                Updating this series: start, due, and escalation times stay
+                separate for each occurrence so they are not all set to the same
+                dates. Other changes apply to every task you selected.
+              </p>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="start">Start</Label>
@@ -732,24 +749,26 @@ export function TaskEditPage() {
                 />
               </div>
             </div>
-            <div className="pt-2">
-              <Label
-                className={cn(
-                  "inline-flex items-center gap-2",
-                  Boolean(task?.recurrenceGroupId) &&
-                    "opacity-50 cursor-not-allowed",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  {...register("isRecurring")}
-                  disabled={Boolean(task?.recurrenceGroupId)}
-                />
-                Recurring task{" "}
-                {Boolean(task?.recurrenceGroupId) &&
-                  "(Cannot un-recur an existing series)"}
-              </Label>
-            </div>
+            {isRecurring ? (
+              <div className="pt-2">
+                <Label
+                  className={cn(
+                    "inline-flex items-center gap-2",
+                    Boolean(task?.recurrenceGroupId) &&
+                      "opacity-50 cursor-not-allowed",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    {...register("isRecurring")}
+                    disabled={Boolean(task?.recurrenceGroupId)}
+                  />
+                  Recurring task{" "}
+                  {Boolean(task?.recurrenceGroupId) &&
+                    "(Cannot un-recur an existing series)"}
+                </Label>
+              </div>
+            ) : null}
           </section>
 
           {isRecurring ? (

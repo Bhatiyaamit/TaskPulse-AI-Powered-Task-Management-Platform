@@ -161,6 +161,11 @@ export function TaskCreatePage() {
     setValue("statusId", todo.id, { shouldDirty: false });
   }, [statuses, statusId, setValue]);
 
+  useEffect(() => {
+    if (!isRecurring) return;
+    setValue("parentTaskId", "", { shouldDirty: true });
+  }, [isRecurring, setValue]);
+
 
   // Compute estimated series size for live preview
   function estimateSeriesCount(): number | null {
@@ -346,7 +351,7 @@ export function TaskCreatePage() {
       steps: values.steps.trim() || null,
       priority: values.priority,
       statusId: values.statusId,
-      parentTaskId: values.parentTaskId.trim() || null,
+      parentTaskId: values.isRecurring ? null : values.parentTaskId.trim() || null,
       assignedToId: toNull(values.assignedToId),
       reviewerId: toNull(values.reviewerId),
       supporterId: toNull(values.supporterId),
@@ -468,24 +473,26 @@ export function TaskCreatePage() {
                 )}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="parentTaskId">Parent task</Label>
-              <p className="text-xs text-muted-foreground">
-                Link this task as a sub-task of an existing task.
-              </p>
-              <Controller
-                control={control}
-                name="parentTaskId"
-                render={({ field }) => (
-                  <SearchableTaskSelect
-                    tasks={parentCandidates ?? []}
-                    value={field.value}
-                    onChange={field.onChange}
-                    placeholder="No parent task (optional)"
-                  />
-                )}
-              />
-            </div>
+            {!isRecurring ? (
+              <div className="space-y-2">
+                <Label htmlFor="parentTaskId">Parent task</Label>
+                <p className="text-xs text-muted-foreground">
+                  Link this task as a sub-task of an existing task.
+                </p>
+                <Controller
+                  control={control}
+                  name="parentTaskId"
+                  render={({ field }) => (
+                    <SearchableTaskSelect
+                      tasks={parentCandidates ?? []}
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="No parent task (optional)"
+                    />
+                  )}
+                />
+              </div>
+            ) : null}
           </section>
 
           <Separator />

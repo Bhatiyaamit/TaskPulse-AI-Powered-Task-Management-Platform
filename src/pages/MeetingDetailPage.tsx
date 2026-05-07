@@ -281,7 +281,6 @@ export function MeetingDetailPage() {
         queryKey: ["meetings-paginated"],
         exact: false,
       });
-      toast.success("MOM saved");
     },
     onError: (e) => {
       const message = isAxiosError(e)
@@ -314,6 +313,12 @@ export function MeetingDetailPage() {
       : "/meetings";
 
   const meeting = data;
+  const isAttendeeUser = Boolean(
+    meeting &&
+      me.data?.user?.id &&
+      meeting.attendees.some((a) => a.user.id === me.data?.user?.id),
+  );
+  const canActOnMeeting = canUpdateMeeting || isAttendeeUser;
   const parsed = useMemo(
     () => parseMeetingTasksUrlParams(searchParams),
     [searchParams],
@@ -651,7 +656,9 @@ export function MeetingDetailPage() {
   });
 
   if (!meeting) return <div className="text-muted-foreground">Loading…</div>;
-  const hasMomNotes = Boolean((momNotesDraft ?? "").trim());
+  // Completion must depend on persisted MOM only (not unsaved draft text).
+  const hasSavedMomNotes = Boolean((meeting.momNotes ?? "").trim());
+  const hasUnsavedMomDraft = (momNotesDraft ?? "") !== (meeting.momNotes ?? "");
   const isScheduled = meeting.computedStatus === "SCHEDULED";
   const isInProgress = meeting.computedStatus === "IN_PROGRESS";
   const isCompleted = meeting.computedStatus === "COMPLETED";
@@ -680,7 +687,7 @@ export function MeetingDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {/* SCHEDULED: Edit + Start meeting */}
-          {isScheduled && canUpdateMeeting ? (
+          {isScheduled && canActOnMeeting ? (
             <>
               {/* <Link to={`/meetings/${meeting.id}/edit`}>
                 <Button variant="outline">
@@ -701,21 +708,24 @@ export function MeetingDetailPage() {
           ) : null}
 
           {/* IN_PROGRESS: Mark as completed only */}
-          {isInProgress && canUpdateMeeting ? (
+          {isInProgress && canActOnMeeting ? (
             <Button
               type="button"
               variant="default"
               isLoading={markCompleted.isPending}
-              disabled={markCompleted.isPending || !hasMomNotes}
-              onClick={async () => {
-                if (!hasMomNotes) {
+              disabled={markCompleted.isPending || !hasSavedMomNotes}
+              onClick={() => {
+                if (!hasSavedMomNotes) {
                   toast.warning(
                     "Please add MOM before marking meeting as completed.",
                   );
                   return;
                 }
-                if ((momNotesDraft ?? "") !== (meeting.momNotes ?? "")) {
-                  await saveMomNotes.mutateAsync(momNotesDraft);
+                if (hasUnsavedMomDraft) {
+                  toast.warning(
+                    "You have unsaved MOM changes. Click Save MOM first, then mark as completed.",
+                  );
+                  return;
                 }
                 markCompleted.mutate();
               }}
@@ -811,14 +821,21 @@ export function MeetingDetailPage() {
               onChange={(e) => setMomNotesDraft(e.target.value)}
               placeholder="Add meeting MOM (minutes of meeting)..."
               className="h-full min-h-0 resize-none overflow-y-auto"
-              readOnly={!canUpdateMeeting}
+              readOnly={!canActOnMeeting}
             />
-            {canUpdateMeeting ? (
+            {canActOnMeeting ? (
               <div className="flex justify-end">
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => saveMomNotes.mutate(momNotesDraft)}
+                  onClick={async () => {
+                    try {
+                      await saveMomNotes.mutateAsync(momNotesDraft);
+                      toast.success("MOM saved successfully.");
+                    } catch {
+                      // Error toast is handled by mutation onError.
+                    }
+                  }}
                   isLoading={saveMomNotes.isPending}
                   disabled={saveMomNotes.isPending}
                 >

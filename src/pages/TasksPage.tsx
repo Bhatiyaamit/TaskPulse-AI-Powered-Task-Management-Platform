@@ -207,9 +207,14 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     sortByRaw !== "" &&
     isSortId(sortByRaw) &&
     (sortDirRaw === "asc" || sortDirRaw === "desc");
-
-  const apiSortBy: SortId = explicitSort ? sortByRaw : "updatedAt";
-  const apiSortDir: "asc" | "desc" = explicitSort ? sortDirRaw : "desc";
+  const rawQueueParam = searchParams.get("queue");
+  const queue: TaskQueue = normalizeTaskQueue(rawQueueParam);
+  const defaultSortBy: SortId =
+    queue === "recurring" || queue === "given" ? "dueDate" : "updatedAt";
+  const defaultSortDir: "asc" | "desc" =
+    queue === "recurring" || queue === "given" ? "desc" : "desc";
+  const apiSortBy: SortId = explicitSort ? sortByRaw : defaultSortBy;
+  const apiSortDir: "asc" | "desc" = explicitSort ? sortDirRaw : defaultSortDir;
 
   const tableSorting: SortingState = explicitSort
     ? [{ id: sortByRaw, desc: sortDirRaw === "desc" }]
@@ -228,8 +233,6 @@ function parseTasksUrlParams(searchParams: URLSearchParams) {
     .filter(Boolean);
   const teamUsersMode =
     searchParams.get("teamUsersMode") === "none" ? "none" : "all_or_custom";
-  const rawQueueParam = searchParams.get("queue");
-  const queue: TaskQueue = normalizeTaskQueue(rawQueueParam);
   const myTab: MyTasksTab =
     queue === "my_tasks"
       ? normalizeMyTasksTab(
@@ -986,7 +989,7 @@ export function TasksPage() {
 
   const listEmptyMessage =
     queue === "recurring"
-      ? "No recurring tasks yet. This tab will list repeats once recurrence is enabled."
+      ? "No recurring tasks yet."
       : queue === "my_tasks"
         ? myTab === "assigned"
           ? "No tasks assigned to you."
