@@ -231,8 +231,8 @@ export function MeetingEditPage() {
           }
           const rawDatetime = String(fd.get("datetime") ?? "");
           const when = new Date(rawDatetime);
-          if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
-            setFormError("Meeting time must be in the future.");
+          if (Number.isNaN(when.getTime())) {
+            setFormError("Enter a valid meeting time.");
             return;
           }
           update.mutate({
@@ -338,7 +338,6 @@ export function MeetingEditPage() {
               name="datetime"
               type="datetime-local"
               required
-              min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
               value={datetimeValue}
               onChange={(e) => setDatetimeValue(e.target.value)}
             />

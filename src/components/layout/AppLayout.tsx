@@ -24,7 +24,6 @@ import {
   CheckSquare,
   Users,
   BarChart3,
-  Settings,
   Building2,
   Calendar,
   Layers,
@@ -299,11 +298,6 @@ export function AppLayout() {
                   label="Hierarchy"
                 />
               )}
-              <Nav
-                to="/settings"
-                icon={<Settings className="h-4 w-4" />}
-                label="Settings"
-              />
             </>
           )}
           {isPlatform && p.includes(P.PLATFORM_READ) && (
