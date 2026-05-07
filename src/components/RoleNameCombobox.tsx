@@ -159,7 +159,6 @@ export function RoleNameCombobox({
                 type="search"
                 value={listQuery}
                 onChange={(e) => setListQuery(e.target.value)}
-                onMouseDown={(e) => e.preventDefault()}
                 placeholder="Search roles…"
                 autoComplete="off"
                 className="h-8 w-full rounded-md border border-input bg-background/80 py-1 pl-8 pr-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"

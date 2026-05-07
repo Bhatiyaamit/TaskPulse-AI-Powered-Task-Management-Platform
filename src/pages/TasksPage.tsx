@@ -657,6 +657,7 @@ export function TasksPage() {
         accessorKey: "title",
         id: "title",
         header: "Title",
+        enableSorting: false,
         cell: ({ row }) => {
           const title = row.original.title;
           const badge = row.original.recurrenceGroupId ? (
@@ -704,6 +705,7 @@ export function TasksPage() {
         id: "priority",
         accessorFn: (r) => String(r.priority ?? "MEDIUM").toUpperCase(),
         header: "Priority",
+        enableSorting: false,
         cell: ({ row }) => {
           const priority = String(
             row.original.priority ?? "MEDIUM",
@@ -773,6 +775,7 @@ export function TasksPage() {
         id: "createdBy",
         accessorFn: (r) => r.createdBy?.name ?? "",
         header: "Created by",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.createdBy?.name ?? "—"}
@@ -783,6 +786,7 @@ export function TasksPage() {
         id: "assignedTo",
         accessorFn: (r) => r.assignedTo?.name ?? "",
         header: "Assigned to",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.assignedTo?.name ?? "—"}
@@ -803,6 +807,7 @@ export function TasksPage() {
         id: "reviewer",
         accessorFn: (r) => r.reviewer?.name ?? "",
         header: "Reviewer",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.reviewer?.name ?? "—"}

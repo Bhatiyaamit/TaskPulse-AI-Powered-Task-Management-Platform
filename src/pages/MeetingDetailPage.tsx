@@ -367,6 +367,7 @@ export function MeetingDetailPage() {
         accessorKey: "title",
         id: "title",
         header: "Title",
+        enableSorting: false,
         cell: ({ row }) => (
           <Link
             to={`/tasks/${row.original.id}?returnTo=${encodeURIComponent(returnTo)}`}
@@ -380,6 +381,7 @@ export function MeetingDetailPage() {
         id: "status",
         accessorFn: (r) => r.status.label,
         header: "Status",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className={taskStatusBadgeClass(row.original.status.code)}>
             {row.original.status.label}
@@ -390,6 +392,7 @@ export function MeetingDetailPage() {
         id: "priority",
         accessorFn: (r) => String(r.priority ?? "MEDIUM").toUpperCase(),
         header: "Priority",
+        enableSorting: false,
         cell: ({ row }) => {
           const priority = String(
             row.original.priority ?? "MEDIUM",
@@ -404,6 +407,7 @@ export function MeetingDetailPage() {
         accessorFn: (r) =>
           r.assignedTo?.name ?? r.assignedTo?.username ?? "",
         header: "Assigned to",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.assignedTo?.name ||
@@ -416,6 +420,7 @@ export function MeetingDetailPage() {
         id: "role",
         accessorFn: (r) => r.assignedTo?.role?.name ?? "",
         header: "Role",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.assignedTo?.role?.name ?? "—"}
@@ -426,6 +431,7 @@ export function MeetingDetailPage() {
         id: "department",
         accessorFn: (r) => r.department?.name ?? "",
         header: "Department",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.department?.name ?? "—"}
@@ -437,6 +443,7 @@ export function MeetingDetailPage() {
         accessorFn: (r) =>
           r.createdBy?.name ?? r.createdBy?.username ?? "",
         header: "Created by",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.createdBy?.name ||
@@ -486,6 +493,7 @@ export function MeetingDetailPage() {
         accessorKey: "reviewer",
         id: "reviewer",
         header: "Reviewer",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.reviewer?.name ||

@@ -276,6 +276,7 @@ export function MeetingsPage() {
         accessorKey: "title",
         id: "title",
         header: "Title",
+        enableSorting: false,
         cell: ({ row }) => (
           <Link
             to={`/meetings/${row.original.id}`}
