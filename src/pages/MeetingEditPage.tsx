@@ -33,6 +33,7 @@ function isoToDatetimeLocal(iso: string): string {
 
 type Meeting = {
   id: string;
+  createdBy: { id: string; name: string; username: string };
   title: string;
   agenda: string | null;
   meetingType: "ONLINE" | "OFFLINE";
@@ -57,7 +58,7 @@ export function MeetingEditPage() {
   const canUpdateMeetings = meetingModuleCanUpdate(me.data?.permissions);
 
   const { data: users } = useQuery({
-    enabled: canUpdateMeetings,
+    enabled: Boolean(id),
     queryKey: ["meeting-attendees"],
     queryFn: async () => {
       const { data } = await api.get<
@@ -68,7 +69,7 @@ export function MeetingEditPage() {
   });
 
   const meetingQuery = useQuery({
-    enabled: canUpdateMeetings && Boolean(id),
+    enabled: Boolean(id),
     queryKey: ["meeting", id],
     queryFn: async () => {
       const { data } = await api.get<ApiSuccess<{ meeting: Meeting }>>(
@@ -167,6 +168,13 @@ export function MeetingEditPage() {
   });
 
   const m = meetingQuery.data;
+  const canManageAsAttendee = Boolean(
+    m &&
+      me.data?.user?.id &&
+      (m.createdBy.id === me.data.user.id ||
+        m.attendees.some((a) => a.userId === me.data?.user?.id)),
+  );
+  const canEditThisMeeting = canUpdateMeetings || canManageAsAttendee;
   const filteredUsers = useMemo(() => {
     const q = attendeeSearch.trim().toLowerCase();
     if (!q) return users ?? [];
@@ -175,20 +183,34 @@ export function MeetingEditPage() {
     );
   }, [attendeeSearch, users]);
 
-  if (!canUpdateMeetings) {
+  if (meetingQuery.isLoading) return <div className="text-muted-foreground">Loading…</div>;
+  if (meetingQuery.isError || !m) {
     return (
       <CenteredFormPage
         title="Edit meeting"
-        description="You don’t have permission to update meetings."
+        description="Meeting not found or you do not have access."
         back={<FormBackLink to="/meetings">Back to meetings</FormBackLink>}
       >
         <p className="text-sm text-muted-foreground">
-          Contact a company admin if you need access.
+          You can edit only meetings where you are host, attendee, or admin.
         </p>
       </CenteredFormPage>
     );
   }
-  if (!m) return <div className="text-muted-foreground">Loading…</div>;
+
+  if (!canEditThisMeeting) {
+    return (
+      <CenteredFormPage
+        title="Edit meeting"
+        description="You don’t have access to edit this meeting."
+        back={<FormBackLink to="/meetings">Back to meetings</FormBackLink>}
+      >
+        <p className="text-sm text-muted-foreground">
+          You can edit only meetings where you are host, attendee, or admin.
+        </p>
+      </CenteredFormPage>
+    );
+  }
 
   return (
     <CenteredFormPage
@@ -207,6 +229,12 @@ export function MeetingEditPage() {
             setFormError("Select at least 2 attendees.");
             return;
           }
+          const rawDatetime = String(fd.get("datetime") ?? "");
+          const when = new Date(rawDatetime);
+          if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+            setFormError("Meeting time must be in the future.");
+            return;
+          }
           update.mutate({
             title: String(fd.get("title") ?? ""),
             agenda: String(fd.get("agenda") ?? "") || null,
@@ -222,7 +250,7 @@ export function MeetingEditPage() {
             preparationNotes: String(fd.get("preparationNotes") ?? "") || null,
             priority,
             durationMinutes,
-            datetime: new Date(String(fd.get("datetime"))).toISOString(),
+            datetime: when.toISOString(),
             attendeeIds,
           });
         }}
@@ -310,6 +338,7 @@ export function MeetingEditPage() {
               name="datetime"
               type="datetime-local"
               required
+              min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
               value={datetimeValue}
               onChange={(e) => setDatetimeValue(e.target.value)}
             />

@@ -211,6 +211,7 @@ export function DepartmentsPage() {
         accessorKey: "name",
         id: "name",
         header: "Department",
+        enableSorting: false,
         cell: ({ row }) => (
           <Link
             to={`/team?departmentId=${encodeURIComponent(row.original.id)}`}
@@ -238,6 +239,7 @@ export function DepartmentsPage() {
         accessorKey: "code",
         id: "code",
         header: "Code",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.code ?? "—"}

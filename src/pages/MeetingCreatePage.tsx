@@ -144,6 +144,12 @@ export function MeetingCreatePage() {
             setFormError("Select at least 2 attendees.");
             return;
           }
+          const rawDatetime = String(fd.get("datetime") ?? "");
+          const when = new Date(rawDatetime);
+          if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+            setFormError("Meeting time must be in the future.");
+            return;
+          }
           create.mutate({
             title: String(fd.get("title")),
             agenda: String(fd.get("agenda") ?? ""),
@@ -160,7 +166,7 @@ export function MeetingCreatePage() {
               String(fd.get("preparationNotes") ?? "") || undefined,
             priority,
             durationMinutes,
-            datetime: new Date(String(fd.get("datetime"))).toISOString(),
+            datetime: when.toISOString(),
             attendeeIds,
           });
         }}
@@ -245,6 +251,7 @@ export function MeetingCreatePage() {
               name="datetime"
               type="datetime-local"
               required
+              min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
               value={datetimeValue}
               onChange={(e) => setDatetimeValue(e.target.value)}
             />

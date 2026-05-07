@@ -50,6 +50,13 @@ function isTaskEscalationNotification(n: Notif): boolean {
   return notificationKind(n) === "TASK_ESCALATION";
 }
 
+function isDeletedMeetingNotification(n: Notif): boolean {
+  const action = String(n.metadata?.action ?? "").toUpperCase();
+  if (action === "DELETED") return true;
+  const msg = String(n.message ?? "").toLowerCase();
+  return msg.includes("meeting deleted");
+}
+
 function notificationIcon(n: Notif) {
   const kind = notificationKind(n);
   if (isTaskEscalationNotification(n)) return AlertTriangle;
@@ -265,7 +272,9 @@ export function NotificationBell() {
                           if (taskId && !isTaskDeletedNotification(n)) {
                             nav(`/tasks/${taskId}`);
                           }
-                          else if (meetingId) nav(`/meetings/${meetingId}`);
+                          else if (meetingId && !isDeletedMeetingNotification(n)) {
+                            nav(`/meetings/${meetingId}`);
+                          }
 
                           setOpen(false);
                         }}

@@ -367,6 +367,7 @@ export function TeamPage() {
         accessorKey: "name",
         id: "name",
         header: "Name",
+        enableSorting: false,
         cell: ({ row }) => (
           <Link
             to={`/team/${row.original.id}`}
@@ -385,6 +386,7 @@ export function TeamPage() {
         accessorKey: "employeeCode",
         id: "employeeCode",
         header: "Employee code",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.employeeCode ?? "—"}
@@ -395,6 +397,7 @@ export function TeamPage() {
         accessorKey: "role",
         id: "role",
         header: "Role",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="text-xs font-medium text-primary">
             {row.original.role?.name ?? row.original.role?.code ?? "—"}
@@ -405,6 +408,7 @@ export function TeamPage() {
         accessorKey: "department",
         id: "department",
         header: "Department",
+        enableSorting: false,
         cell: ({ row }) => {
           const d = row.original.department;
           if (!d) return <span className="text-muted-foreground">—</span>;
@@ -424,6 +428,7 @@ export function TeamPage() {
         accessorKey: "isActive",
         id: "isActive",
         header: "Status",
+        enableSorting: false,
         cell: ({ row }) => (
           <span className={userStatusBadgeClass(row.original.isActive)}>
             {row.original.isActive ? "Active" : "Inactive"}

@@ -276,6 +276,7 @@ export function MeetingsPage() {
         accessorKey: "title",
         id: "title",
         header: "Title",
+        enableSorting: false,
         cell: ({ row }) => (
           <Link
             to={`/meetings/${row.original.id}`}
@@ -347,23 +348,26 @@ export function MeetingsPage() {
           </span>
         ),
       },
-      ...((canUpdateMeetings || canDeleteMeetings)
+      ...(canReadMeetings
         ? ([
             {
               id: "actions",
               header: "Action",
               enableSorting: false,
               cell: ({ row }) => {
+                const isAttendee = row.original.attendees.some(
+                  (a) => a.userId === myUserId,
+                );
                 const canManageThisMeeting =
                   hasTenantWideManageAccess ||
                   row.original.createdBy.id === myUserId ||
-                  subordinateIds.has(row.original.createdBy.id);
+                  subordinateIds.has(row.original.createdBy.id) ||
+                  isAttendee;
                 const hierarchyBlocked = !canManageThisMeeting;
-                const hierarchyTooltip = "You can manage only your subordinate users' meetings";
+                const hierarchyTooltip = "Only host/admin/attendees can manage this meeting";
                 return (
                   <div className="flex items-center gap-0.5">
-                    {canUpdateMeetings &&
-                    row.original.computedStatus === "SCHEDULED" ? (
+                    {row.original.computedStatus === "SCHEDULED" ? (
                       hierarchyBlocked ? (
                         <Tooltip>
                           <TooltipTrigger
@@ -408,7 +412,7 @@ export function MeetingsPage() {
               </button>
                       )
                     ) : null}
-                    {canUpdateMeetings ? (
+                    {canReadMeetings ? (
                       hierarchyBlocked ? (
                         <Tooltip>
                           <TooltipTrigger
@@ -466,7 +470,7 @@ export function MeetingsPage() {
                         </Link>
                       )
                     ) : null}
-                    {canUpdateMeetings ? (
+                    {canReadMeetings ? (
                       <Tooltip>
                         <TooltipTrigger
                           render={
@@ -498,7 +502,7 @@ export function MeetingsPage() {
                         </TooltipContent>
                       </Tooltip>
                     ) : null}
-                    {canDeleteMeetings ? (
+                    {canReadMeetings ? (
                       <Tooltip>
                         <TooltipTrigger
                           render={
@@ -533,6 +537,7 @@ export function MeetingsPage() {
         : []),
     ],
     [
+      canReadMeetings,
       canDeleteMeetings,
       canUpdateMeetings,
       deleteMeeting.isPending,
