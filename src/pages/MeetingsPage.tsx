@@ -13,13 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import {
   AlertDialog,
@@ -813,9 +806,12 @@ export function MeetingsPage() {
                 >
                   Rows per page
                 </Label>
-                <Select
+                <SearchableSelect
+                  id="meeting-page-size"
+                  showSearch={false}
+                  openDirection="up"
                   value={String(pageSize)}
-                  onValueChange={(v) => {
+                  onChange={(v) => {
                     const n = Number(v) as (typeof PAGE_SIZES)[number];
                     setSearchParams(
                       (prev) => {
@@ -828,19 +824,12 @@ export function MeetingsPage() {
                       { replace: true },
                     );
                   }}
-                  itemToStringLabel={(vv) => vv}
-                >
-                  <SelectTrigger id="meeting-page-size" className="h-8 w-18">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAGE_SIZES.map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="w-18"
+                  options={PAGE_SIZES.map((n) => ({
+                    value: String(n),
+                    label: String(n),
+                  }))}
+                />
               </div>
             </div>
             <div className="flex items-center gap-2">

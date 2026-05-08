@@ -23,13 +23,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -40,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { DataTable } from "@/components/data-table";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { SearchableFilterSelect } from "@/components/SearchableFilterSelect";
 import { cn } from "@/lib/utils";
 import { userStatusBadgeClass } from "@/lib/badges";
@@ -879,9 +873,12 @@ export function TeamPage() {
                   >
                     Rows per page
                   </Label>
-                  <Select
+                  <SearchableSelect
+                    id="team-page-size"
+                    showSearch={false}
+                    openDirection="up"
                     value={String(pageSize)}
-                    onValueChange={(v) => {
+                    onChange={(v) => {
                       const n = Number(v) as (typeof PAGE_SIZES)[number];
                       setSearchParams(
                         (prev) => {
@@ -894,19 +891,12 @@ export function TeamPage() {
                         { replace: true },
                       );
                     }}
-                    itemToStringLabel={(vv) => vv}
-                  >
-                    <SelectTrigger id="team-page-size" className="h-8 w-18">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PAGE_SIZES.map((n) => (
-                        <SelectItem key={n} value={String(n)}>
-                          {n}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    className="w-18"
+                    options={PAGE_SIZES.map((n) => ({
+                      value: String(n),
+                      label: String(n),
+                    }))}
+                  />
                 </div>
               </div>
               <div className="flex items-center gap-2">

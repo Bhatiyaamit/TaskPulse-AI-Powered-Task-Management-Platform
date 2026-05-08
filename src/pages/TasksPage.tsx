@@ -26,14 +26,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DataTable } from "@/components/data-table";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { SearchableFilterSelect } from "@/components/SearchableFilterSelect";
 import {
   AlertDialog,
@@ -1679,9 +1673,12 @@ export function TasksPage() {
               <Label htmlFor="page-size" className="text-muted-foreground">
                 Rows per page
               </Label>
-              <Select
+              <SearchableSelect
+                id="page-size"
+                showSearch={false}
+                openDirection="up"
                 value={String(pagination.pageSize)}
-                onValueChange={(v) => {
+                onChange={(v) => {
                   const n = Number(v) as (typeof PAGE_SIZES)[number];
                   setSearchParams(
                     (prev) => {
@@ -1694,19 +1691,12 @@ export function TasksPage() {
                     { replace: true },
                   );
                 }}
-                itemToStringLabel={(v) => v}
-              >
-                <SelectTrigger id="page-size" className="h-8 w-18">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZES.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                className="w-18"
+                options={PAGE_SIZES.map((n) => ({
+                  value: String(n),
+                  label: String(n),
+                }))}
+              />
             </div>
           </div>
           <div className="flex items-center gap-2">

@@ -23,9 +23,17 @@ interface SearchableSelectProps {
   emptyMessage?: string;
   /** Associates the trigger with `<Label htmlFor="…">`. */
   id?: string;
+  /** Dropdown opening direction; defaults to down. */
+  openDirection?: "down" | "up" | "auto";
 }
 
-type PanelPos = { top: number; left: number; width: number; maxH: number };
+type PanelPos = {
+  top: number;
+  left: number;
+  width: number;
+  maxH: number;
+  placement: "top" | "bottom";
+};
 
 function computePanelMaxHeight(triggerBottom: number) {
   const margin = 12;
@@ -42,6 +50,7 @@ export function SearchableSelect({
   className,
   emptyMessage = "No results found.",
   id,
+  openDirection = "down",
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -53,6 +62,7 @@ export function SearchableSelect({
     left: 0,
     width: 0,
     maxH: 220,
+    placement: "bottom",
   });
 
   const shouldShowSearch = showSearch ?? options.length > 6;
@@ -68,13 +78,23 @@ export function SearchableSelect({
     if (!el) return;
     const r = el.getBoundingClientRect();
     const gap = 4;
+    const margin = 12;
+    const belowSpace = Math.max(120, window.innerHeight - r.bottom - margin - gap);
+    const aboveSpace = Math.max(120, r.top - margin - gap);
+    const openTop =
+      openDirection === "up"
+        ? true
+        : openDirection === "down"
+          ? false
+          : belowSpace < 180 && aboveSpace > belowSpace;
     setPanelPos({
-      top: r.bottom + gap,
+      top: openTop ? r.top - gap : r.bottom + gap,
       left: r.left,
       width: r.width,
-      maxH: computePanelMaxHeight(r.bottom + gap),
+      maxH: openTop ? aboveSpace : computePanelMaxHeight(r.bottom + gap),
+      placement: openTop ? "top" : "bottom",
     });
-  }, []);
+  }, [openDirection]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -131,6 +151,8 @@ export function SearchableSelect({
         left: panelPos.left,
         width: Math.max(panelPos.width, 0),
         maxWidth: "calc(100vw - 16px)",
+        transform:
+          panelPos.placement === "top" ? "translateY(-100%)" : "translateY(0)",
       }}
     >
       {shouldShowSearch && (

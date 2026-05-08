@@ -27,13 +27,6 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { chartColor } from "@/lib/chartColors";
 
@@ -700,28 +693,22 @@ export function ReportsPage() {
                         >
                           Rows per page
                         </Label>
-                        <Select
+                        <SearchableSelect
+                          id="overdue-hitlist-page-size"
+                          showSearch={false}
+                          openDirection="up"
                           value={String(overduePageSize)}
-                          onValueChange={(v) => {
+                          onChange={(v) => {
                             const n = Number(v) as (typeof OVERDUE_PAGE_SIZES)[number];
                             setOverduePageSize(n);
                             setOverduePage(1);
                           }}
-                        >
-                          <SelectTrigger
-                            id="overdue-hitlist-page-size"
-                            className="h-8 w-18"
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {OVERDUE_PAGE_SIZES.map((n) => (
-                              <SelectItem key={n} value={String(n)}>
-                                {n}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          className="w-18"
+                          options={OVERDUE_PAGE_SIZES.map((n) => ({
+                            value: String(n),
+                            label: String(n),
+                          }))}
+                        />
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
