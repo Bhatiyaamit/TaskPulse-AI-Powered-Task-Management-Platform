@@ -868,6 +868,8 @@ export function DashboardPage() {
                 if (!item) return null;
                 const showChartControl = item.type !== "KPI";
                 const hideSizeControl = item.type === "CHART";
+                const disableSizeControl = item.type === "KPI";
+                const chartControlLabel = item.type === "TABLE" ? "Table" : "Chart";
                 return (
                   <div
                     key={layout.widgetKey}
@@ -921,6 +923,7 @@ export function DashboardPage() {
                           <SearchableSelect
                             showSearch={false}
                             value={layout.size}
+                            disabled={disableSizeControl}
                             onChange={(value) =>
                               patchLayout(layout.widgetKey, {
                                 size: value as DashboardWidgetSize,
@@ -938,7 +941,7 @@ export function DashboardPage() {
 
                       {showChartControl ? (
                         <div className="space-y-1">
-                          <Label>Chart</Label>
+                          <Label>{chartControlLabel}</Label>
                           <Select
                             value={layout.chartType}
                             disabled={item.supportedChartTypes.length <= 1}
