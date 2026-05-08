@@ -22,13 +22,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   CenteredFormPage,
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
@@ -786,21 +779,26 @@ export function TaskEditPage() {
                       control={control}
                       name="recurrencePattern"
                       render={({ field }) => (
-                        <Select
+                        <SearchableSelect
+                          showSearch={false}
                           value={field.value}
-                          onValueChange={field.onChange}
+                          onChange={(value) =>
+                            field.onChange(
+                              value as
+                                | "DAILY"
+                                | "WEEKLY"
+                                | "MONTHLY"
+                                | "YEARLY",
+                            )
+                          }
                           disabled={Boolean(task?.recurrenceGroupId)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="DAILY">Daily</SelectItem>
-                            <SelectItem value="WEEKLY">Weekly</SelectItem>
-                            <SelectItem value="MONTHLY">Monthly</SelectItem>
-                            <SelectItem value="YEARLY">Yearly</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          options={[
+                            { value: "DAILY", label: "Daily" },
+                            { value: "WEEKLY", label: "Weekly" },
+                            { value: "MONTHLY", label: "Monthly" },
+                            { value: "YEARLY", label: "Yearly" },
+                          ]}
+                        />
                       )}
                     />
                   </div>
