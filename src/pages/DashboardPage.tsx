@@ -597,9 +597,17 @@ export function DashboardPage() {
     () => [...draftLayout].sort((a, b) => a.order - b.order),
     [draftLayout],
   );
+  const sortedSavedLayout = useMemo(
+    () =>
+      [...(data?.layout ?? [])]
+        .filter((item) => ALLOWED_WIDGET_KEYS.has(item.widgetKey))
+        .sort((a, b) => a.order - b.order),
+    [data?.layout],
+  );
+  const activeLayout = customize ? sortedDraftLayout : sortedSavedLayout;
 
   const visibleWidgets = useMemo(() => {
-    return sortedDraftLayout
+    return activeLayout
       .filter((layout) => layout.visible)
       .map((layout) => {
         const serverWidget = widgetDataByKey.get(layout.widgetKey);
@@ -616,7 +624,7 @@ export function DashboardPage() {
         };
       })
       .filter((widget): widget is DashboardWidgetData => widget != null);
-  }, [catalog, sortedDraftLayout, widgetDataByKey]);
+  }, [activeLayout, catalog, widgetDataByKey]);
 
   /** Preserves layout order; consecutive chart widgets render in one two-column row. */
   const dashboardSections = useMemo(() => {
@@ -675,6 +683,14 @@ export function DashboardPage() {
   const isDirty = Boolean(data) && savedState !== draftState;
   const showUnsavedBanner = customize && isDirty;
 
+  function resetDraftToSavedState() {
+    if (!data) return;
+    setDraftLayout(
+      data.layout.filter((item) => ALLOWED_WIDGET_KEYS.has(item.widgetKey)),
+    );
+    setDraftFilters(data.filters);
+  }
+
   function patchLayout(
     widgetKey: string,
     patch: Partial<DashboardWidgetLayout>,
@@ -719,7 +735,12 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         {customize ? (
-          <FormBackButton onClick={() => setCustomize(false)}>
+          <FormBackButton
+            onClick={() => {
+              resetDraftToSavedState();
+              setCustomize(false);
+            }}
+          >
             Back to dashboard
           </FormBackButton>
         ) : (
@@ -798,7 +819,10 @@ export function DashboardPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setCustomize(false)}
+                onClick={() => {
+                  resetDraftToSavedState();
+                  setCustomize(false);
+                }}
               >
                 Cancel
               </Button>
