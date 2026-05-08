@@ -114,6 +114,11 @@ type TaskRow = {
   overdue: boolean;
 };
 
+type TaskWidgetPermissionState = {
+  permissionDenied?: boolean;
+  message?: string;
+};
+
 const RANGE_LABELS: Record<DashboardRange, string> = {
   today: "Today",
   week: "This week",
@@ -367,6 +372,23 @@ function KpiWidget({ widget }: { widget: DashboardWidgetData }) {
 }
 
 function TaskTableWidget({ widget }: { widget: DashboardWidgetData }) {
+  const permissionState = widget.data as TaskWidgetPermissionState | null;
+  if (permissionState?.permissionDenied) {
+    return (
+      <EmptyWidgetText>
+        <div className="space-y-1 text-center">
+          <p className="text-sm font-medium text-foreground">
+            Task access required
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {permissionState.message ||
+              "You don't have permission for task read. Contact your administrator."}
+          </p>
+        </div>
+      </EmptyWidgetText>
+    );
+  }
+
   const rows = normalizeTaskRows(widget.data);
   const isMyToday = widget.widgetKey === "my_tasks_today";
   const formatDue = isMyToday ? formatDueDateTime : formatDate;

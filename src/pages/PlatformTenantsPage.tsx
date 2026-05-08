@@ -15,13 +15,6 @@ import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/data-table/data-table";
 import { Label } from "@/components/ui/label";
 import { Link, useSearchParams } from "react-router-dom";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
@@ -684,9 +677,11 @@ export function PlatformTenantsPage() {
               </span>
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground">Rows</span>
-                <Select
+                <SearchableSelect
+                  showSearch={false}
+                  openDirection="up"
                   value={String(pagination.pageSize)}
-                  onValueChange={(v) => {
+                  onChange={(v) => {
                     const n = Number(v);
                     setSearchParams(
                       (prev) => {
@@ -699,18 +694,12 @@ export function PlatformTenantsPage() {
                       { replace: true },
                     );
                   }}
-                >
-                  <SelectTrigger className="h-7 w-16 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAGE_SIZES.map((n) => (
-                      <SelectItem key={n} value={String(n)} className="text-xs">
-                        {n}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="w-16"
+                  options={PAGE_SIZES.map((n) => ({
+                    value: String(n),
+                    label: String(n),
+                  }))}
+                />
               </div>
             </div>
             <div className="flex items-center gap-2">
