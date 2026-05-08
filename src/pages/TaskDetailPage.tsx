@@ -52,13 +52,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import DOMPurify from "dompurify";
 
 type UserBrief = { id: string; name: string; username: string };
@@ -1169,24 +1163,17 @@ export function TaskDetailPage() {
               <CardContent className="space-y-6">
                 <div className="space-y-2">
                   <Label>Update status</Label>
-                  <Select
+                  <SearchableSelect
+                    showSearch={false}
                     value={task.status.id}
-                    onValueChange={(v) => applyStatus(v)}
+                    onChange={(v) => applyStatus(v)}
                     disabled={patchTask.isPending || statusSelectDisabled}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Status">
-                        {currentStatusLabel}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statusOptionsForSelect.map((s) => (
-                        <SelectItem key={s.id} value={s.id} label={s.label}>
-                          {s.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={statusOptionsForSelect.map((s) => ({
+                      value: s.id,
+                      label: s.label,
+                    }))}
+                    placeholder={currentStatusLabel || "Status"}
+                  />
                   {parentBlockedByOpenSubtasks ? (
                     <p className="text-xs text-muted-foreground">
                       Complete all subtasks before updating status or marking this task
