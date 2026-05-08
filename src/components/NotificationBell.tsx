@@ -124,6 +124,7 @@ export function NotificationBell() {
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const [bellPulse, setBellPulse] = useState(0);
   const prevIdsRef = useRef<string[]>([]);
+  const lastDismissClickAtRef = useRef(0);
 
   const { data } = useQuery({
     queryKey: ["notifications"],
@@ -161,7 +162,8 @@ export function NotificationBell() {
     if (!newIds.length) return;
 
     const newest = (data?.notifications ?? []).find((n) => n.id === newIds[0]);
-    if (newest) {
+    const shouldSuppressToast = Date.now() - lastDismissClickAtRef.current < 1500;
+    if (newest && !shouldSuppressToast) {
       toast(newest.message, {
         description: isTaskEscalationNotification(newest)
           ? "Task Escalation"
@@ -326,6 +328,7 @@ export function NotificationBell() {
                         )}
                         aria-label="Dismiss notification"
                         onClick={() => {
+                          lastDismissClickAtRef.current = Date.now();
                           if (!n.isRead) markRead.mutate(n.id);
                           setDismissed((prev) => {
                             const next = new Set(prev);
