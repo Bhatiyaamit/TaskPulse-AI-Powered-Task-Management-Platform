@@ -573,10 +573,14 @@ export function TaskEditPage() {
             </h4>
             <div className="grid gap-4 sm:grid-cols-1">
               <div className="space-y-2">
-                <Label>Responsible person</Label>
+                <Label required>Responsible person</Label>
                 <Controller
                   control={control}
                   name="assignedToId"
+                  rules={{
+                    validate: (v) =>
+                      v !== UNASSIGNED || "Select a responsible person.",
+                  }}
                   render={({ field }) => (
                     <SearchableSelect
                       showSearch
@@ -587,12 +591,20 @@ export function TaskEditPage() {
                     />
                   )}
                 />
+                {errors.assignedToId?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.assignedToId.message}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
-                <Label>Reviewer</Label>
+                <Label required>Reviewer</Label>
                 <Controller
                   control={control}
                   name="reviewerId"
+                  rules={{
+                    validate: (v) => v !== UNASSIGNED || "Select a reviewer.",
+                  }}
                   render={({ field }) => (
                     <SearchableSelect
                       showSearch
@@ -603,6 +615,11 @@ export function TaskEditPage() {
                     />
                   )}
                 />
+                {errors.reviewerId?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.reviewerId.message}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Supporter</Label>
@@ -621,10 +638,14 @@ export function TaskEditPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Escalation to whom</Label>
+                <Label required>Escalation to whom</Label>
                 <Controller
                   control={control}
                   name="escalationToId"
+                  rules={{
+                    validate: (v) =>
+                      v !== UNASSIGNED || "Select who receives escalation.",
+                  }}
                   render={({ field }) => (
                     <SearchableSelect
                       showSearch
@@ -635,6 +656,11 @@ export function TaskEditPage() {
                     />
                   )}
                 />
+                {errors.escalationToId?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.escalationToId.message}
+                  </p>
+                ) : null}
               </div>
             </div>
           </section>
@@ -656,11 +682,15 @@ export function TaskEditPage() {
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="start">Start</Label>
+                <Label htmlFor="start" required>
+                  Start
+                </Label>
                 <Input
                   id="start"
                   type="datetime-local"
-                  {...register("startDate")}
+                  {...register("startDate", {
+                    required: "Start date and time are required.",
+                  })}
                 />
                 {errors.startDate?.message ? (
                   <p className="text-xs text-destructive">
@@ -669,12 +699,15 @@ export function TaskEditPage() {
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="due">Due</Label>
+                <Label htmlFor="due" required>
+                  Due
+                </Label>
                 <Input
                   id="due"
                   type="datetime-local"
                   min={startDateValue || undefined}
                   {...register("dueDate", {
+                    required: "Due date and time are required.",
                     validate: (value) => {
                       if (!value) return true;
                       const dueMs = new Date(value).getTime();
