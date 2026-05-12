@@ -172,6 +172,9 @@ export function TaskEditPage() {
   });
 
   const task = taskQuery.data;
+  /** Recurring tasks keep per-occurrence timeline; do not allow editing start/due here. */
+  const disableRecurringTimelineDates =
+    Boolean(task?.isRecurring) || Boolean(task?.recurrenceGroupId);
   const statusId = watch("statusId");
   const startDateValue = watch("startDate");
   const isRecurring = watch("isRecurring");
@@ -357,13 +360,21 @@ export function TaskEditPage() {
     // statusId is hydrated from the task; keep the check but avoid unused error path text
     if (!hasStatusId) return;
 
-    const startIso = values.startDate
-      ? new Date(values.startDate).toISOString()
-      : null;
-    const dueIso = values.dueDate
-      ? new Date(values.dueDate).toISOString()
-      : null;
-    if (startIso && dueIso) {
+    const startIso = disableRecurringTimelineDates
+      ? task?.startDate
+        ? new Date(task.startDate).toISOString()
+        : null
+      : values.startDate
+        ? new Date(values.startDate).toISOString()
+        : null;
+    const dueIso = disableRecurringTimelineDates
+      ? task?.dueDate
+        ? new Date(task.dueDate).toISOString()
+        : null
+      : values.dueDate
+        ? new Date(values.dueDate).toISOString()
+        : null;
+    if (!disableRecurringTimelineDates && startIso && dueIso) {
       const startMs = new Date(startIso).getTime();
       const dueMs = new Date(dueIso).getTime();
       if (dueMs < startMs) {
@@ -682,14 +693,19 @@ export function TaskEditPage() {
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="start" required>
+                <Label htmlFor="start" required={!disableRecurringTimelineDates}>
                   Start
                 </Label>
                 <Input
                   id="start"
                   type="datetime-local"
+                  disabled={disableRecurringTimelineDates}
                   {...register("startDate", {
-                    required: "Start date and time are required.",
+                    ...(disableRecurringTimelineDates
+                      ? {}
+                      : {
+                          required: "Start date and time are required.",
+                        }),
                   })}
                 />
                 {errors.startDate?.message ? (
@@ -699,28 +715,33 @@ export function TaskEditPage() {
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="due" required>
+                <Label htmlFor="due" required={!disableRecurringTimelineDates}>
                   Due
                 </Label>
                 <Input
                   id="due"
                   type="datetime-local"
+                  disabled={disableRecurringTimelineDates}
                   min={startDateValue || undefined}
                   {...register("dueDate", {
-                    required: "Due date and time are required.",
-                    validate: (value) => {
-                      if (!value) return true;
-                      const dueMs = new Date(value).getTime();
-                      if (Number.isNaN(dueMs)) return true;
-                      const start = startDateValue;
-                      if (!start) return true;
-                      const startMs = new Date(start).getTime();
-                      if (Number.isNaN(startMs)) return true;
-                      return (
-                        dueMs >= startMs ||
-                        "Due date/time cannot be earlier than Start date/time."
-                      );
-                    },
+                    ...(disableRecurringTimelineDates
+                      ? {}
+                      : {
+                          required: "Due date and time are required.",
+                          validate: (value) => {
+                            if (!value) return true;
+                            const dueMs = new Date(value).getTime();
+                            if (Number.isNaN(dueMs)) return true;
+                            const start = startDateValue;
+                            if (!start) return true;
+                            const startMs = new Date(start).getTime();
+                            if (Number.isNaN(startMs)) return true;
+                            return (
+                              dueMs >= startMs ||
+                              "Due date/time cannot be earlier than Start date/time."
+                            );
+                          },
+                        }),
                   })}
                 />
                 {errors.dueDate?.message ? (
@@ -730,6 +751,17 @@ export function TaskEditPage() {
                 ) : null}
               </div>
             </div>
+            {disableRecurringTimelineDates &&
+            !(
+              Boolean(task?.recurrenceGroupId) &&
+              sp.get("scope") &&
+              sp.get("scope") !== "this"
+            ) ? (
+              <p className="text-xs text-muted-foreground">
+                Start and due dates are managed per occurrence for recurring tasks
+                and cannot be changed on this screen.
+              </p>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="estimatedHours">Estimated time (hours)</Label>
@@ -760,7 +792,7 @@ export function TaskEditPage() {
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="escalationMinutesBeforeDue">
+                <Label htmlFor="escalationMinutesBeforeDue" required>
                   Escalation (minutes before Due)
                 </Label>
                 <Input
@@ -770,9 +802,26 @@ export function TaskEditPage() {
                   type="number"
                   min={0}
                   step={1}
-                  {...register("escalationMinutesBeforeDue")}
+                  {...register("escalationMinutesBeforeDue", {
+                    required:
+                      "Escalation (minutes before due) is required.",
+                    validate: (value) => {
+                      const v = String(value ?? "").trim();
+                      if (!v) return true;
+                      const n = Number.parseInt(v, 10);
+                      if (Number.isNaN(n) || n < 0) {
+                        return "Enter a non-negative whole number of minutes.";
+                      }
+                      return true;
+                    },
+                  })}
                   placeholder="e.g. 20"
                 />
+                {errors.escalationMinutesBeforeDue?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.escalationMinutesBeforeDue.message}
+                  </p>
+                ) : null}
               </div>
             </div>
             {isRecurring ? (

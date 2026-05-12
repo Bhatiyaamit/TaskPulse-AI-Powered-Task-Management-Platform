@@ -621,7 +621,19 @@ export function TaskDetailPage() {
                     </h4>
                     {hasVisibleStepsContent(task.steps) ? (
                       <div
-                        className="steps-html-content max-w-none"
+                        className={cn(
+                          "steps-html-content max-w-none text-sm leading-relaxed text-foreground",
+                          // Tailwind preflight removes list markers; restore TipTap list + rich text display.
+                          "[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6",
+                          "[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6",
+                          "[&_li]:my-1 [&_li>p]:my-0",
+                          "[&_p]:my-1.5 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
+                          "[&_strong]:font-semibold [&_b]:font-semibold",
+                          "[&_em]:italic [&_i]:italic",
+                          "[&_a]:font-medium [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2",
+                          "[&_h1]:text-xl [&_h2]:text-lg [&_h3]:text-base [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold",
+                          "[&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/40 [&_blockquote]:pl-3 [&_blockquote]:italic",
+                        )}
                         // Sanitized HTML only (see safeStepsHtml).
                         dangerouslySetInnerHTML={{
                           __html: safeStepsHtml(task.steps ?? ""),
