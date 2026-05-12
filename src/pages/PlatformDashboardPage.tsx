@@ -79,7 +79,7 @@ export function PlatformDashboardPage() {
             Dashboard
           </h1>
           <p className="text-sm text-muted-foreground">
-            Overview of platform metrics and tenant activity.
+            Overview of platform metrics and company activity.
           </p>
         </div>
       </div>

@@ -691,7 +691,7 @@ export function TaskCreatePage() {
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="escalationMinutesBeforeDue">
+                <Label htmlFor="escalationMinutesBeforeDue" required>
                   Escalation (minutes before Due)
                 </Label>
                 <Input
@@ -701,9 +701,26 @@ export function TaskCreatePage() {
                   type="number"
                   min={0}
                   step={1}
-                  {...register("escalationMinutesBeforeDue")}
+                  {...register("escalationMinutesBeforeDue", {
+                    required:
+                      "Escalation (minutes before due) is required.",
+                    validate: (value) => {
+                      const v = String(value ?? "").trim();
+                      if (!v) return true;
+                      const n = Number.parseInt(v, 10);
+                      if (Number.isNaN(n) || n < 0) {
+                        return "Enter a non-negative whole number of minutes.";
+                      }
+                      return true;
+                    },
+                  })}
                   placeholder="e.g. 20"
                 />
+                {errors.escalationMinutesBeforeDue?.message ? (
+                  <p className="text-xs text-destructive">
+                    {errors.escalationMinutesBeforeDue.message}
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="pt-2">
