@@ -134,7 +134,7 @@ export function PlatformTenantEditPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="tenant-admin-username">
-                First admin username
+                Company admin username
               </Label>
               <Input
                 id="tenant-admin-username"
