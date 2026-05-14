@@ -32,13 +32,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { cn } from "@/lib/utils";
 import { chartColor, statusChartColor } from "@/lib/chartColors";
@@ -943,6 +936,7 @@ export function DashboardPage() {
                         <div className="space-y-1">
                           <Label>Size</Label>
                           <SearchableSelect
+                            className="w-full"
                             showSearch={false}
                             value={layout.size}
                             disabled={disableSizeControl}
@@ -964,26 +958,22 @@ export function DashboardPage() {
                       {showChartControl ? (
                         <div className="space-y-1">
                           <Label>{chartControlLabel}</Label>
-                          <Select
+                          <SearchableSelect
+                            className="w-full"
+                            showSearch={false}
                             value={layout.chartType}
                             disabled={item.supportedChartTypes.length <= 1}
-                            onValueChange={(value) =>
+                            onChange={(value) =>
                               patchLayout(layout.widgetKey, {
                                 chartType: value as DashboardChartType,
                               })
                             }
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {item.supportedChartTypes.map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={item.supportedChartTypes.map((type) => ({
+                              value: type,
+                              label:
+                                type.charAt(0).toUpperCase() + type.slice(1),
+                            }))}
+                          />
                         </div>
                       ) : null}
                     </div>
