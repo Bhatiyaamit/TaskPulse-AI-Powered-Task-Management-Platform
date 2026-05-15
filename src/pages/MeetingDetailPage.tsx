@@ -11,6 +11,7 @@ import {
   taskModuleCanList,
   taskModuleCanUpdate,
 } from "@/lib/permissions";
+import { formatApiDateTime } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -289,6 +290,10 @@ export function MeetingDetailPage() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["meeting", id] });
+      await qc.invalidateQueries({ queryKey: ["tasks"] });
+      await qc.invalidateQueries({ queryKey: ["task-series"] });
+      await qc.refetchQueries({ queryKey: ["tasks"], type: "active" });
+      await qc.refetchQueries({ queryKey: ["task-series"], type: "active" });
       toast.success("Task deleted");
       setDeleteConfirm(null);
     },
@@ -679,7 +684,7 @@ export function MeetingDetailPage() {
             {meeting.title}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {new Date(meeting.datetime).toLocaleString()} ·{" "}
+            {formatApiDateTime(meeting.datetime)} ·{" "}
             {meeting.durationMinutes ?? 30} min ·{" "}
             <span className={taskPriorityBadgeClass(meeting.priority)}>
               {meeting.priority}

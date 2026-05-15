@@ -786,6 +786,7 @@ export function TaskCreatePage() {
                     <Input
                       id="recurrenceEndsAt"
                       type="datetime-local"
+                      min={startDateValue || nowMin}
                       {...register("recurrenceEndsAt")}
                     />
                   </div>

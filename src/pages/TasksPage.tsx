@@ -517,36 +517,13 @@ export function TasksPage() {
       }
     },
     onSuccess: async (_data, params) => {
-      qc.setQueriesData<TasksApiResponse>(
-        { queryKey: ["tasks"], exact: false },
-        (old) => {
-          if (!old?.tasks) return old;
-          const nextTasks =
-            params.scope === "all" && params.recurrenceGroupId
-              ? old.tasks.filter(
-                  (t) => t.recurrenceGroupId !== params.recurrenceGroupId,
-                )
-              : params.scope === "all" && params.isRecurring
-                ? old.tasks.filter(
-                    (t) =>
-                      t.id !== params.taskId &&
-                      t.recurrenceSourceTaskId !== params.taskId,
-                  )
-                : params.scope === "future" && params.recurrenceGroupId
-                  ? old.tasks.filter(
-                      (t) => t.recurrenceGroupId !== params.recurrenceGroupId,
-                    )
-                  : old.tasks.filter((t) => t.id !== params.taskId);
-          const removed = old.tasks.length - nextTasks.length;
-          return {
-            ...old,
-            tasks: nextTasks,
-            total: Math.max(0, old.total - removed),
-          };
-        },
-      );
       await qc.invalidateQueries({ queryKey: ["tasks"] });
+      await qc.invalidateQueries({ queryKey: ["task-series"] });
       await qc.invalidateQueries({ queryKey: ["task", params.taskId] });
+      // Recurring / Given-by-me: refetch so list + "N of M" counts match server
+      // (e.g. after deleting a series anchor, the next occurrence is promoted).
+      await qc.refetchQueries({ queryKey: ["tasks"], type: "active" });
+      await qc.refetchQueries({ queryKey: ["task-series"], type: "active" });
       toast.success("Task deleted");
       setDeleteTarget(null);
       setDeleteScope("this");

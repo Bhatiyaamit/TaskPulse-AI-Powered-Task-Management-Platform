@@ -17,6 +17,12 @@ import {
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
 import { meetingModuleCanCreate } from "@/lib/permissions";
+import {
+  datetimeLocalToApiIso,
+  datetimeLocalToUtcMs,
+  formatApiDateTime,
+  minDatetimeLocalFromNow,
+} from "@/lib/datetime";
 import { AlertTriangle } from "lucide-react";
 
 const MEETING_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
@@ -62,7 +68,13 @@ export function MeetingCreatePage() {
     queryFn: async () => {
       const { data } = await api.get<{ data: { conflicts: ConflictEntry[] } }>(
         "/api/meetings/conflicts",
-        { params: { datetime: new Date(debouncedDatetime).toISOString(), durationMinutes, attendeeIds: debouncedAttendees.join(",") } },
+        {
+          params: {
+            datetime: datetimeLocalToApiIso(debouncedDatetime),
+            durationMinutes,
+            attendeeIds: debouncedAttendees.join(","),
+          },
+        },
       );
       return data.data.conflicts;
     },
@@ -145,8 +157,8 @@ export function MeetingCreatePage() {
             return;
           }
           const rawDatetime = String(fd.get("datetime") ?? "");
-          const when = new Date(rawDatetime);
-          if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+          const whenMs = datetimeLocalToUtcMs(rawDatetime);
+          if (Number.isNaN(whenMs) || whenMs <= Date.now()) {
             setFormError("Meeting time must be in the future.");
             return;
           }
@@ -166,7 +178,7 @@ export function MeetingCreatePage() {
               String(fd.get("preparationNotes") ?? "") || undefined,
             priority,
             durationMinutes,
-            datetime: when.toISOString(),
+            datetime: datetimeLocalToApiIso(rawDatetime),
             attendeeIds,
           });
         }}
@@ -251,7 +263,7 @@ export function MeetingCreatePage() {
               name="datetime"
               type="datetime-local"
               required
-              min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+              min={minDatetimeLocalFromNow()}
               value={datetimeValue}
               onChange={(e) => setDatetimeValue(e.target.value)}
             />
@@ -348,9 +360,7 @@ export function MeetingCreatePage() {
                       <li key={`${c.userId}-${c.meetingId}`}>
                         <span className="font-medium">{c.userName}</span> already has &quot;
                         {c.meetingTitle}&quot; at{" "}
-                        {new Date(c.meetingDatetime).toLocaleString(undefined, {
-                          dateStyle: "medium", timeStyle: "short",
-                        })}
+                        {formatApiDateTime(c.meetingDatetime)}
                         {c.meetingDurationMinutes
                           ? ` (${c.meetingDurationMinutes} min)`
                           : ""}

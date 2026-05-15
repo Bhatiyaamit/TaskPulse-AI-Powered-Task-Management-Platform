@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DataTable } from "@/components/data-table";
 import { cn } from "@/lib/utils";
+import { formatApiDateTime } from "@/lib/datetime";
 import { meetingStatusBadgeClass, taskPriorityBadgeClass } from "@/lib/badges";
 import {
   P,
@@ -296,7 +297,7 @@ export function MeetingsPage() {
         header: "Time & Date",
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {new Date(row.original.datetime).toLocaleString()}
+            {formatApiDateTime(row.original.datetime)}
           </span>
         ),
       },

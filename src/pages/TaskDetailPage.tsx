@@ -41,6 +41,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { taskPriorityBadgeClass, taskStatusBadgeClass } from "@/lib/badges";
 import { cn } from "@/lib/utils";
+import { formatApiDateTime } from "@/lib/datetime";
 import {
   Card,
   CardContent,
@@ -737,7 +738,7 @@ export function TaskDetailPage() {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         From meeting: {task.meeting.title} (
-                        {formatDateTime(task.meeting.datetime)})
+                        {formatApiDateTime(task.meeting.datetime)})
                       </p>
                       <Textarea
                         value={task.meeting.momNotes ?? ""}
