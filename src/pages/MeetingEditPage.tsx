@@ -18,18 +18,15 @@ import {
 } from "@/components/layout/CenteredFormPage";
 import { AlertTriangle } from "lucide-react";
 import { meetingModuleCanUpdate } from "@/lib/permissions";
+import {
+  datetimeLocalToApiIso,
+  datetimeLocalToUtcMs,
+  formatApiDateTime,
+  isoToDatetimeLocal,
+} from "@/lib/datetime";
 
 const MEETING_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 const MEETING_TYPES = ["ONLINE", "OFFLINE"] as const;
-
-function isoToDatetimeLocal(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-    d.getDate(),
-  )}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 type Meeting = {
   id: string;
@@ -114,7 +111,14 @@ export function MeetingEditPage() {
     queryFn: async () => {
       const { data } = await api.get<{ data: { conflicts: ConflictEntry[] } }>(
         "/api/meetings/conflicts",
-        { params: { datetime: new Date(debouncedDatetime).toISOString(), durationMinutes, attendeeIds: debouncedAttendees.join(","), excludeMeetingId: id } },
+        {
+          params: {
+            datetime: datetimeLocalToApiIso(debouncedDatetime),
+            durationMinutes,
+            attendeeIds: debouncedAttendees.join(","),
+            excludeMeetingId: id,
+          },
+        },
       );
       return data.data.conflicts;
     },
@@ -230,8 +234,7 @@ export function MeetingEditPage() {
             return;
           }
           const rawDatetime = String(fd.get("datetime") ?? "");
-          const when = new Date(rawDatetime);
-          if (Number.isNaN(when.getTime())) {
+          if (Number.isNaN(datetimeLocalToUtcMs(rawDatetime))) {
             setFormError("Enter a valid meeting time.");
             return;
           }
@@ -250,7 +253,7 @@ export function MeetingEditPage() {
             preparationNotes: String(fd.get("preparationNotes") ?? "") || null,
             priority,
             durationMinutes,
-            datetime: when.toISOString(),
+            datetime: datetimeLocalToApiIso(rawDatetime),
             attendeeIds,
           });
         }}
@@ -436,9 +439,7 @@ export function MeetingEditPage() {
                       <li key={`${c.userId}-${c.meetingId}`}>
                         <span className="font-medium">{c.userName}</span> already has &quot;
                         {c.meetingTitle}&quot; at{" "}
-                        {new Date(c.meetingDatetime).toLocaleString(undefined, {
-                          dateStyle: "medium", timeStyle: "short",
-                        })}
+                        {formatApiDateTime(c.meetingDatetime)}
                         {c.meetingDurationMinutes
                           ? ` (${c.meetingDurationMinutes} min)`
                           : ""}
