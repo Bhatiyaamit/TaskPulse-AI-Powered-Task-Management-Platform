@@ -20,6 +20,8 @@ import {
   FormBackButton,
 } from "@/components/layout/CenteredFormPage";
 import { SearchableTaskSelect } from "@/components/SearchableTaskSelect";
+import { AiTaskGeneratorPanel } from "@/components/AiTaskGeneratorPanel";
+import type { GeneratedTaskDraft } from "@/hooks/useGenerateTask";
 
 const UNASSIGNED = "__none__";
 const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
@@ -410,6 +412,27 @@ export function TaskCreatePage() {
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        {/* AI Task Generator — pre-fills the form, user confirms before saving */}
+        <AiTaskGeneratorPanel
+          onApply={(draft: GeneratedTaskDraft) => {
+            if (draft.title) setValue("title", draft.title);
+            if (draft.description) setValue("description", draft.description);
+            if (draft.priority) setValue("priority", draft.priority as (typeof TASK_PRIORITIES)[number]);
+            if (draft.dueDate) {
+              // Convert YYYY-MM-DD to datetime-local format
+              setValue("dueDate", `${draft.dueDate}T23:59`);
+            }
+            if (draft.estimatedMinutes != null) {
+              setValue("estimatedHours", String((draft.estimatedMinutes / 60).toFixed(1)));
+            }
+            if (draft.checklistItems && draft.checklistItems.length > 0) {
+              setValue("checklistItems", draft.checklistItems.map((item) => ({
+                text: item.text,
+                mandatory: Boolean(item.mandatory),
+              })));
+            }
+          }}
+        />
         <div className="space-y-6">
           <section className="space-y-4">
             <h4 className="text-sm font-semibold uppercase tracking-wide text-primary">

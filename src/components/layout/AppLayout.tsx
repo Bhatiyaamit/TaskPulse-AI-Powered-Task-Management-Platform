@@ -7,6 +7,7 @@ import {
 } from "@/hooks/useTenantContext";
 import { NotificationBell } from "@/components/NotificationBell";
 import { UserMenu } from "@/components/UserMenu";
+import { AiTaskChatWidget } from "@/components/AiTaskChatWidget";
 import { useTheme } from "@/providers/theme-provider";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -237,7 +238,7 @@ export function AppLayout() {
           <img
             src={"/logo.png"}
             alt="TMS"
-            className="h-9 w-auto select-none"
+            className="h-16 w-auto select-none"
             draggable={false}
           />
         </div>
@@ -425,6 +426,7 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <AiTaskChatWidget />
     </div>
   );
 }

@@ -35,8 +35,8 @@ export function AuthShell({
             <div className="mx-auto mb-1 grid place-items-center">
               <img
                 src={"/logo.png"}
-                alt="TMS"
-                className="h-12 w-auto select-none"
+                alt="TaskPulse"
+                className="h-14 w-auto select-none"
                 draggable={false}
               />
             </div>
