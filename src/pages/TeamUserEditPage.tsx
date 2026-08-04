@@ -496,7 +496,7 @@ export function TeamUserEditPage() {
             </Label>
             <Input
               id="name"
-              placeholder="e.g. Priya Patel"
+              placeholder="e.g. Amit Bhatiya"
               required
               {...register("name")}
             />

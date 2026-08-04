@@ -331,7 +331,7 @@ export function TaskEditPage() {
       return id;
     },
     onError: (err: unknown) => {
-      console.log(err);
+      console.error("[TaskEdit] save error:", err);
       const msg = isAxiosError(err)
         ? (err.response?.data?.message ?? err.message)
         : "Could not save task.";

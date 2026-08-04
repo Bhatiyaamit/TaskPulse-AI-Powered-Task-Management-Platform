@@ -167,7 +167,7 @@ export function PlatformTenantCreatePage() {
             <Input
               id="tenant-name"
               value={name}
-              placeholder="e.g. Acme Corporation"
+              placeholder="e.g. VKJ Technologies"
               onChange={(e) => setName(e.target.value)}
               required
             />
@@ -180,7 +180,7 @@ export function PlatformTenantCreatePage() {
               id="tenant-admin-username"
               type="text"
               value={adminUsername}
-              placeholder="e.g. acme.admin"
+              placeholder="e.g. vkj.admin"
               autoComplete="off"
               onChange={(e) => {
                 let val = e.target.value;

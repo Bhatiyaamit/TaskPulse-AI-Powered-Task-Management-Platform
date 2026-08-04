@@ -8,6 +8,7 @@ import {
 import { NotificationBell } from "@/components/NotificationBell";
 import { UserMenu } from "@/components/UserMenu";
 import { AiTaskChatWidget } from "@/components/AiTaskChatWidget";
+import { AiTaskSearchModal } from "@/components/AiTaskSearchModal";
 import { useTheme } from "@/providers/theme-provider";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -34,6 +35,7 @@ import {
   ChevronDown,
   Search,
   Check,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -168,6 +170,19 @@ export function AppLayout() {
   const tenantOptionsQuery = usePlatformTenantsOptions(Boolean(isSuperAdmin));
   const tenantContext = useTenantContext();
 
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setIsSearchModalOpen((open) => !open);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
+
   const selectedTenantId = data?.selectedTenantId ?? null;
   const [uiTenantId, setUiTenantId] = useState<string | null>(null);
 
@@ -233,16 +248,16 @@ export function AppLayout() {
           </div>
         </div>
       ) : null}
-      <aside className="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar/70 p-4 backdrop-blur supports-backdrop-filter:bg-sidebar/60">
-        <div className="mb-6 flex items-center gap-2 px-2">
+      <aside className="flex w-fit shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar/70 px-3 py-5 backdrop-blur supports-backdrop-filter:bg-sidebar/60">
+        <div className="mb-1 flex items-center px-1">
           <img
             src={"/logo.png"}
             alt="TMS"
-            className="h-16 w-auto select-none"
+            className="h-20 w-auto select-none"
             draggable={false}
           />
         </div>
-        <nav className="flex flex-1 flex-col gap-1 text-sm">
+        <nav className="flex flex-1 flex-col gap-0.5 text-sm">
           {tenant && (
             <>
               <Nav
@@ -418,6 +433,17 @@ export function AppLayout() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => setIsSearchModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-md bg-indigo-50/50 hover:bg-indigo-100/50 text-indigo-600 px-2 py-1.5 text-xs font-medium transition-colors border border-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 dark:border-indigo-500/20 dark:text-indigo-400"
+              title="AI Task Search (Cmd+K)"
+            >
+              <Sparkles className="size-3.5" />
+              <span className="hidden sm:inline-block">Ask AI</span>
+              <kbd className="hidden sm:inline-block ml-1 pointer-events-none rounded border border-indigo-200 bg-white/50 px-1.5 text-[10px] font-sans dark:border-indigo-500/30 dark:bg-black/20">
+                <span className="text-xs">⌘</span>K
+              </kbd>
+            </button>
             <NotificationBell />
             <UserMenu me={data} />
           </div>
@@ -426,6 +452,7 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <AiTaskSearchModal isOpen={isSearchModalOpen} onClose={() => setIsSearchModalOpen(false)} />
       <AiTaskChatWidget />
     </div>
   );
@@ -446,14 +473,14 @@ function Nav({
       end={to === "/"}
       className={({ isActive }) =>
         [
-          "flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors ring-1 ring-transparent",
+          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ring-1 ring-transparent",
           isActive
             ? "bg-sidebar-accent/70 text-foreground ring-[color-mix(in_oklab,var(--brand),transparent_70%)]"
             : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground hover:ring-[color-mix(in_oklab,var(--brand),transparent_80%)]",
         ].join(" ")
       }
     >
-      {icon}
+      <span className="shrink-0 [&>svg]:h-[18px] [&>svg]:w-[18px]">{icon}</span>
       {label}
     </NavLink>
   );

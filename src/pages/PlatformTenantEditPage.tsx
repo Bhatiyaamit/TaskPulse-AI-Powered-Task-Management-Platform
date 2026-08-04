@@ -126,7 +126,7 @@ export function PlatformTenantEditPage() {
                 id="tenant-name"
                 value={name}
                 placeholder={
-                  detailsQuery.isLoading ? "Loading…" : "e.g. Acme Corporation"
+                  detailsQuery.isLoading ? "Loading…" : "e.g. VKJ Technologies"
                 }
                 onChange={(e) => setName(e.target.value)}
                 required

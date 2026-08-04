@@ -154,3 +154,24 @@ export async function uploadTaskChecklistAttachment(
   if (!res.ok) throw new Error("Checklist attachment upload failed");
   return res.json();
 }
+
+export interface SemanticSearchResult {
+  id: string;
+  title: string;
+  description: string | null;
+  statusId: string;
+  assignedToId: string | null;
+  createdById: string;
+  tenantId: string;
+  createdAt: string;
+  updatedAt: string;
+  score: number;
+}
+
+export async function semanticTaskSearch(query: string, limit: number = 20): Promise<SemanticSearchResult[]> {
+  const { data } = await api.post<ApiSuccess<{ results: SemanticSearchResult[] }>>("/api/tasks/search", {
+    query,
+    limit,
+  });
+  return data.data.results;
+}

@@ -406,7 +406,7 @@ export function TeamUserCreatePage() {
             </Label>
             <Input
               id="name"
-              placeholder="e.g. Priya Patel"
+              placeholder="e.g. Amit Bhatiya"
               autoComplete="name"
               required
               {...register("name")}
@@ -423,7 +423,7 @@ export function TeamUserCreatePage() {
             <Input
               id="username"
               type="text"
-              placeholder="e.g. priya.patel"
+              placeholder="e.g. amit.bhatiya"
               autoComplete="username"
               required
               {...register("username", {
